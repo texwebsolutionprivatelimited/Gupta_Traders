@@ -2,14 +2,18 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './pages/Dashboard'
 import PlaceholderPage from './pages/PlaceholderPage'
+import POSBilling from './pages/Billing/POSBilling'
 
 function App() {
   return (
     <Router>
       <Routes>
+        {/* POS Billing — full-screen, no sidebar/header */}
+        <Route path="/pos" element={<POSBilling />} />
+
+        {/* All other pages — with sidebar layout */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/pos" element={<PlaceholderPage title="POS Billing" description="Point of Sale billing system for fast checkout" icon="pos" />} />
           <Route path="/products" element={<PlaceholderPage title="Products" description="Manage your product catalog and pricing" icon="products" />} />
           <Route path="/categories" element={<PlaceholderPage title="Categories" description="Organize products into categories" icon="categories" />} />
           <Route path="/inventory" element={<PlaceholderPage title="Inventory" description="Track stock levels and manage inventory" icon="inventory" />} />

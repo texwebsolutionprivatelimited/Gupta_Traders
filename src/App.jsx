@@ -1,21 +1,22 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
-import Home from './pages/Dashboard'
-import PlaceholderPage from './pages/PlaceholderPage'
+import Home from './pages/Dashboard/Dashboard'
+import PlaceholderPage from './pages/Dashboard/PlaceholderPage'
 import POSBilling from './pages/Billing/POSBilling'
+import ProductsPage from './pages/Products/ProductsPage'
+import CategoriesPage from './pages/Categories/CategoriesPage'
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* POS Billing — full-screen, no sidebar/header */}
         <Route path="/pos" element={<POSBilling />} />
 
         {/* All other pages — with sidebar layout */}
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/products" element={<PlaceholderPage title="Products" description="Manage your product catalog and pricing" icon="products" />} />
-          <Route path="/categories" element={<PlaceholderPage title="Categories" description="Organize products into categories" icon="categories" />} />
+          <Route path="/products" element={<ProductsPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/inventory" element={<PlaceholderPage title="Inventory" description="Track stock levels and manage inventory" icon="inventory" />} />
           <Route path="/purchase" element={<PlaceholderPage title="Purchase" description="Record and manage purchase orders" icon="purchase" />} />
           <Route path="/sales" element={<PlaceholderPage title="Sales" description="View and manage all sales transactions" icon="sales" />} />

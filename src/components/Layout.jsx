@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { searchProductsByQuery, formatINR } from '../hooks/productData'
 
 // ─── Navigation Items ───────────────────────────────────────────
 const navItems = [
@@ -156,8 +157,203 @@ function CloseIcon() {
   )
 }
 
+// ─── Header Search with Live Suggestions ────────────────────────
+function HeaderSearch({ navigate }) {
+  const [query, setQuery] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [highlightIdx, setHighlightIdx] = useState(-1)
+  const wrapperRef = useRef(null)
+  const inputRef = useRef(null)
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Search as user types
+  const handleChange = (val) => {
+    setQuery(val)
+    setHighlightIdx(-1)
+    if (val.trim().length > 0) {
+      const results = searchProductsByQuery(val, 'all')
+      setSuggestions(results.slice(0, 8))
+      setShowDropdown(true)
+    } else {
+      setSuggestions([])
+      setShowDropdown(false)
+    }
+  }
+
+  // Navigate to products page with search
+  const goToProducts = (searchTerm) => {
+    setQuery(searchTerm || query)
+    setShowDropdown(false)
+    navigate('/products')
+  }
+
+  // Pick a suggestion
+  const pickItem = (product) => {
+    setQuery(product.name)
+    setShowDropdown(false)
+    navigate('/products')
+  }
+
+  // Clear search
+  const clearSearch = () => {
+    setQuery('')
+    setSuggestions([])
+    setShowDropdown(false)
+    inputRef.current?.focus()
+  }
+
+  // Keyboard navigation
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightIdx(prev => Math.min(prev + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightIdx(prev => Math.max(prev - 1, -1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (highlightIdx >= 0 && suggestions[highlightIdx]) {
+        pickItem(suggestions[highlightIdx])
+      } else if (query.trim()) {
+        goToProducts(query)
+      }
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false)
+      inputRef.current?.blur()
+    }
+  }
+
+  return (
+    <div ref={wrapperRef} className="hidden sm:flex items-center gap-2 flex-1 max-w-lg ml-4 lg:ml-0 relative">
+      <div className="relative w-full">
+        {/* Search Icon */}
+        <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+        </svg>
+
+        {/* Input */}
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={e => handleChange(e.target.value)}
+          onFocus={() => { if (query.trim() && suggestions.length > 0) setShowDropdown(true) }}
+          onKeyDown={handleKeyDown}
+          placeholder="Search products, barcode, brand..."
+          className="w-full pl-10 pr-9 py-2 rounded-xl bg-slate-900/80 border border-slate-800/60 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"
+        />
+
+        {/* Clear button (replaces Ctrl+K) */}
+        {query ? (
+          <button
+            onClick={clearSearch}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        ) : (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+          </span>
+        )}
+      </div>
+
+      {/* ── Suggestions Dropdown ────────────────────── */}
+      {showDropdown && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden z-[60] animate-fadeIn">
+
+          {/* Results header */}
+          {suggestions.length > 0 && (
+            <div className="px-4 py-2 border-b border-slate-800/40 flex items-center justify-between">
+              <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+                {suggestions.length} result{suggestions.length !== 1 ? 's' : ''} found
+              </p>
+              <button
+                onClick={() => goToProducts(query)}
+                className="text-[11px] text-emerald-400 font-semibold hover:text-emerald-300 transition-colors cursor-pointer"
+              >
+                View All →
+              </button>
+            </div>
+          )}
+
+          {/* Product suggestions */}
+          {suggestions.length > 0 ? (
+            suggestions.map((product, idx) => {
+              const isLow = product.currentStock <= (product.minStock || 10)
+              return (
+                <button
+                  key={product.id}
+                  onClick={() => pickItem(product)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all cursor-pointer border-b border-slate-800/20 last:border-0 ${
+                    idx === highlightIdx
+                      ? 'bg-emerald-500/10'
+                      : 'hover:bg-slate-800/50'
+                  }`}
+                >
+                  {/* Type icon */}
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                    product.type === 'packaged'
+                      ? 'bg-blue-500/15 text-blue-400'
+                      : 'bg-amber-500/15 text-amber-400'
+                  }`}>
+                    {product.type === 'packaged' ? '📦' : '⚖️'}
+                  </div>
+
+                  {/* Product info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-200 truncate">{product.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {product.nameHi && <span className="text-[11px] text-slate-500">{product.nameHi}</span>}
+                      <span className="text-[10px] text-slate-600 font-mono">{product.barcode}</span>
+                    </div>
+                  </div>
+
+                  {/* Category badge */}
+                  <span className="px-2 py-0.5 rounded-md bg-slate-800/80 text-[10px] font-medium text-slate-400 capitalize flex-shrink-0 hidden md:block">
+                    {product.category}
+                  </span>
+
+                  {/* Price & Stock */}
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-bold text-emerald-400">{formatINR(product.sellingPrice)}</p>
+                    <p className={`text-[10px] font-medium ${isLow ? 'text-rose-400' : 'text-slate-500'}`}>
+                      {product.currentStock} {product.unit}
+                    </p>
+                  </div>
+                </button>
+              )
+            })
+          ) : query.trim() ? (
+            <div className="px-4 py-6 text-center">
+              <p className="text-slate-500 text-sm font-medium">No products found for "{query}"</p>
+              <p className="text-slate-600 text-xs mt-1">Try a different name, barcode, or brand</p>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Layout Component ───────────────────────────────────────────
 export default function Layout() {
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
@@ -243,9 +439,9 @@ export default function Layout() {
                   `group flex items-center gap-3 rounded-xl transition-all duration-200 relative
                    ${sidebarOpen ? 'px-3 py-2.5' : 'px-0 py-2.5 justify-center'}
                    ${isActive
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm shadow-emerald-500/5'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
-                   }
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm shadow-emerald-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
+                  }
                    ${item.highlight && !isActive ? '!text-amber-400 hover:!text-amber-300 hover:!bg-amber-500/10' : ''}
                   `
                 }
@@ -315,22 +511,8 @@ export default function Layout() {
             <MenuIcon />
           </button>
 
-          {/* Search Bar */}
-          <div className="hidden sm:flex items-center gap-2 flex-1 max-w-md ml-4 lg:ml-0">
-            <div className="relative w-full">
-              <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search anything..."
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800/60 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"
-              />
-              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-600 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/40">
-                Ctrl+K
-              </kbd>
-            </div>
-          </div>
+          {/* Search Bar with Live Suggestions */}
+          <HeaderSearch navigate={navigate} />
 
           {/* Right side */}
           <div className="flex items-center gap-3">

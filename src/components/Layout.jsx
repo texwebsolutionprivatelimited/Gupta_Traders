@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { searchProductsByQuery, formatINR } from '../hooks/productData'
+import Footer from './footer'
 
 // ─── Navigation Items ───────────────────────────────────────────
 const navItems = [
@@ -558,8 +559,11 @@ export default function Layout() {
         </header>
 
         {/* ── Page Content (Outlet) ──────────────────────── */}
-        <main className="flex-1 overflow-y-auto">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto flex flex-col justify-between">
+          <div className="flex-1">
+            <Outlet />
+          </div>
+          <Footer />
         </main>
       </div>
     </div>

@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* =========================================================
+   TAILWIND THEME
+   ========================================================= */
+
 @theme {
   --color-slate-50: var(--slate-50);
   --color-slate-100: var(--slate-100);
@@ -14,50 +18,128 @@
   --color-slate-950: var(--slate-950);
 }
 
+/* =========================================================
+   LIGHT THEME
+   ========================================================= */
+
 :root {
-  /* Dark mode is default */
-  --slate-950: #020617;
-  --slate-900: #0f172a;
-  --slate-800: #1e293b;
-  --slate-700: #334155;
-  --slate-600: #475569;
-  --slate-500: #64748b;
-  --slate-400: #94a3b8;
-  --slate-300: #cbd5e1;
-  --slate-200: #e2e8f0;
-  --slate-100: #f1f5f9;
-  --slate-50: #f8fafc;
+  --slate-50: #0f172a;
+  --slate-100: #1e293b;
+  --slate-200: #334155;
+  --slate-300: #475569;
+  --slate-400: #64748b;
+  --slate-500: #94a3b8;
+  --slate-600: #cbd5e1;
+  --slate-700: #e2e8f0;
+  --slate-800: #f1f5f9;
+  --slate-900: #f8fafc;
+  --slate-950: #ffffff;
+
+  --app-bg: #f8fafc;
+  --app-text: #0f172a;
+  --app-border: #e2e8f0;
+
+  color-scheme: light;
 }
+
+/* =========================================================
+   DARK THEME
+   ========================================================= */
+
+html.dark {
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+
+  --app-bg: #020617;
+  --app-text: #f8fafc;
+  --app-border: #1e293b;
+
+  color-scheme: dark;
+}
+
+/* =========================================================
+   LIGHT MODE OVERRIDES
+   ========================================================= */
 
 html.light {
-  /* Light mode overrides */
   --slate-950: #f8fafc;
-  /* bg-slate-950 -> very light gray */
   --slate-900: #ffffff;
-  /* bg-slate-900 -> white */
   --slate-800: #e2e8f0;
-  /* bg-slate-800 -> light border/divider gray */
   --slate-700: #cbd5e1;
-  /* border or intermediate gray */
   --slate-600: #64748b;
-  /* text-slate-600 -> muted dark gray */
   --slate-500: #475569;
-  /* text-slate-500 -> muted dark gray */
   --slate-400: #334155;
-  /* text-slate-400 */
   --slate-300: #1e293b;
-  /* text-slate-300 */
   --slate-200: #0f172a;
-  /* text-slate-200 -> dark main text */
   --slate-100: #0f172a;
-  /* text-slate-100 -> dark primary text */
   --slate-50: #0f172a;
-  /* text-slate-50 -> dark text */
+
+  --app-bg: #f8fafc;
+  --app-text: #0f172a;
+  --app-border: #e2e8f0;
+
+  color-scheme: light;
 }
 
-/* Custom scrollbar for sidebar and content areas */
+/* =========================================================
+   GLOBAL
+   ========================================================= */
+
+html {
+  min-height: 100%;
+  background: var(--app-bg);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-text);
+
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+/* Better box sizing */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Better button/input font */
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+/* Remove default button appearance issues */
+
+button {
+  cursor: pointer;
+}
+
+/* =========================================================
+   CUSTOM SCROLLBAR
+   ========================================================= */
+
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
+  height: 4px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
@@ -73,15 +155,17 @@ html.light {
   background: rgba(100, 116, 139, 0.5);
 }
 
-/* Firefox scrollbar */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
 }
 
-/* ─── POS Billing Animations ──────────────────────────────────── */
+/* =========================================================
+   POS BILLING ANIMATIONS
+   ========================================================= */
 
 /* Cart item slide-in */
+
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -98,7 +182,8 @@ html.light {
   animation: slideIn 0.25s ease-out both;
 }
 
-/* Fade in overlay */
+/* Fade in */
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -113,7 +198,8 @@ html.light {
   animation: fadeIn 0.3s ease-out both;
 }
 
-/* Scale in for success */
+/* Scale in */
+
 @keyframes scaleIn {
   from {
     opacity: 0;
@@ -131,6 +217,7 @@ html.light {
 }
 
 /* Product card add flash */
+
 @keyframes addFlash {
   0% {
     background-color: rgba(16, 185, 129, 0.2);
@@ -145,7 +232,30 @@ html.light {
   animation: addFlash 0.6s ease-out both;
 }
 
-/* Line clamp utility */
+/* =========================================================
+   INVENTORY / GENERAL ANIMATIONS
+   ========================================================= */
+
+@keyframes inventoryFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inventory-fade {
+  animation: inventoryFade 0.2s ease-out both;
+}
+
+/* =========================================================
+   LINE CLAMP
+   ========================================================= */
+
 .line-clamp-1 {
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -160,10 +270,40 @@ html.light {
   overflow: hidden;
 }
 
-/* ─── Thermal Print Styles ────────────────────────────────────── */
-@media print {
+/* =========================================================
+   FOCUS
+   ========================================================= */
 
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+
+/* =========================================================
+   NUMBER INPUT
+   Hide browser spinner
+   ========================================================= */
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* =========================================================
+   THERMAL PRINT STYLES
+   ========================================================= */
+
+@media print {
   /* Hide everything except receipt */
+
   body * {
     visibility: hidden;
   }
@@ -178,20 +318,105 @@ html.light {
     left: 0;
     top: 0;
     width: 80mm;
-    font-family: 'Courier New', Courier, monospace;
+
+    font-family:
+      "Courier New",
+      Courier,
+      monospace;
+
     font-size: 12px;
+
     color: #000;
     background: #fff;
   }
 }
 
-/* ─── Number Input: Hide Spinners ─────────────────────────────── */
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+/* =========================================================
+   REDUCE MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+
+    transition-duration: 0.01ms !important;
+  }
 }
 
-input[type="number"] {
-  -moz-appearance: textfield;
+/* =========================================================
+   MOBILE / RESPONSIVE HELPERS
+   ========================================================= */
+
+html,
+body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* =========================================================
+   SELECTION
+   ========================================================= */
+
+::selection {
+  background: rgba(16, 185, 129, 0.25);
+  color: inherit;
+}
+
+/* =========================================================
+   SMOOTH SCROLL
+   ========================================================= */
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* =========================================================
+   DISABLED ELEMENTS
+   ========================================================= */
+
+button:disabled,
+input:disabled,
+textarea:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   IMAGE DEFAULT
+   ========================================================= */
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* =========================================================
+   TABLE DEFAULT
+   ========================================================= */
+
+table {
+  border-collapse: collapse;
+}
+
+/* =========================================================
+   DARK MODE BODY
+   ========================================================= */
+
+html.dark body {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+/* =========================================================
+   LIGHT MODE BODY
+   ========================================================= */
+
+html.light body {
+  background: var(--app-bg);
+  color: var(--app-text);
 }

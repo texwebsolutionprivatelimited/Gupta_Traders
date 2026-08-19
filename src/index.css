@@ -22,22 +22,26 @@
    LIGHT THEME
    ========================================================= */
 
-:root {
-  --slate-50: #0f172a;
-  --slate-100: #1e293b;
-  --slate-200: #334155;
-  --slate-300: #475569;
-  --slate-400: #64748b;
+html.light {
+  --slate-50: #ffffff;
+  --slate-100: #f8fafc;
+  --slate-200: #f1f5f9;
+  --slate-300: #e2e8f0;
+  --slate-400: #cbd5e1;
   --slate-500: #94a3b8;
-  --slate-600: #cbd5e1;
-  --slate-700: #e2e8f0;
-  --slate-800: #f1f5f9;
-  --slate-900: #f8fafc;
-  --slate-950: #ffffff;
+  --slate-600: #64748b;
+  --slate-700: #475569;
+  --slate-800: #334155;
+  --slate-900: #1e293b;
+  --slate-950: #0f172a;
 
   --app-bg: #f8fafc;
-  --app-text: #0f172a;
+  --app-surface: #ffffff;
+  --app-surface-secondary: #f1f5f9;
   --app-border: #e2e8f0;
+  --app-text: #0f172a;
+  --app-text-secondary: #475569;
+  --app-text-muted: #64748b;
 
   color-scheme: light;
 }
@@ -60,32 +64,28 @@ html.dark {
   --slate-950: #020617;
 
   --app-bg: #020617;
-  --app-text: #f8fafc;
+  --app-surface: #0f172a;
+  --app-surface-secondary: #1e293b;
   --app-border: #1e293b;
+  --app-text: #f8fafc;
+  --app-text-secondary: #cbd5e1;
+  --app-text-muted: #94a3b8;
 
   color-scheme: dark;
 }
 
 /* =========================================================
-   LIGHT MODE OVERRIDES
+   FALLBACK
    ========================================================= */
 
-html.light {
-  --slate-950: #f8fafc;
-  --slate-900: #ffffff;
-  --slate-800: #e2e8f0;
-  --slate-700: #cbd5e1;
-  --slate-600: #64748b;
-  --slate-500: #475569;
-  --slate-400: #334155;
-  --slate-300: #1e293b;
-  --slate-200: #0f172a;
-  --slate-100: #0f172a;
-  --slate-50: #0f172a;
-
+:root {
   --app-bg: #f8fafc;
-  --app-text: #0f172a;
+  --app-surface: #ffffff;
+  --app-surface-secondary: #f1f5f9;
   --app-border: #e2e8f0;
+  --app-text: #0f172a;
+  --app-text-secondary: #475569;
+  --app-text-muted: #64748b;
 
   color-scheme: light;
 }
@@ -96,13 +96,17 @@ html.light {
 
 html {
   min-height: 100%;
+  width: 100%;
   background: var(--app-bg);
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100vh;
+  width: 100%;
   margin: 0;
-  background: var(--app-bg);
+
+  background-color: var(--app-bg);
   color: var(--app-text);
 
   transition:
@@ -110,7 +114,9 @@ body {
     color 200ms ease;
 }
 
-/* Better box sizing */
+/* =========================================================
+   BOX SIZING
+   ========================================================= */
 
 *,
 *::before,
@@ -118,7 +124,9 @@ body {
   box-sizing: border-box;
 }
 
-/* Better button/input font */
+/* =========================================================
+   FORM ELEMENTS
+   ========================================================= */
 
 button,
 input,
@@ -127,14 +135,129 @@ select {
   font: inherit;
 }
 
-/* Remove default button appearance issues */
-
 button {
   cursor: pointer;
 }
 
 /* =========================================================
-   CUSTOM SCROLLBAR
+   LIGHT MODE OVERRIDES
+   ========================================================= */
+
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* Sidebar */
+html.light .theme-sidebar {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: #e2e8f0;
+}
+
+/* Header */
+html.light .theme-header {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: #e2e8f0;
+}
+
+/* Search */
+html.light .theme-search {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+html.light .theme-search::placeholder {
+  color: #94a3b8;
+}
+
+/* Navigation */
+html.light .theme-nav-item {
+  color: #475569;
+}
+
+html.light .theme-nav-item:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+/* Sidebar dividers */
+html.light .theme-divider {
+  border-color: #e2e8f0;
+}
+
+/* Header buttons */
+html.light .theme-header-button {
+  color: #475569;
+}
+
+html.light .theme-header-button:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+/* Vertical divider */
+html.light .theme-vertical-divider {
+  background: #e2e8f0;
+}
+
+/* =========================================================
+   DARK MODE
+   ========================================================= */
+
+html.dark body {
+  background-color: #020617;
+  color: #f8fafc;
+}
+
+html.dark .theme-sidebar {
+  background: rgba(2, 6, 23, 0.96);
+  border-color: rgba(30, 41, 59, 0.7);
+}
+
+html.dark .theme-header {
+  background: rgba(2, 6, 23, 0.85);
+  border-color: rgba(30, 41, 59, 0.7);
+}
+
+html.dark .theme-search {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(51, 65, 85, 0.7);
+  color: #f8fafc;
+}
+
+html.dark .theme-search::placeholder {
+  color: #64748b;
+}
+
+html.dark .theme-nav-item {
+  color: #94a3b8;
+}
+
+html.dark .theme-nav-item:hover {
+  color: #e2e8f0;
+  background: rgba(30, 41, 59, 0.5);
+}
+
+html.dark .theme-divider {
+  border-color: rgba(30, 41, 59, 0.7);
+}
+
+html.dark .theme-header-button {
+  color: #94a3b8;
+}
+
+html.dark .theme-header-button:hover {
+  color: #e2e8f0;
+  background: rgba(30, 41, 59, 0.6);
+}
+
+html.dark .theme-vertical-divider {
+  background: rgba(30, 41, 59, 0.8);
+}
+
+/* =========================================================
+   SCROLLBAR
    ========================================================= */
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -164,8 +287,6 @@ button {
    POS BILLING ANIMATIONS
    ========================================================= */
 
-/* Cart item slide-in */
-
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -182,8 +303,6 @@ button {
   animation: slideIn 0.25s ease-out both;
 }
 
-/* Fade in */
-
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -197,8 +316,6 @@ button {
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out both;
 }
-
-/* Scale in */
 
 @keyframes scaleIn {
   from {
@@ -216,8 +333,6 @@ button {
   animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* Product card add flash */
-
 @keyframes addFlash {
   0% {
     background-color: rgba(16, 185, 129, 0.2);
@@ -233,7 +348,7 @@ button {
 }
 
 /* =========================================================
-   INVENTORY / GENERAL ANIMATIONS
+   INVENTORY ANIMATION
    ========================================================= */
 
 @keyframes inventoryFade {
@@ -284,7 +399,6 @@ select:focus-visible {
 
 /* =========================================================
    NUMBER INPUT
-   Hide browser spinner
    ========================================================= */
 
 input[type="number"]::-webkit-outer-spin-button,
@@ -298,12 +412,10 @@ input[type="number"] {
 }
 
 /* =========================================================
-   THERMAL PRINT STYLES
+   PRINT
    ========================================================= */
 
 @media print {
-  /* Hide everything except receipt */
-
   body * {
     visibility: hidden;
   }
@@ -325,7 +437,6 @@ input[type="number"] {
       monospace;
 
     font-size: 12px;
-
     color: #000;
     background: #fff;
   }
@@ -340,16 +451,14 @@ input[type="number"] {
   *::before,
   *::after {
     scroll-behavior: auto !important;
-
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-
     transition-duration: 0.01ms !important;
   }
 }
 
 /* =========================================================
-   MOBILE / RESPONSIVE HELPERS
+   RESPONSIVE
    ========================================================= */
 
 html,
@@ -367,16 +476,18 @@ body {
   color: inherit;
 }
 
-/* =========================================================
-   SMOOTH SCROLL
-   ========================================================= */
+html.dark ::selection {
+  background: rgba(16, 185, 129, 0.35);
+  color: #ffffff;
+}
 
-html {
-  scroll-behavior: smooth;
+html.light ::selection {
+  background: rgba(16, 185, 129, 0.2);
+  color: #0f172a;
 }
 
 /* =========================================================
-   DISABLED ELEMENTS
+   DISABLED
    ========================================================= */
 
 button:disabled,
@@ -387,7 +498,7 @@ select:disabled {
 }
 
 /* =========================================================
-   IMAGE DEFAULT
+   IMAGE
    ========================================================= */
 
 img {
@@ -396,7 +507,7 @@ img {
 }
 
 /* =========================================================
-   TABLE DEFAULT
+   TABLE
    ========================================================= */
 
 table {
@@ -404,19 +515,17 @@ table {
 }
 
 /* =========================================================
-   DARK MODE BODY
+   FORM COLOR SCHEME
    ========================================================= */
 
-html.dark body {
-  background: var(--app-bg);
-  color: var(--app-text);
+html.dark input,
+html.dark textarea,
+html.dark select {
+  color-scheme: dark;
 }
 
-/* =========================================================
-   LIGHT MODE BODY
-   ========================================================= */
-
-html.light body {
-  background: var(--app-bg);
-  color: var(--app-text);
+html.light input,
+html.light textarea,
+html.light select {
+  color-scheme: light;
 }

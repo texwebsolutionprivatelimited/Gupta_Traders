@@ -94,7 +94,7 @@ export default function CustomerReport() {
                             ← Back to Reports
                         </Link>
 
-                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white print:text-black sm:text-4xl">
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50 print:text-black sm:text-4xl">
                             Customer Report
                         </h1>
 
@@ -150,7 +150,7 @@ export default function CustomerReport() {
                 {/* Customer Details Table */}
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-slate-300 print:bg-white">
                     <div className="border-b border-slate-200 p-5 dark:border-slate-800 print:border-slate-300">
-                        <h2 className="text-xl font-semibold text-slate-900 dark:text-white print:text-black">
+                        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50 print:text-black">
                             Customer Details
                         </h2>
                     </div>

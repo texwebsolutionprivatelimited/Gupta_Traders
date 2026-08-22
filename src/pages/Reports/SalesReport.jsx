@@ -106,16 +106,16 @@ export default function SalesReport() {
                 onChange={(e) => setDateFilter(e.target.value)}
                 className="bg-transparent text-sm font-medium text-slate-700 outline-none dark:text-slate-300"
               >
-                <option value="All" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">
+                <option value="All" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50">
                   All Time
                 </option>
-                <option value="7" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">
+                <option value="7" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50">
                   Last 7 Days
                 </option>
-                <option value="30" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">
+                <option value="30" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50">
                   Last 30 Days
                 </option>
-                <option value="90" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">
+                <option value="90" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50">
                   Last 90 Days
                 </option>
               </select>
@@ -260,7 +260,7 @@ function SummaryCard({ label, value, icon: Icon, iconColor }) {
         <Icon size={20} className={iconColor} />
       </div>
 
-      <h3 className="mt-3 text-2xl font-bold text-slate-900 dark:text-white">
+      <h3 className="mt-3 text-2xl font-bold text-slate-900 dark:text-red-400">
         {value}
       </h3>
     </div>

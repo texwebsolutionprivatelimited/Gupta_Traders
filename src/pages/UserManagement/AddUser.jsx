@@ -147,7 +147,7 @@ export default function AddUser() {
                         </div>
 
                         <div>
-                            <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+                            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 sm:text-3xl">
                                 Add User
                             </h1>
 
@@ -171,7 +171,7 @@ export default function AddUser() {
 
                     {/* Basic Information */}
                     <div className="mb-8">
-                        <h2 className="mb-1 text-lg font-semibold text-slate-900 dark:text-white">
+                        <h2 className="mb-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
                             Basic Information
                         </h2>
 
@@ -230,8 +230,8 @@ export default function AddUser() {
                                     onChange={handleChange}
                                     className="input-field"
                                 >
-                                    <option value="Active" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Active</option>
-                                    <option value="Inactive" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">Inactive</option>
+                                    <option value="Active" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50">Active</option>
+                                    <option value="Inactive" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50">Inactive</option>
                                 </select>
                             </FormField>
                         </div>
@@ -245,7 +245,7 @@ export default function AddUser() {
                             </div>
 
                             <div>
-                                <h2 className="font-semibold text-slate-900 dark:text-white">
+                                <h2 className="font-semibold text-slate-900 dark:text-slate-50">
                                     Role & Access
                                 </h2>
 
@@ -271,7 +271,7 @@ export default function AddUser() {
                         </FormField>
 
                         <div className="mt-4 rounded-xl bg-slate-100 p-4 dark:bg-slate-800/60">
-                            <p className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">
+                            <p className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-50">
                                 Role Access
                             </p>
 
@@ -287,7 +287,7 @@ export default function AddUser() {
 
                     {/* Password */}
                     <div className="mb-8">
-                        <h2 className="mb-1 text-lg font-semibold text-slate-900 dark:text-white">
+                        <h2 className="mb-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
                             Login Security
                         </h2>
 

@@ -140,7 +140,7 @@ function SettingsPage({ title, description, icon, children }) {
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
               {title}
             </h1>
 

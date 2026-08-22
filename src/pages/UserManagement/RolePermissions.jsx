@@ -164,7 +164,7 @@ export default function RolePermissions() {
                             </div>
 
                             <div>
-                                <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+                                <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 sm:text-3xl">
                                     Role & Permissions
                                 </h1>
 
@@ -197,7 +197,7 @@ export default function RolePermissions() {
                 {/* Role Selector */}
                 <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <div className="mb-4">
-                        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
                             Select Role
                         </h2>
 
@@ -264,7 +264,7 @@ export default function RolePermissions() {
                     {/* Panel Header */}
                     <div className="flex flex-col gap-4 border-b border-slate-200 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
                                 {selectedRole} Permissions
                             </h2>
 
@@ -334,7 +334,7 @@ export default function RolePermissions() {
                                             </span>
 
                                             <div>
-                                                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                                                     {module}
                                                 </p>
 
@@ -366,7 +366,7 @@ export default function RolePermissions() {
                     {/* Footer */}
                     <div className="flex flex-col gap-3 border-t border-slate-200 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <p className="text-sm font-medium text-slate-900 dark:text-white">
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
                                 Selected Role: {selectedRole}
                             </p>
 

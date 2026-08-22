@@ -136,10 +136,21 @@ body {
   border-color: var(--app-border);
 }
 
-/* Search */
+/* Search
 .theme-search {
   background: var(--app-surface-secondary);
   border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+.theme-search::placeholder {
+  color: var(--app-text-muted);
+} */
+
+/* Custom / CSS Variable Based Theme */
+.theme-search {
+  background-color: var(--app-surface-secondary);
+  border: 1px solid var(--app-border);
   color: var(--app-text);
 }
 

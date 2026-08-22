@@ -359,7 +359,7 @@ export default function UserManagement() {
                           <UserAvatar name={user.name} />
 
                           <div>
-                            <p className="font-semibold text-slate-900 dark:text-white">
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">
                               {user.name}
                             </p>
 
@@ -469,7 +469,7 @@ function StatCard({
             {title}
           </p>
 
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-blue-400">
             {value}
           </p>
 
@@ -502,7 +502,7 @@ function RoleCard({
           </div>
 
           <div>
-            <h3 className="font-semibold text-slate-900 dark:text-white">{role}</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-red-400">{role}</h3>
 
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {description}

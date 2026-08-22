@@ -39,6 +39,7 @@ export default function GSTSettings() {
 
   return (
     <PageShell
+    
       title="GST Settings"
       description="Configure GST and tax settings for your business."
       icon={<ReceiptText size={22} />}

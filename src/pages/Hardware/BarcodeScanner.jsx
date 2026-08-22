@@ -81,7 +81,7 @@ export default function BarcodeScanner() {
                         </div>
 
                         <div>
-                            <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+                            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 sm:text-3xl">
                                 Barcode Scanner
                             </h1>
 
@@ -112,7 +112,7 @@ export default function BarcodeScanner() {
                             </div>
 
                             <div>
-                                <h2 className="font-semibold text-slate-900 dark:text-white">
+                                <h2 className="font-semibold text-slate-900 dark:text-slate-50">
                                     Scanner Status
                                 </h2>
 
@@ -155,7 +155,7 @@ export default function BarcodeScanner() {
                             </div>
 
                             <div>
-                                <h2 className="font-semibold text-slate-900 dark:text-white">
+                                <h2 className="font-semibold text-slate-900 dark:text-slate-50">
                                     Scanner Settings
                                 </h2>
 
@@ -255,7 +255,7 @@ export default function BarcodeScanner() {
                             </div>
 
                             <div>
-                                <h2 className="font-semibold text-slate-900 dark:text-white">
+                                <h2 className="font-semibold text-slate-900 dark:text-slate-50">
                                     Test Barcode Scanner
                                 </h2>
 

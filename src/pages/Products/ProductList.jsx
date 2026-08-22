@@ -218,24 +218,22 @@ export default function ProductList() {
                 </div>
 
                 {/* Search */}
-                <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                {/* Search */}
+                <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
                     <div className="relative">
                         <Search
                             size={18}
-                            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
                         />
 
                         <input
                             type="text"
                             placeholder="Search by product name, SKU, code, barcode, brand or category..."
                             value={search}
-                            onChange={(e) =>
-                                setSearch(
-                                    e.target.value
-                                )
-                            }
-                            className="w-full rounded-xl border border-slate-700 bg-slate-800 py-3 pl-12 pr-4 text-slate-300 outline-none transition placeholder:text-slate-500 focus:border-emerald-500"
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="theme-search w-full rounded-xl border py-3 pl-12 pr-4 outline-none transition focus:ring-2 focus:ring-emerald-500"
                         />
+
                     </div>
                 </div>
 

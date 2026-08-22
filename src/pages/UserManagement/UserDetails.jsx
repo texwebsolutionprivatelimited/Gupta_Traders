@@ -1,4 +1,3 @@
-
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -73,17 +72,17 @@ export default function UserDetails() {
             className="mx-auto mb-4 text-slate-400"
           />
 
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             User Not Found
           </h1>
 
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             The requested user does not exist.
           </p>
 
           <Link
             to="/users"
-            className="mt-6 inline-flex rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
+            className="mt-6 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             Back to Users
           </Link>
@@ -92,8 +91,7 @@ export default function UserDetails() {
     );
   }
 
-  const permissions =
-    rolePermissions[user.role] || [];
+  const permissions = rolePermissions[user.role] || [];
 
   const initials = String(user.name || "User")
     .split(" ")
@@ -110,16 +108,12 @@ export default function UserDetails() {
       ).length;
 
       if (adminCount <= 1) {
-        alert(
-          "At least one Admin / Owner must remain."
-        );
+        alert("At least one Admin / Owner must remain.");
         return;
       }
     }
 
-    const confirmed = window.confirm(
-      `Delete ${user.name}?`
-    );
+    const confirmed = window.confirm(`Delete ${user.name}?`);
 
     if (!confirmed) return;
 
@@ -127,10 +121,7 @@ export default function UserDetails() {
       (item) => String(item.id) !== String(id)
     );
 
-    localStorage.setItem(
-      "users",
-      JSON.stringify(updatedUsers)
-    );
+    localStorage.setItem("users", JSON.stringify(updatedUsers));
 
     alert("User deleted successfully!");
 
@@ -138,14 +129,13 @@ export default function UserDetails() {
   };
 
   return (
-    <div className="min-h-full bg-slate-50 p-4 text-slate-900 dark:bg-slate-950 dark:text-white sm:p-6 lg:p-8">
+    <div className="min-h-full bg-slate-50 p-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-5xl">
-
         {/* Header */}
         <div className="mb-6">
           <Link
             to="/users"
-            className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-500 hover:text-emerald-600"
+            className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
           >
             <ArrowLeft size={17} />
             Back to Users
@@ -156,10 +146,10 @@ export default function UserDetails() {
               <div className="mb-2 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                 <span>Users</span>
                 <span>/</span>
-                <span>{user.name}</span>
+                <span className="text-slate-700 dark:text-slate-300">{user.name}</span>
               </div>
 
-              <h1 className="text-2xl font-bold sm:text-3xl">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-100">
                 User Details
               </h1>
             </div>
@@ -167,10 +157,8 @@ export default function UserDetails() {
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() =>
-                  navigate(`/users/edit/${user.id}`)
-                }
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-600"
+                onClick={() => navigate(`/users/edit/${user.id}`)}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
               >
                 <Pencil size={17} />
                 Edit User
@@ -179,7 +167,7 @@ export default function UserDetails() {
               <button
                 type="button"
                 onClick={handleDelete}
-                className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white hover:bg-rose-600"
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 dark:bg-rose-600 dark:hover:bg-rose-500"
               >
                 <Trash2 size={17} />
                 Delete
@@ -191,24 +179,24 @@ export default function UserDetails() {
         {/* Profile */}
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-2xl font-bold text-white">
+            <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-2xl font-bold text-white shadow-sm">
               {initials || "U"}
             </div>
 
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-bold">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                   {user.name}
                 </h2>
 
                 <StatusBadge status={user.status} />
               </div>
 
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-sm font-medium text-slate-600 dark:text-slate-400">
                 {user.role}
               </p>
 
-              <p className="mt-2 text-xs text-slate-400">
+              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
                 User ID: {user.id}
               </p>
             </div>
@@ -217,10 +205,9 @@ export default function UserDetails() {
 
         {/* Information */}
         <div className="mb-6 grid gap-6 lg:grid-cols-2">
-
           {/* Contact */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-5 text-lg font-semibold">
+            <h2 className="mb-5 text-lg font-semibold text-slate-900 dark:text-slate-100">
               Contact Information
             </h2>
 
@@ -247,7 +234,7 @@ export default function UserDetails() {
 
           {/* Account */}
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-5 text-lg font-semibold">
+            <h2 className="mb-5 text-lg font-semibold text-slate-900 dark:text-slate-100">
               Account Information
             </h2>
 
@@ -269,9 +256,7 @@ export default function UserDetails() {
                 label="Created"
                 value={
                   user.createdAt
-                    ? new Date(
-                        user.createdAt
-                      ).toLocaleDateString("en-IN")
+                    ? new Date(user.createdAt).toLocaleDateString("en-IN")
                     : "Default User"
                 }
               />
@@ -282,12 +267,12 @@ export default function UserDetails() {
         {/* Permissions */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-5 flex items-center gap-3">
-            <div className="rounded-xl bg-violet-500/10 p-3 text-violet-500">
+            <div className="rounded-xl bg-violet-50 p-3 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400">
               <ShieldCheck size={21} />
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                 Role Permissions
               </h2>
 
@@ -301,11 +286,11 @@ export default function UserDetails() {
             {permissions.map((permission) => (
               <div
                 key={permission}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-800"
+                className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               >
                 <CheckCircle2
                   size={17}
-                  className="text-emerald-500"
+                  className="text-emerald-600 dark:text-emerald-400 flex-shrink-0"
                 />
 
                 {permission}
@@ -326,11 +311,9 @@ function InfoRow({ icon, label, value }) {
       </div>
 
       <div>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          {label}
-        </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
 
-        <p className="mt-0.5 text-sm font-semibold">
+        <p className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
           {value}
         </p>
       </div>
@@ -345,8 +328,8 @@ function StatusBadge({ status }) {
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
         active
-          ? "bg-emerald-500/10 text-emerald-500"
-          : "bg-slate-500/10 text-slate-500"
+          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+          : "bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-400"
       }`}
     >
       <span

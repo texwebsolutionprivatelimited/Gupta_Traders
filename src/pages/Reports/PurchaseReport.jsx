@@ -373,7 +373,7 @@ function SummaryCard({ label, value, icon: Icon, iconColor }) {
         <Icon size={20} className={iconColor} />
       </div>
 
-      <h3 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+      <h3 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-orange-300">
         {value}
       </h3>
     </div>

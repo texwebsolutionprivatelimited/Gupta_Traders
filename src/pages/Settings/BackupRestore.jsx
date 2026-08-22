@@ -202,7 +202,7 @@ export default function BackupRestore() {
             <div className="rounded-xl bg-emerald-500/10 p-2.5">
               <Mail size={20} />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
               Send Backup to Email
             </h2>
           </div>

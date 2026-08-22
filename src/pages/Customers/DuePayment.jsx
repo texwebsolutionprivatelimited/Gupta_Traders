@@ -535,8 +535,8 @@ function PaymentStat({ title, value, subtitle, icon, iconClass }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm text-slate-500 dark:text-slate-400">{title}</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
-          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{subtitle}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-purple-600">{value}</p>
+          <p className="mt-1 text-xs text-slate-400 dark:text-red-300">{subtitle}</p>
         </div>
 
         <div className={`rounded-xl p-3 ${iconClass}`}>{icon}</div>

@@ -522,7 +522,7 @@ function CalculationRow({
             <span
                 className={
                     bold
-                        ? "font-semibold text-slate-900 dark:text-white print:text-black"
+                        ? "font-semibold text-slate-900 dark:text-slate-50 print:text-black"
                         : "text-slate-600 dark:text-slate-400 print:text-slate-700"
                 }
             >

@@ -111,7 +111,7 @@ export default function ExpenseReport() {
                             ← Back to Reports
                         </Link>
 
-                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white print:text-black sm:text-4xl">
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50 print:text-black sm:text-4xl">
                             Expense Report
                         </h1>
 
@@ -165,7 +165,7 @@ export default function ExpenseReport() {
                 {/* Table Section */}
                 <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-slate-300 print:bg-white">
                     <div className="border-b border-slate-200 p-6 dark:border-slate-800 print:border-slate-300">
-                        <h2 className="text-xl font-semibold text-slate-900 dark:text-white print:text-black">
+                        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50 print:text-black">
                             Expense Breakdown
                         </h2>
                     </div>
@@ -202,7 +202,7 @@ export default function ExpenseReport() {
                             ))}
 
                             <tr>
-                                <td className="px-6 py-5 text-lg font-bold text-slate-900 dark:text-white print:text-black">
+                                <td className="px-6 py-5 text-lg font-bold text-slate-900 dark:text-slate-50 print:text-black">
                                     Grand Total
                                 </td>
 

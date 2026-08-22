@@ -92,7 +92,7 @@ export default function Settings() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-semibold text-slate-900 dark:text-white">
+                  <h2 className="font-semibold text-slate-900 dark:text-slate-50">
                     {item.title}
                   </h2>
 

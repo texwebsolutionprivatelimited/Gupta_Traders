@@ -163,14 +163,13 @@ export default function CustomerManagement() {
           </div>
         </div>
 
-        {/* Summary Cards */}
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
             title="Total Customers"
             value={customers.length}
             subtitle="All registered customers"
             icon={<UsersIcon />}
-            iconClass="bg-blue-500/10 text-blue-400"
+            iconClass="bg-blue-500/10 text-blue-600 dark:text-blue-400"
           />
 
           <SummaryCard
@@ -178,7 +177,7 @@ export default function CustomerManagement() {
             value={activeCustomers}
             subtitle="Currently active"
             icon={<CheckIcon />}
-            iconClass="bg-emerald-500/10 text-emerald-400"
+            iconClass="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
           />
 
           <SummaryCard
@@ -186,7 +185,7 @@ export default function CustomerManagement() {
             value={customersWithDue}
             subtitle="Customers having pending balance"
             icon={<AlertIcon />}
-            iconClass="bg-amber-500/10 text-amber-400"
+            iconClass="bg-amber-500/10 text-amber-600 dark:text-amber-400"
           />
 
           <SummaryCard
@@ -194,7 +193,7 @@ export default function CustomerManagement() {
             value={formatCurrency(totalDue)}
             subtitle="Total customer outstanding"
             icon={<WalletIcon />}
-            iconClass="bg-rose-500/10 text-rose-400"
+            iconClass="bg-rose-500/10 text-rose-600 dark:text-rose-400"
           />
         </div>
 
@@ -325,7 +324,7 @@ function SummaryCard({ title, value, subtitle, icon, iconClass }) {
         <div>
           <p className="text-sm font-medium text-slate-400">{title}</p>
 
-          <p className="mt-2 text-2xl font-bold tracking-tight text-white">
+          <p className="mt-2 text-2xl font-bold tracking-tight ">
             {value}
           </p>
 
@@ -346,8 +345,8 @@ function StatusBadge({ status }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${active
-          ? "bg-emerald-500/10 text-emerald-400"
-          : "bg-slate-500/10 text-slate-400"
+        ? "bg-emerald-500/10 text-emerald-400"
+        : "bg-slate-500/10 text-slate-400"
         }`}
     >
       <span

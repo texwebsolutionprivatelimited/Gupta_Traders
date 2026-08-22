@@ -162,7 +162,7 @@ export default function USBPrinter() {
               </div>
 
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 sm:text-3xl">
                   USB Printer
                 </h1>
 
@@ -211,7 +211,7 @@ export default function USBPrinter() {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:col-span-2">
 
             <div className="mb-6">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
                 Printer Configuration
               </h2>
 
@@ -302,7 +302,7 @@ export default function USBPrinter() {
             <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:bg-slate-100/60 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:bg-slate-800/70">
               <label className="flex cursor-pointer items-center justify-between gap-4">
                 <div>
-                  <p className="font-medium text-slate-900 dark:text-white">
+                  <p className="font-medium text-slate-900 dark:text-slate-50">
                     Auto Print Invoice
                   </p>
 
@@ -380,7 +380,7 @@ export default function USBPrinter() {
               </div>
 
               <div>
-                <h2 className="font-semibold text-slate-900 dark:text-white">
+                <h2 className="font-semibold text-slate-900 dark:text-slate-50">
                   Printer Status
                 </h2>
 

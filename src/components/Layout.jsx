@@ -543,10 +543,10 @@ function ControlsToolbar({ exportData }) {
           onChange={handleFilterChange}
           className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
         >
-          <option value="today" className="bg-white dark:bg-slate-900">Today</option>
-          <option value="7days" className="bg-white dark:bg-slate-900">Last 7 Days</option>
-          <option value="30days" className="bg-white dark:bg-slate-900">Last 30 Days</option>
-          <option value="custom" className="bg-white dark:bg-slate-900">Custom Range</option>
+          <option value="today" className=" bg-white ">Today</option>
+          <option value="7days" className="bg-white ">Last 7 Days</option>
+          <option value="30days" className="bg-white">Last 30 Days</option>
+          <option value="custom" className="bg-white ">Custom Range</option>
         </select>
       </div>
 

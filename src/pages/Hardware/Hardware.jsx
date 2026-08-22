@@ -117,7 +117,7 @@ export default function Hardware() {
                   </span>
                 </div>
 
-                <h3 className="mt-5 text-xl font-semibold text-slate-900 dark:text-white">
+                <h3 className="mt-5 text-xl font-semibold text-slate-900 dark:text-slate-50">
                   {device.title}
                 </h3>
 
@@ -148,7 +148,7 @@ export default function Hardware() {
               size={18}
               className="text-emerald-600 dark:text-emerald-400"
             />
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
               Quick Actions
             </h2>
           </div>
@@ -173,7 +173,7 @@ export default function Hardware() {
 
         {/* Device Logs */}
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="mb-5 text-lg font-semibold text-slate-900 dark:text-white">
+          <h2 className="mb-5 text-lg font-semibold text-slate-900 dark:text-slate-50">
             Recent Device Logs
           </h2>
 
@@ -212,7 +212,7 @@ function StatCard({ title, value, icon: Icon, color }) {
             {title}
           </p>
 
-          <h3 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h3 className="mt-2 text-3xl font-bold tracking-tight dark:text-yellow-500">
             {value}
           </h3>
         </div>

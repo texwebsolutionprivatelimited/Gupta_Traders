@@ -105,7 +105,7 @@ export default function ThermalPrinter() {
             </div>
 
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 sm:text-3xl">
                 Thermal Printer
               </h1>
 
@@ -136,7 +136,7 @@ export default function ThermalPrinter() {
               </div>
 
               <div>
-                <h2 className="font-semibold text-slate-900 dark:text-white">
+                <h2 className="font-semibold text-slate-900 dark:text-slate-50">
                   Printer Status
                 </h2>
 
@@ -183,7 +183,7 @@ export default function ThermalPrinter() {
               </div>
 
               <div>
-                <h2 className="font-semibold text-slate-900 dark:text-white">
+                <h2 className="font-semibold text-slate-900 dark:text-slate-50">
                   Printer Settings
                 </h2>
 
@@ -291,7 +291,7 @@ export default function ThermalPrinter() {
 
               <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50">
                 <div>
-                  <p className="font-medium text-slate-900 dark:text-white">
+                  <p className="font-medium text-slate-900 dark:text-slate-50">
                     Auto Print Invoice
                   </p>
 
@@ -342,7 +342,7 @@ export default function ThermalPrinter() {
               </div>
 
               <div>
-                <h2 className="font-semibold text-slate-900 dark:text-white">
+                <h2 className="font-semibold text-slate-900 dark:text-slate-50">
                   Printer Test
                 </h2>
 
@@ -359,7 +359,7 @@ export default function ThermalPrinter() {
                   Selected Printer
                 </p>
 
-                <p className="mt-1 font-semibold text-slate-900 dark:text-white">
+                <p className="mt-1 font-semibold text-slate-900 dark:text-slate-50">
                   {printerName}
                 </p>
 

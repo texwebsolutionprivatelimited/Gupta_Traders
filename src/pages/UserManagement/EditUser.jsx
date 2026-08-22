@@ -1,16 +1,6 @@
-
 import { useEffect, useState } from "react";
-import {
-  Link,
-  useNavigate,
-  useParams,
-} from "react-router-dom";
-import {
-  ArrowLeft,
-  Save,
-  UserRound,
-  ShieldCheck,
-} from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Save, UserRound, ShieldCheck } from "lucide-react";
 
 const roles = [
   "Admin / Owner",
@@ -37,12 +27,9 @@ export default function EditUser() {
 
   useEffect(() => {
     try {
-      const users =
-        JSON.parse(localStorage.getItem("users")) || [];
+      const users = JSON.parse(localStorage.getItem("users")) || [];
 
-      const user = users.find(
-        (item) => String(item.id) === String(id)
-      );
+      const user = users.find((item) => String(item.id) === String(id));
 
       if (!user) {
         setError("User not found.");
@@ -92,57 +79,42 @@ export default function EditUser() {
       return;
     }
 
-    if (
-      !formData.mobile ||
-      formData.mobile.length !== 10
-    ) {
+    if (!formData.mobile || formData.mobile.length !== 10) {
       setError("Please enter a valid 10-digit mobile number.");
       return;
     }
 
-    if (
-      formData.password &&
-      formData.password.length < 6
-    ) {
+    if (formData.password && formData.password.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
     }
 
-    if (
-      formData.password !== formData.confirmPassword
-    ) {
+    if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
 
     try {
-      const users =
-        JSON.parse(localStorage.getItem("users")) || [];
+      const users = JSON.parse(localStorage.getItem("users")) || [];
 
       const emailExists = users.some(
         (user) =>
           String(user.id) !== String(id) &&
-          user.email?.toLowerCase() ===
-            formData.email.toLowerCase()
+          user.email?.toLowerCase() === formData.email.toLowerCase()
       );
 
       if (emailExists) {
-        setError(
-          "Another user already uses this email."
-        );
+        setError("Another user already uses this email.");
         return;
       }
 
       const mobileExists = users.some(
         (user) =>
-          String(user.id) !== String(id) &&
-          user.mobile === formData.mobile
+          String(user.id) !== String(id) && user.mobile === formData.mobile
       );
 
       if (mobileExists) {
-        setError(
-          "Another user already uses this mobile number."
-        );
+        setError("Another user already uses this mobile number.");
         return;
       }
 
@@ -162,10 +134,7 @@ export default function EditUser() {
         };
       });
 
-      localStorage.setItem(
-        "users",
-        JSON.stringify(updatedUsers)
-      );
+      localStorage.setItem("users", JSON.stringify(updatedUsers));
 
       alert("User updated successfully!");
 
@@ -179,7 +148,7 @@ export default function EditUser() {
   if (loading) {
     return (
       <div className="min-h-full bg-slate-50 p-8 dark:bg-slate-950">
-        <div className="mx-auto max-w-4xl rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-slate-900">
+        <div className="mx-auto max-w-4xl rounded-2xl bg-white p-8 text-center text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-300">
           Loading user...
         </div>
       </div>
@@ -189,18 +158,18 @@ export default function EditUser() {
   if (error === "User not found.") {
     return (
       <div className="min-h-full bg-slate-50 p-8 dark:bg-slate-950">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-rose-200 bg-white p-8 text-center dark:border-rose-500/20 dark:bg-slate-900">
-          <h1 className="text-xl font-bold">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-rose-200 bg-white p-8 text-center shadow-sm dark:border-rose-500/20 dark:bg-slate-900">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
             User Not Found
           </h1>
 
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             The requested user does not exist.
           </p>
 
           <Link
             to="/users"
-            className="mt-5 inline-flex rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white"
+            className="mt-5 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             Back to Users
           </Link>
@@ -210,24 +179,23 @@ export default function EditUser() {
   }
 
   return (
-    <div className="min-h-full bg-slate-50 p-4 text-slate-900 dark:bg-slate-950 dark:text-white sm:p-6 lg:p-8">
+    <div className="min-h-full bg-slate-50 p-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-4xl">
-
         <Link
           to="/users"
-          className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-emerald-500"
+          className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-emerald-600 transition-colors hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
         >
           <ArrowLeft size={17} />
           Back to Users
         </Link>
 
         <div className="mb-6 flex items-center gap-3">
-          <div className="rounded-xl bg-blue-500/10 p-3 text-blue-500">
+          <div className="rounded-xl bg-blue-100 p-3 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
             <UserRound size={24} />
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold sm:text-3xl">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 sm:text-3xl">
               Edit User
             </h1>
 
@@ -242,13 +210,13 @@ export default function EditUser() {
           className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7"
         >
           {error && (
-            <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400">
+            <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400">
               {error}
             </div>
           )}
 
           <div className="mb-8">
-            <h2 className="mb-5 text-lg font-semibold">
+            <h2 className="mb-5 text-lg font-semibold text-slate-900 dark:text-slate-100">
               User Information
             </h2>
 
@@ -307,12 +275,12 @@ export default function EditUser() {
 
           <div className="mb-8">
             <div className="mb-5 flex items-center gap-3">
-              <div className="rounded-xl bg-violet-500/10 p-3 text-violet-500">
+              <div className="rounded-xl bg-violet-100 p-3 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400">
                 <ShieldCheck size={20} />
               </div>
 
               <div>
-                <h2 className="font-semibold">
+                <h2 className="font-semibold text-slate-900 dark:text-slate-100">
                   Role & Access
                 </h2>
 
@@ -339,7 +307,7 @@ export default function EditUser() {
           </div>
 
           <div className="mb-8">
-            <h2 className="mb-5 text-lg font-semibold">
+            <h2 className="mb-5 text-lg font-semibold text-slate-900 dark:text-slate-100">
               Login Security
             </h2>
 
@@ -371,14 +339,14 @@ export default function EditUser() {
           <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 dark:border-slate-800 sm:flex-row sm:justify-end">
             <Link
               to="/users"
-              className="rounded-xl border border-slate-300 px-6 py-3 text-center text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-xl border border-slate-300 px-6 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Cancel
             </Link>
 
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Save size={18} />
               Update User
@@ -391,27 +359,37 @@ export default function EditUser() {
         .input-field {
           width: 100%;
           border-radius: 0.75rem;
-          border: 1px solid rgb(203 213 225);
-          background: white;
+          border: 1px solid #cbd5e1;
+          background: #ffffff;
           padding: 0.7rem 0.9rem;
           font-size: 0.875rem;
-          color: rgb(15 23 42);
+          color: #0f172a;
           outline: none;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .input-field::placeholder {
+          color: #94a3b8;
         }
 
         .input-field:focus {
-          border-color: rgb(16 185 129);
-          box-shadow: 0 0 0 2px rgb(16 185 129 / 0.12);
+          border-color: #059669;
+          box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
         }
 
         .dark .input-field {
-          border-color: rgb(51 65 85);
-          background: rgb(30 41 59);
-          color: white;
+          border-color: #334155;
+          background: #0f172a;
+          color: #f8fafc;
         }
 
         .dark .input-field::placeholder {
-          color: rgb(100 116 139);
+          color: #64748b;
+        }
+
+        .dark .input-field:focus {
+          border-color: #10b981;
+          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
         }
       `}</style>
     </div>
@@ -423,13 +401,10 @@ function FormField({ label, required, children }) {
     <div>
       <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
         {label}
-        {required && (
-          <span className="ml-1 text-rose-500">*</span>
-        )}
+        {required && <span className="ml-1 text-rose-500">*</span>}
       </label>
 
       {children}
     </div>
   );
 }
-

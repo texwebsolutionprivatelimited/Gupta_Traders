@@ -1,4 +1,3 @@
-
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -120,14 +119,11 @@ export default function CustomerKhata() {
         return initialKhata;
     });
 
-    const [selectedCustomerId, setSelectedCustomerId] =
-        useState(1);
-
+    const [selectedCustomerId, setSelectedCustomerId] = useState(1);
     const [search, setSearch] = useState("");
 
     const selectedCustomer = khataData.find(
-        (item) =>
-            item.customerId === Number(selectedCustomerId)
+        (item) => item.customerId === Number(selectedCustomerId)
     );
 
     const filteredCustomers = useMemo(() => {
@@ -151,21 +147,17 @@ export default function CustomerKhata() {
         }
 
         const debit = customer.transactions.reduce(
-            (sum, transaction) =>
-                sum + Number(transaction.debit || 0),
+            (sum, transaction) => sum + Number(transaction.debit || 0),
             0
         );
 
         const credit = customer.transactions.reduce(
-            (sum, transaction) =>
-                sum + Number(transaction.credit || 0),
+            (sum, transaction) => sum + Number(transaction.credit || 0),
             0
         );
 
         const balance =
-            Number(customer.openingBalance || 0) +
-            debit -
-            credit;
+            Number(customer.openingBalance || 0) + debit - credit;
 
         return {
             debit,
@@ -195,19 +187,13 @@ export default function CustomerKhata() {
 
         const paymentAmount = Number(amount);
 
-        if (
-            !Number.isFinite(paymentAmount) ||
-            paymentAmount <= 0
-        ) {
+        if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
             alert("Please enter a valid payment amount.");
             return;
         }
 
         const updatedData = khataData.map((customer) => {
-            if (
-                customer.customerId !==
-                selectedCustomer.customerId
-            ) {
+            if (customer.customerId !== selectedCustomer.customerId) {
                 return customer;
             }
 
@@ -217,9 +203,7 @@ export default function CustomerKhata() {
                     ...customer.transactions,
                     {
                         id: Date.now(),
-                        date: new Date()
-                            .toISOString()
-                            .split("T")[0],
+                        date: new Date().toISOString().split("T")[0],
                         type: "Payment",
                         description: "Payment Received",
                         debit: 0,
@@ -230,31 +214,24 @@ export default function CustomerKhata() {
         });
 
         setKhataData(updatedData);
-
-        localStorage.setItem(
-            "customerKhata",
-            JSON.stringify(updatedData)
-        );
+        localStorage.setItem("customerKhata", JSON.stringify(updatedData));
     };
 
     return (
-        <div className="min-h-full bg-slate-50 p-4 text-slate-900 dark:bg-slate-950 dark:text-white sm:p-6 lg:p-8">
+        <div className="min-h-full bg-slate-50 p-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:p-6 lg:p-8">
             <div className="mx-auto max-w-7xl">
-
                 {/* Header */}
-
                 <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
                     <div>
                         <div className="mb-2 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                             <span>Customers</span>
                             <span>/</span>
-                            <span className="text-emerald-500">
+                            <span className="text-emerald-600 dark:text-emerald-400">
                                 Customer Khata
                             </span>
                         </div>
 
-                        <h1 className="text-2xl font-bold sm:text-3xl">
+                        <h1 className="text-2xl font-bold sm:text-3xl dark:text-slate-100">
                             Customer Khata
                         </h1>
 
@@ -264,13 +241,10 @@ export default function CustomerKhata() {
                     </div>
 
                     <div className="flex flex-wrap gap-3">
-
                         <button
                             type="button"
-                            onClick={() =>
-                                navigate("/customers/list")
-                            }
-                            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                            onClick={() => navigate("/customers/list")}
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800/80"
                         >
                             Customer List
                         </button>
@@ -278,23 +252,18 @@ export default function CustomerKhata() {
                         <button
                             type="button"
                             onClick={addPayment}
-                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600"
+                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                         >
                             <Plus size={18} />
                             Add Payment
                         </button>
-
                     </div>
                 </div>
 
                 {/* Customer Selector */}
-
                 <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
                     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-
                         <div className="relative">
-
                             <Search
                                 size={18}
                                 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
@@ -303,23 +272,18 @@ export default function CustomerKhata() {
                             <input
                                 type="text"
                                 value={search}
-                                onChange={(e) =>
-                                    setSearch(e.target.value)
-                                }
+                                onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Search customer by name or mobile..."
-                                className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-11 pr-4 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+                                className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-emerald-500"
                             />
-
                         </div>
 
                         <select
                             value={selectedCustomerId}
                             onChange={(e) =>
-                                setSelectedCustomerId(
-                                    Number(e.target.value)
-                                )
+                                setSelectedCustomerId(Number(e.target.value))
                             }
-                            className="rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+                            className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-emerald-500"
                         >
                             {filteredCustomers.map((customer) => (
                                 <option
@@ -330,21 +294,16 @@ export default function CustomerKhata() {
                                 </option>
                             ))}
                         </select>
-
                     </div>
                 </div>
 
                 {/* Customer Profile */}
-
                 {selectedCustomer && (
                     <>
                         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
                             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-
                                 <div className="flex items-center gap-4">
-
-                                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-lg font-bold text-white">
+                                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-lg font-bold text-white shadow-sm">
                                         {selectedCustomer.customer
                                             .split(" ")
                                             .slice(0, 2)
@@ -354,12 +313,11 @@ export default function CustomerKhata() {
                                     </div>
 
                                     <div>
-                                        <h2 className="text-xl font-bold">
+                                        <h2 className="text-xl font-bold dark:text-slate-100">
                                             {selectedCustomer.customer}
                                         </h2>
 
                                         <div className="mt-1 flex flex-wrap gap-4 text-sm text-slate-500 dark:text-slate-400">
-
                                             <span className="inline-flex items-center gap-1.5">
                                                 <Phone size={14} />
                                                 {selectedCustomer.mobile}
@@ -369,29 +327,24 @@ export default function CustomerKhata() {
                                                 <UserRound size={14} />
                                                 Customer Account
                                             </span>
-
                                         </div>
                                     </div>
-
                                 </div>
 
-                                <div className="rounded-xl bg-rose-500/10 px-5 py-3">
-                                    <p className="text-xs font-medium uppercase tracking-wide text-rose-500">
+                                <div className="rounded-xl bg-rose-50 px-5 py-3 dark:bg-rose-500/10">
+                                    <p className="text-xs font-medium uppercase tracking-wide text-rose-600 dark:text-rose-400">
                                         Current Due
                                     </p>
 
-                                    <p className="mt-1 text-2xl font-bold text-rose-500">
+                                    <p className="mt-1 text-2xl font-bold text-rose-600 dark:text-rose-400">
                                         {formatCurrency(totals.balance)}
                                     </p>
                                 </div>
-
                             </div>
                         </div>
 
                         {/* Summary */}
-
                         <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
                             <KhataCard
                                 title="Opening Balance"
                                 value={formatCurrency(
@@ -418,17 +371,13 @@ export default function CustomerKhata() {
                                 icon={<IndianRupee size={20} />}
                                 danger={totals.balance > 0}
                             />
-
                         </div>
 
                         {/* Transaction History */}
-
                         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
-                            <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
-
+                            <div className="flex flex-col gap-3 border-b border-slate-200 p-5 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
-                                    <h2 className="text-lg font-semibold">
+                                    <h2 className="text-lg font-semibold dark:text-slate-100">
                                         Khata Transactions
                                     </h2>
 
@@ -441,128 +390,106 @@ export default function CustomerKhata() {
                                     <CalendarDays size={16} />
                                     {selectedCustomer.transactions.length} Transactions
                                 </div>
-
                             </div>
 
                             <div className="overflow-x-auto">
-
                                 <table className="w-full min-w-[850px]">
-
                                     <thead className="bg-slate-50 dark:bg-slate-800/60">
-
-                                        <tr className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-
-                                            <th className="px-5 py-4">
-                                                Date
-                                            </th>
-
-                                            <th className="px-5 py-4">
-                                                Type
-                                            </th>
-
-                                            <th className="px-5 py-4">
-                                                Description
-                                            </th>
-
+                                        <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                            <th className="px-5 py-4">Date</th>
+                                            <th className="px-5 py-4">Type</th>
+                                            <th className="px-5 py-4">Description</th>
                                             <th className="px-5 py-4 text-right">
                                                 Debit
                                             </th>
-
                                             <th className="px-5 py-4 text-right">
                                                 Credit
                                             </th>
-
                                             <th className="px-5 py-4 text-right">
                                                 Balance
                                             </th>
-
                                         </tr>
-
                                     </thead>
 
                                     <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-
                                         {(() => {
-                                            let runningBalance =
-                                                Number(
-                                                    selectedCustomer.openingBalance ||
+                                            let runningBalance = Number(
+                                                selectedCustomer.openingBalance ||
                                                     0
-                                                );
+                                            );
 
                                             return selectedCustomer.transactions.map(
                                                 (transaction) => {
-                                                    runningBalance +=
-                                                        Number(transaction.debit || 0);
+                                                    runningBalance += Number(
+                                                        transaction.debit || 0
+                                                    );
 
-                                                    runningBalance -=
-                                                        Number(transaction.credit || 0);
+                                                    runningBalance -= Number(
+                                                        transaction.credit || 0
+                                                    );
 
                                                     return (
                                                         <tr
                                                             key={transaction.id}
                                                             className="transition hover:bg-slate-50 dark:hover:bg-slate-800/40"
                                                         >
-
-                                                            <td className="px-5 py-4 text-sm">
+                                                            <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300">
                                                                 {transaction.date}
                                                             </td>
 
                                                             <td className="px-5 py-4">
-
                                                                 <span
-                                                                    className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${transaction.type ===
-                                                                            "Payment"
-                                                                            ? "bg-emerald-500/10 text-emerald-500"
-                                                                            : "bg-amber-500/10 text-amber-500"
-                                                                        }`}
+                                                                    className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                                                        transaction.type ===
+                                                                        "Payment"
+                                                                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                                                            : "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                                                                    }`}
                                                                 >
-                                                                    {transaction.type}
+                                                                    {
+                                                                        transaction.type
+                                                                    }
                                                                 </span>
-
                                                             </td>
 
-                                                            <td className="px-5 py-4 text-sm">
-                                                                {transaction.description}
+                                                            <td className="px-5 py-4 text-sm text-slate-700 dark:text-slate-300">
+                                                                {
+                                                                    transaction.description
+                                                                }
                                                             </td>
 
-                                                            <td className="px-5 py-4 text-right font-semibold text-rose-500">
+                                                            <td className="px-5 py-4 text-right font-semibold text-rose-600 dark:text-rose-400">
                                                                 {transaction.debit
                                                                     ? formatCurrency(
-                                                                        transaction.debit
-                                                                    )
+                                                                          transaction.debit
+                                                                      )
                                                                     : "-"}
                                                             </td>
 
-                                                            <td className="px-5 py-4 text-right font-semibold text-emerald-500">
+                                                            <td className="px-5 py-4 text-right font-semibold text-emerald-600 dark:text-emerald-400">
                                                                 {transaction.credit
                                                                     ? formatCurrency(
-                                                                        transaction.credit
-                                                                    )
+                                                                          transaction.credit
+                                                                      )
                                                                     : "-"}
                                                             </td>
 
-                                                            <td className="px-5 py-4 text-right font-bold">
+                                                            <td className="px-5 py-4 text-right font-bold text-slate-900 dark:text-slate-100">
                                                                 {formatCurrency(
                                                                     runningBalance
                                                                 )}
                                                             </td>
-
                                                         </tr>
                                                     );
                                                 }
                                             );
                                         })()}
-
                                     </tbody>
-
                                 </table>
-
                             </div>
-
                         </div>
                     </>
                 )}
-
             </div>
         </div>
     );
@@ -572,43 +499,36 @@ export default function CustomerKhata() {
    KHATA CARD
 ========================================================= */
 
-function KhataCard({
-    title,
-    value,
-    icon,
-    danger = false,
-}) {
+function KhataCard({ title, value, icon, danger = false }) {
     return (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
             <div className="flex items-start justify-between gap-4">
-
                 <div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
                         {title}
                     </p>
 
                     <p
-                        className={`mt-2 text-2xl font-bold ${danger
-                                ? "text-rose-500"
-                                : "text-slate-900 dark:text-white"
-                            }`}
+                        className={`mt-2 text-2xl font-bold ${
+                            danger
+                                ? "text-rose-600 dark:text-rose-400"
+                                : "text-slate-900 dark:text-slate-100"
+                        }`}
                     >
                         {value}
                     </p>
                 </div>
 
                 <div
-                    className={`rounded-xl p-3 ${danger
-                            ? "bg-rose-500/10 text-rose-500"
-                            : "bg-emerald-500/10 text-emerald-500"
-                        }`}
+                    className={`rounded-xl p-3 ${
+                        danger
+                            ? "bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
+                            : "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+                    }`}
                 >
                     {icon}
                 </div>
-
             </div>
-
         </div>
     );
 }

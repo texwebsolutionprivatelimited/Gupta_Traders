@@ -193,7 +193,7 @@ export default function ProductList() {
     };
 
     return (
-        <div className="p-6">
+        <div className="p-2">
             <div className="mx-auto max-w-7xl">
 
                 {/* Header */}
@@ -234,7 +234,7 @@ export default function ProductList() {
                                     e.target.value
                                 )
                             }
-                            className="w-full rounded-xl border border-slate-700 bg-slate-800 py-3 pl-12 pr-4 text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-500"
+                            className="w-full rounded-xl border border-slate-700 bg-slate-800 py-3 pl-12 pr-4 text-slate-300 outline-none transition placeholder:text-slate-500 focus:border-emerald-500"
                         />
                     </div>
                 </div>

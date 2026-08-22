@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -44,39 +43,31 @@ export default function AddSupplier() {
     const newSupplier = {
       id: Date.now(),
       ...formData,
-      openingBalance: Number(
-        formData.openingBalance || 0
-      ),
+      openingBalance: Number(formData.openingBalance || 0),
     };
 
     localStorage.setItem(
       "suppliers",
-      JSON.stringify([
-        newSupplier,
-        ...existingSuppliers,
-      ])
+      JSON.stringify([newSupplier, ...existingSuppliers])
     );
 
     alert("Supplier added successfully!");
-
     navigate("/suppliers/list");
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 text-slate-900 dark:bg-slate-950 dark:text-white sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50 p-4 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-5xl">
-
         {/* Header */}
-
         <div className="mb-6">
           <Link
             to="/suppliers/list"
-            className="text-sm font-medium text-emerald-600 hover:text-emerald-500"
+            className="text-sm font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
           >
             ← Back to Supplier List
           </Link>
 
-          <h1 className="mt-3 text-3xl font-bold">
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
             Add Supplier
           </h1>
 
@@ -87,9 +78,7 @@ export default function AddSupplier() {
 
         <form onSubmit={handleSubmit}>
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
             <div className="grid gap-5 md:grid-cols-2">
-
               <InputField
                 label="Supplier Name"
                 name="name"
@@ -149,7 +138,6 @@ export default function AddSupplier() {
                 value={formData.state}
                 onChange={handleChange}
               />
-
             </div>
 
             <div className="mt-5">
@@ -163,7 +151,7 @@ export default function AddSupplier() {
                 value={formData.address}
                 onChange={handleChange}
                 placeholder="Enter supplier address"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/20"
               />
             </div>
 
@@ -176,23 +164,27 @@ export default function AddSupplier() {
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-emerald-500 dark:focus:ring-emerald-500/20"
               >
-                <option value="Active">
+                <option
+                  value="Active"
+                  className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white"
+                >
                   Active
                 </option>
-
-                <option value="Inactive">
+                <option
+                  value="Inactive"
+                  className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white"
+                >
                   Inactive
                 </option>
               </select>
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
-
               <button
                 type="submit"
-                className="rounded-xl bg-emerald-500 px-6 py-3 font-semibold text-white transition hover:bg-emerald-600"
+                className="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               >
                 Save Supplier
               </button>
@@ -203,7 +195,6 @@ export default function AddSupplier() {
               >
                 Cancel
               </Link>
-
             </div>
           </div>
         </form>
@@ -224,6 +215,7 @@ function InputField({
     <div>
       <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
         {label}
+        {required && <span className="ml-1 text-rose-500">*</span>}
       </label>
 
       <input
@@ -232,9 +224,8 @@ function InputField({
         value={value}
         onChange={onChange}
         required={required}
-        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/20"
       />
     </div>
   );
 }
-

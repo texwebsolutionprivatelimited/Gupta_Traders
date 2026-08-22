@@ -60,10 +60,8 @@ export default function CustomerManagement() {
   const customers = useMemo(() => {
     try {
       const savedCustomers = localStorage.getItem("customers");
-
       if (savedCustomers) {
         const parsed = JSON.parse(savedCustomers);
-
         if (Array.isArray(parsed)) {
           return parsed;
         }
@@ -71,7 +69,6 @@ export default function CustomerManagement() {
     } catch (error) {
       console.error("Failed to load customers:", error);
     }
-
     return initialCustomers;
   }, []);
 
@@ -84,8 +81,7 @@ export default function CustomerManagement() {
   ).length;
 
   const totalDue = customers.reduce(
-    (total, customer) =>
-      total + Number(customer.khataBalance || 0),
+    (total, customer) => total + Number(customer.khataBalance || 0),
     0
   );
 
@@ -100,76 +96,66 @@ export default function CustomerManagement() {
   };
 
   return (
-    <div className="min-h-full bg-slate-50 p-4 text-slate-900 transition-colors duration-200 sm:p-6 lg:p-8 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-full bg-slate-950 p-4 text-slate-100 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
-
         {/* Header */}
-        <div className="mb-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="mb-2 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+            <div className="mb-2 flex items-center gap-2 text-sm text-slate-400">
               <span>Customers</span>
               <span>/</span>
-              <span className="text-emerald-400">
+              <span className="font-medium text-emerald-400">
                 Customer Management
               </span>
             </div>
 
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            <h1 className="text-2xl font-bold sm:text-3xl dark:text-slate-100">
               Customer Management
             </h1>
 
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-sm text-slate-400">
               Manage customers, purchase history, khata and due payments.
             </p>
           </div>
 
           {/* Header Actions */}
-          <div className="flex flex-wrap items-center gap-3">
-
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <button
               type="button"
               onClick={() => navigate("/customers/list")}
-              className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-emerald-500 hover:bg-slate-800"
+              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-emerald-500 hover:bg-slate-800 sm:px-3.5 sm:text-sm"
             >
               Customer List
             </button>
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/customers/purchase-history")
-              }
-              className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-emerald-500 hover:bg-slate-800"
+              onClick={() => navigate("/customers/purchase-history")}
+              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-emerald-500 hover:bg-slate-800 sm:px-3.5 sm:text-sm"
             >
               Purchase History
             </button>
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/customers/khata")
-              }
-              className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-emerald-500 hover:bg-slate-800"
+              onClick={() => navigate("/customers/khata")}
+              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-emerald-500 hover:bg-slate-800 sm:px-3.5 sm:text-sm"
             >
               Customer Khata
             </button>
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/customers/due-payment")
-              }
-              className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-emerald-500 hover:bg-slate-800"
+              onClick={() => navigate("/customers/due-payment")}
+              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-emerald-500 hover:bg-slate-800 sm:px-3.5 sm:text-sm"
             >
               Due Payment
             </button>
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/customers/list?action=add")
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600"
+              onClick={() => navigate("/customers/list?action=add")}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-600 focus:outline-none sm:gap-2 sm:px-4 sm:text-sm"
             >
               <PlusIcon />
               Add Customer
@@ -179,7 +165,6 @@ export default function CustomerManagement() {
 
         {/* Summary Cards */}
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
           <SummaryCard
             title="Total Customers"
             value={customers.length}
@@ -215,10 +200,9 @@ export default function CustomerManagement() {
 
         {/* Recent Customers */}
         <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-sm">
-
           <div className="flex flex-col gap-3 border-b border-slate-800 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-lg font-semibold text-slate-50">
                 Recent Customers
               </h2>
 
@@ -238,41 +222,19 @@ export default function CustomerManagement() {
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left">
-
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-800/50 text-xs uppercase tracking-wide text-slate-400">
-                  <th className="px-5 py-4">
-                    Customer
-                  </th>
-
-                  <th className="px-5 py-4">
-                    Mobile Number
-                  </th>
-
-                  <th className="px-5 py-4">
-                    City
-                  </th>
-
-                  <th className="px-5 py-4 text-right">
-                    Last Purchase
-                  </th>
-
-                  <th className="px-5 py-4 text-right">
-                    Khata Balance
-                  </th>
-
-                  <th className="px-5 py-4 text-center">
-                    Status
-                  </th>
-
-                  <th className="px-5 py-4 text-right">
-                    Action
-                  </th>
+                  <th className="px-5 py-4">Customer</th>
+                  <th className="px-5 py-4">Mobile Number</th>
+                  <th className="px-5 py-4">City</th>
+                  <th className="px-5 py-4 text-right">Last Purchase</th>
+                  <th className="px-5 py-4 text-right">Khata Balance</th>
+                  <th className="px-5 py-4 text-center">Status</th>
+                  <th className="px-5 py-4 text-right">Action</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-slate-800">
-
                 {recentCustomers.map((customer) => (
                   <tr
                     key={customer.id}
@@ -280,12 +242,10 @@ export default function CustomerManagement() {
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <CustomerAvatar
-                          name={customer.name}
-                        />
+                        <CustomerAvatar name={customer.name} />
 
                         <div>
-                          <p className="text-sm font-semibold">
+                          <p className="text-sm font-semibold text-slate-50">
                             {customer.name}
                           </p>
 
@@ -296,17 +256,15 @@ export default function CustomerManagement() {
                       </div>
                     </td>
 
-                    <td className="px-5 py-4 text-sm">
+                    <td className="px-5 py-4 text-sm text-slate-300">
                       {customer.mobile || "-"}
                     </td>
 
-                    <td className="px-5 py-4">
-                      <p className="text-sm">
-                        {customer.city || "-"}
-                      </p>
+                    <td className="px-5 py-4 text-sm text-slate-300">
+                      {customer.city || "-"}
                     </td>
 
-                    <td className="px-5 py-4 text-right text-sm font-semibold">
+                    <td className="px-5 py-4 text-right text-sm font-semibold text-slate-50">
                       {formatCurrency(customer.lastPurchase)}
                     </td>
 
@@ -339,7 +297,6 @@ export default function CustomerManagement() {
                     </td>
                   </tr>
                 ))}
-
               </tbody>
             </table>
           </div>
@@ -361,34 +318,21 @@ export default function CustomerManagement() {
 
 /* Summary Card */
 
-function SummaryCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  iconClass,
-}) {
+function SummaryCard({ title, value, subtitle, icon, iconClass }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm transition hover:shadow-md">
       <div className="flex items-start justify-between gap-4">
-
         <div>
-          <p className="text-sm font-medium text-slate-400">
-            {title}
-          </p>
+          <p className="text-sm font-medium text-slate-400">{title}</p>
 
           <p className="mt-2 text-2xl font-bold tracking-tight text-white">
             {value}
           </p>
 
-          <p className="mt-1 text-xs text-slate-500">
-            {subtitle}
-          </p>
+          <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
         </div>
 
-        <div className={`rounded-xl p-3 ${iconClass}`}>
-          {icon}
-        </div>
+        <div className={`rounded-xl p-3 ${iconClass}`}>{icon}</div>
       </div>
     </div>
   );
@@ -401,18 +345,15 @@ function StatusBadge({ status }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-        active
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${active
           ? "bg-emerald-500/10 text-emerald-400"
           : "bg-slate-500/10 text-slate-400"
-      }`}
+        }`}
     >
       <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          active ? "bg-emerald-500" : "bg-slate-500"
-        }`}
+        className={`h-1.5 w-1.5 rounded-full ${active ? "bg-emerald-500" : "bg-slate-500"
+          }`}
       />
-
       {status}
     </span>
   );
@@ -430,7 +371,7 @@ function CustomerAvatar({ name }) {
     .toUpperCase();
 
   return (
-    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-xs font-bold text-white">
+    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-xs font-bold text-white shadow-sm">
       {initials || "C"}
     </div>
   );
@@ -441,7 +382,7 @@ function CustomerAvatar({ name }) {
 function PlusIcon() {
   return (
     <svg
-      className="h-5 w-5"
+      className="h-4 w-4 sm:h-5 sm:w-5"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -488,12 +429,7 @@ function CheckIcon() {
         strokeLinejoin="round"
         d="M9 12.75 11.25 15 15 9.75"
       />
-
-      <circle
-        cx="12"
-        cy="12"
-        r="9"
-      />
+      <circle cx="12" cy="12" r="9" />
     </svg>
   );
 }
@@ -512,7 +448,6 @@ function AlertIcon() {
         strokeLinejoin="round"
         d="M12 8v4m0 4h.01"
       />
-
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -536,18 +471,8 @@ function WalletIcon() {
         strokeLinejoin="round"
         d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5v-9Z"
       />
-
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 9h18"
-      />
-
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M16 14h.01"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9h18" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 14h.01" />
     </svg>
   );
 }

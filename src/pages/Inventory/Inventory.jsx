@@ -58,19 +58,14 @@ function InventoryContent({ activeTab }) {
   switch (activeTab) {
     case "in":
       return <StockIn />;
-
     case "out":
       return <StockOut />;
-
     case "adjustment":
       return <StockAdjustment />;
-
     case "opening":
       return <OpeningStock />;
-
     case "low":
       return <LowStockAlert />;
-
     case "current":
     default:
       return <CurrentStock />;
@@ -86,146 +81,62 @@ export default function Inventory() {
   const ActiveIcon = activeTabData.icon;
 
   return (
-    <main className="min-h-screen w-full bg-slate-50 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-white">
-      <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6 lg:px-8">
-        {/* =====================================================
-            PAGE HEADER
-        ===================================================== */}
-        <header className="mb-5 sm:mb-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-3">
-                
-
-                <div className="min-w-0">
-                  <h1 className="truncate text-2xl font-bold tracking-tight sm:text-3xl text-slate-100">
-                    Inventory
-                  </h1>
-
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm md:text-base">
-                    Manage stock, inventory movements and stock alerts
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* =====================================================
-            MOBILE ACTIVE TAB INDICATOR
-        ===================================================== */}
-        <div className="mb-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:hidden">
-          <ActiveIcon
-            size={17}
-            className="shrink-0 text-emerald-600 dark:text-emerald-400"
-          />
-
-          <span className="truncate text-sm font-semibold">
-            {activeTabData.label}
-          </span>
+    <div className="p-1 sm:p-6 md:p-8 space-y-6">
+      {/* PAGE HEADER */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-100 sm:text-3xl">
+            Inventory
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">
+            Manage stock, inventory movements and stock alerts
+          </p>
         </div>
-
-        {/* =====================================================
-            TABS
-        ===================================================== */}
-        <section
-          aria-label="Inventory sections"
-          className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mb-6"
-        >
-          <div
-            className="
-              scrollbar-thin
-              flex
-              gap-1.5
-              overflow-x-auto
-              p-2
-              sm:gap-2
-            "
-          >
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  aria-selected={isActive}
-                  aria-label={tab.label}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`
-                    group
-                    flex
-                    min-h-[44px]
-                    min-w-max
-                    shrink-0
-                    items-center
-                    justify-center
-                    gap-2
-                    rounded-xl
-                    px-3
-                    py-2.5
-                    text-xs
-                    font-semibold
-                    transition-all
-                    duration-200
-                    focus:outline-none
-                    focus-visible:ring-2
-                    focus-visible:ring-emerald-500
-                    focus-visible:ring-offset-2
-                    dark:focus-visible:ring-offset-slate-900
-                    sm:px-4
-                    sm:text-sm
-                    md:px-5
-                    ${
-                      isActive
-                        ? `
-                          bg-emerald-600
-                          text-white
-                          shadow-md
-                          shadow-emerald-600/20
-                        `
-                        : `
-                          text-slate-600
-                          hover:bg-slate-100
-                          hover:text-slate-900
-                          dark:text-slate-400
-                          dark:hover:bg-slate-800
-                          dark:hover:text-white
-                        `
-                    }
-                  `}
-                >
-                  <Icon
-                    size={17}
-                    className="shrink-0 sm:h-[18px] sm:w-[18px]"
-                  />
-
-                  {/* Mobile */}
-                  <span className="sm:hidden">
-                    {tab.shortLabel}
-                  </span>
-
-                  {/* Tablet/Desktop */}
-                  <span className="hidden sm:inline">
-                    {tab.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* =====================================================
-            CONTENT
-        ===================================================== */}
-        <section
-          key={activeTab}
-          className="min-w-0 animate-in fade-in duration-200"
-        >
-          <InventoryContent activeTab={activeTab} />
-        </section>
       </div>
-    </main>
+
+      {/* MOBILE ACTIVE TAB INDICATOR */}
+      <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 sm:hidden">
+        <ActiveIcon
+          size={17}
+          className="shrink-0 text-emerald-400"
+        />
+        <span className="truncate text-sm font-semibold text-slate-200">
+          {activeTabData.label}
+        </span>
+      </div>
+
+      {/* TABS CONTAINER */}
+      <div className="flex gap-2 overflow-x-auto border-b border-slate-800 pb-2 scrollbar-none">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-medium transition-all
+                ${
+                  isActive
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                    : "bg-slate-900/50 text-slate-400 hover:bg-slate-800 hover:text-white"
+                }
+              `}
+            >
+              <Icon size={18} className="shrink-0" />
+              <span className="sm:hidden">{tab.shortLabel}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* CONTENT AREA */}
+      <div key={activeTab} className="min-w-0 animate-in fade-in duration-200">
+        <InventoryContent activeTab={activeTab} />
+      </div>
+    </div>
   );
 }

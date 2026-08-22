@@ -1,5 +1,4 @@
-
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Eye,
   Pencil,
@@ -11,6 +10,7 @@ import {
   AlertCircle,
   X,
   Save,
+  Plus,
 } from "lucide-react";
 
 const initialSupplierData = [
@@ -84,25 +84,29 @@ const emptyForm = {
   gstin: "",
   city: "",
   state: "",
-  balance: "",
+  balance: "0",
   status: "Active",
 };
 
 export default function SupplierList() {
-  const [suppliers, setSuppliers] = useState(initialSupplierData);
+  const [suppliers, setSuppliers] = useState(() => {
+    const saved = localStorage.getItem("suppliers");
+    return saved ? JSON.parse(saved) : initialSupplierData;
+  });
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
   const [viewSupplier, setViewSupplier] = useState(null);
   const [editingSupplier, setEditingSupplier] = useState(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [deleteSupplier, setDeleteSupplier] = useState(null);
 
   const [formData, setFormData] = useState(emptyForm);
 
-  /* =========================================================
-     FILTER SUPPLIERS
-  ========================================================= */
+  useEffect(() => {
+    localStorage.setItem("suppliers", JSON.stringify(suppliers));
+  }, [suppliers]);
 
   const filteredSuppliers = useMemo(() => {
     const searchValue = search.toLowerCase().trim();
@@ -110,26 +114,19 @@ export default function SupplierList() {
     return suppliers.filter((supplier) => {
       const matchesSearch =
         !searchValue ||
-        supplier.name.toLowerCase().includes(searchValue) ||
-        supplier.contactPerson
-          .toLowerCase()
-          .includes(searchValue) ||
-        supplier.phone.includes(searchValue) ||
-        supplier.email.toLowerCase().includes(searchValue) ||
-        supplier.gstin.toLowerCase().includes(searchValue) ||
-        supplier.city.toLowerCase().includes(searchValue);
+        supplier.name?.toLowerCase().includes(searchValue) ||
+        supplier.contactPerson?.toLowerCase().includes(searchValue) ||
+        supplier.phone?.includes(searchValue) ||
+        supplier.email?.toLowerCase().includes(searchValue) ||
+        supplier.gstin?.toLowerCase().includes(searchValue) ||
+        supplier.city?.toLowerCase().includes(searchValue);
 
       const matchesStatus =
-        statusFilter === "All" ||
-        supplier.status === statusFilter;
+        statusFilter === "All" || supplier.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     });
   }, [suppliers, search, statusFilter]);
-
-  /* =========================================================
-     STATS
-  ========================================================= */
 
   const totalBalance = filteredSuppliers.reduce(
     (sum, supplier) => sum + Number(supplier.balance || 0),
@@ -144,53 +141,41 @@ export default function SupplierList() {
     (supplier) => supplier.status === "Inactive"
   ).length;
 
-  /* =========================================================
-     INPUT CHANGE
-  ========================================================= */
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
   };
 
-  /* =========================================================
-     VIEW
-  ========================================================= */
-
-  const handleView = (supplier) => {
-    setViewSupplier(supplier);
+  const openAddModal = () => {
+    setFormData(emptyForm);
+    setIsAddModalOpen(true);
   };
 
-  /* =========================================================
-     EDIT
-  ========================================================= */
-
-  const handleEdit = (supplier) => {
-    setEditingSupplier(supplier);
-
-    setFormData({
-      name: supplier.name,
-      contactPerson: supplier.contactPerson,
-      phone: supplier.phone,
-      email: supplier.email,
-      gstin: supplier.gstin,
-      city: supplier.city,
-      state: supplier.state,
-      balance: supplier.balance,
-      status: supplier.status,
-    });
-  };
-
-  const closeEditModal = () => {
+  const closeFormModal = () => {
     setEditingSupplier(null);
+    setIsAddModalOpen(false);
     setFormData(emptyForm);
   };
 
-  const handleUpdate = (e) => {
+  const handleEdit = (supplier) => {
+    setEditingSupplier(supplier);
+    setFormData({
+      name: supplier.name || "",
+      contactPerson: supplier.contactPerson || "",
+      phone: supplier.phone || "",
+      email: supplier.email || "",
+      gstin: supplier.gstin || "",
+      city: supplier.city || "",
+      state: supplier.state || "",
+      balance: supplier.balance || 0,
+      status: supplier.status || "Active",
+    });
+  };
+
+  const handleSubmit = (e) => {
     e.preventDefault();
 
     if (!formData.name.trim()) {
@@ -203,55 +188,40 @@ export default function SupplierList() {
       return;
     }
 
-    setSuppliers((prev) =>
-      prev.map((supplier) =>
-        supplier.id === editingSupplier.id
-          ? {
-              ...supplier,
-              name: formData.name.trim(),
-              contactPerson: formData.contactPerson.trim(),
-              phone: formData.phone.trim(),
-              email: formData.email.trim(),
-              gstin: formData.gstin.trim().toUpperCase(),
-              city: formData.city.trim(),
-              state: formData.state.trim(),
-              balance: Number(formData.balance || 0),
-              status: formData.status,
-            }
-          : supplier
-      )
-    );
+    const payload = {
+      name: formData.name.trim(),
+      contactPerson: formData.contactPerson.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim(),
+      gstin: formData.gstin.trim().toUpperCase(),
+      city: formData.city.trim(),
+      state: formData.state.trim(),
+      balance: Number(formData.balance || 0),
+      status: formData.status,
+    };
 
-    closeEditModal();
+    if (editingSupplier) {
+      setSuppliers((prev) =>
+        prev.map((s) => (s.id === editingSupplier.id ? { ...s, ...payload } : s))
+      );
+      alert("Supplier updated successfully.");
+    } else {
+      setSuppliers((prev) => [
+        { id: crypto.randomUUID(), ...payload },
+        ...prev,
+      ]);
+      alert("Supplier added successfully.");
+    }
 
-    alert("Supplier updated successfully.");
-  };
-
-  /* =========================================================
-     DELETE
-  ========================================================= */
-
-  const handleDelete = (supplier) => {
-    setDeleteSupplier(supplier);
+    closeFormModal();
   };
 
   const confirmDelete = () => {
     if (!deleteSupplier) return;
-
-    setSuppliers((prev) =>
-      prev.filter(
-        (supplier) => supplier.id !== deleteSupplier.id
-      )
-    );
-
+    setSuppliers((prev) => prev.filter((s) => s.id !== deleteSupplier.id));
     setDeleteSupplier(null);
-
     alert("Supplier deleted successfully.");
   };
-
-  /* =========================================================
-     CURRENCY
-  ========================================================= */
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("en-IN", {
@@ -262,236 +232,160 @@ export default function SupplierList() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
+        {/* HEADER */}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              Suppliers / Supplier List
+            </p>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              Supplier List
+            </h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              View and manage all registered suppliers.
+            </p>
+          </div>
 
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
-
-        <div className="mb-8">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Suppliers / Supplier List
-          </p>
-
-          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
-            Supplier List
-          </h1>
-
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            View and manage all registered suppliers.
-          </p>
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          >
+            <Plus size={18} />
+            Add New Supplier
+          </button>
         </div>
 
-        {/* =====================================================
-            STATS
-        ===================================================== */}
-
+        {/* STATS */}
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
           <StatCard
             title="Total Suppliers"
             value={filteredSuppliers.length}
             icon={<Building2 size={20} />}
             iconClass="bg-blue-500/10 text-blue-600 dark:text-blue-400"
           />
-
           <StatCard
             title="Active Suppliers"
             value={activeSuppliers}
             icon={<CheckCircle2 size={20} />}
             iconClass="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
           />
-
           <StatCard
             title="Inactive Suppliers"
             value={inactiveSuppliers}
             icon={<AlertCircle size={20} />}
             iconClass="bg-amber-500/10 text-amber-600 dark:text-amber-400"
           />
-
           <StatCard
-            title="Outstanding"
+            title="Outstanding Balance"
             value={formatCurrency(totalBalance)}
             icon={<Wallet size={20} />}
             iconClass="bg-rose-500/10 text-rose-600 dark:text-rose-400"
           />
-
         </div>
 
-        {/* =====================================================
-            FILTERS
-        ===================================================== */}
-
+        {/* FILTERS */}
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
           <div className="grid gap-4 md:grid-cols-[1fr_220px]">
-
             <div className="relative">
-
               <Search
                 size={18}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
               />
-
               <input
                 type="text"
                 placeholder="Search supplier, phone, GSTIN, city..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-emerald-500"
               />
-
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-emerald-500"
             >
               <option value="All">All Status</option>
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
             </select>
-
           </div>
         </div>
 
-        {/* =====================================================
-            TABLE
-        ===================================================== */}
-
+        {/* TABLE */}
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
           <div className="overflow-x-auto">
-
-            <table className="w-full min-w-[1100px]">
-
+            <table className="w-full min-w-[1100px] border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-100 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-400">
-
-                  <th className="px-5 py-4 text-left">
-                    Supplier
-                  </th>
-
-                  <th className="px-5 py-4 text-left">
-                    Contact
-                  </th>
-
-                  <th className="px-5 py-4 text-left">
-                    GSTIN
-                  </th>
-
-                  <th className="px-5 py-4 text-left">
-                    Location
-                  </th>
-
-                  <th className="px-5 py-4 text-right">
-                    Balance
-                  </th>
-
-                  <th className="px-5 py-4 text-center">
-                    Status
-                  </th>
-
-                  <th className="px-5 py-4 text-center">
-                    Actions
-                  </th>
-
+                <tr className="border-b border-slate-200 bg-slate-100/70 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
+                  <th className="px-5 py-4 text-left font-semibold">Supplier</th>
+                  <th className="px-5 py-4 text-left font-semibold">Contact</th>
+                  <th className="px-5 py-4 text-left font-semibold">GSTIN</th>
+                  <th className="px-5 py-4 text-left font-semibold">Location</th>
+                  <th className="px-5 py-4 text-right font-semibold">Balance</th>
+                  <th className="px-5 py-4 text-center font-semibold">Status</th>
+                  <th className="px-5 py-4 text-center font-semibold">Actions</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-
                 {filteredSuppliers.length > 0 ? (
                   filteredSuppliers.map((supplier) => (
-
                     <tr
                       key={supplier.id}
-                      className="transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      className="transition hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
                     >
-
-                      {/* Supplier */}
-
                       <td className="px-5 py-4">
-
                         <div className="flex items-center gap-3">
-
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 font-bold text-emerald-600 dark:text-emerald-400">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 font-bold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
                             {supplier.name
-                              .split(" ")
-                              .slice(0, 2)
-                              .map((word) => word[0])
-                              .join("")
-                              .toUpperCase()}
+                              ? supplier.name
+                                  .split(" ")
+                                  .slice(0, 2)
+                                  .map((w) => w[0])
+                                  .join("")
+                                  .toUpperCase()
+                              : "S"}
                           </div>
-
                           <div>
-                            <p className="font-semibold text-slate-900 dark:text-white">
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">
                               {supplier.name}
                             </p>
-
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {supplier.contactPerson}
+                              {supplier.contactPerson || "N/A"}
                             </p>
                           </div>
-
                         </div>
-
                       </td>
 
-                      {/* Contact */}
-
                       <td className="px-5 py-4">
-
-                        <p className="text-sm">
-                          {supplier.phone}
-                        </p>
-
+                        <p className="text-sm text-slate-800 dark:text-slate-200">{supplier.phone}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {supplier.email}
+                          {supplier.email || "-"}
                         </p>
-
                       </td>
 
-                      {/* GSTIN */}
-
                       <td className="px-5 py-4">
-
-                        <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                          {supplier.gstin}
+                        <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          {supplier.gstin || "N/A"}
                         </span>
-
                       </td>
 
-                      {/* Location */}
-
                       <td className="px-5 py-4">
-
-                        <p className="text-sm">
-                          {supplier.city}
-                        </p>
-
+                        <p className="text-sm text-slate-800 dark:text-slate-200">{supplier.city || "-"}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {supplier.state}
+                          {supplier.state || "-"}
                         </p>
-
                       </td>
 
-                      {/* Balance */}
-
-                      <td className="px-5 py-4 text-right">
-
-                        <span className="font-semibold">
-                          {formatCurrency(supplier.balance)}
-                        </span>
-
+                      <td className="px-5 py-4 text-right font-semibold text-slate-900 dark:text-slate-100">
+                        {formatCurrency(supplier.balance)}
                       </td>
-
-                      {/* Status */}
 
                       <td className="px-5 py-4 text-center">
-
                         <span
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                             supplier.status === "Active"
@@ -501,232 +395,156 @@ export default function SupplierList() {
                         >
                           {supplier.status}
                         </span>
-
                       </td>
 
-                      {/* Actions */}
-
                       <td className="px-5 py-4">
-
                         <div className="flex justify-center gap-2">
-
                           <ActionButton
                             title="View Supplier"
                             icon={<Eye size={17} />}
-                            onClick={() => handleView(supplier)}
+                            onClick={() => setViewSupplier(supplier)}
                           />
-
                           <ActionButton
                             title="Edit Supplier"
                             icon={<Pencil size={17} />}
                             onClick={() => handleEdit(supplier)}
                             edit
                           />
-
                           <ActionButton
                             title="Delete Supplier"
                             icon={<Trash2 size={17} />}
-                            onClick={() => handleDelete(supplier)}
+                            onClick={() => setDeleteSupplier(supplier)}
                             danger
                           />
-
                         </div>
-
                       </td>
-
                     </tr>
-
                   ))
                 ) : (
-
                   <tr>
-                    <td
-                      colSpan="7"
-                      className="px-5 py-14 text-center"
-                    >
+                    <td colSpan="7" className="px-5 py-14 text-center">
                       <div className="flex flex-col items-center">
-
                         <Search
                           size={32}
                           className="text-slate-300 dark:text-slate-600"
                         />
-
-                        <p className="mt-3 font-semibold">
+                        <p className="mt-3 font-semibold text-slate-700 dark:text-slate-300">
                           No suppliers found
                         </p>
-
-                        <p className="mt-1 text-sm text-slate-500">
-                          Try changing your search or filter.
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                          Try changing your search terms or status filter.
                         </p>
-
                       </div>
                     </td>
                   </tr>
-
                 )}
-
               </tbody>
-
             </table>
-
           </div>
         </div>
-
       </div>
 
-      {/* =======================================================
-          VIEW MODAL
-      ======================================================= */}
-
+      {/* VIEW MODAL */}
       {viewSupplier && (
         <ModalOverlay onClose={() => setViewSupplier(null)}>
-
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
-
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 dark:text-white">
             <div className="flex items-center justify-between border-b border-slate-200 p-5 dark:border-slate-800">
-
               <div className="flex items-center gap-3">
-
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 font-bold text-emerald-600 dark:text-emerald-400">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 font-bold text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
                   {viewSupplier.name
-                    .split(" ")
-                    .slice(0, 2)
-                    .map((word) => word[0])
-                    .join("")
-                    .toUpperCase()}
+                    ? viewSupplier.name
+                        .split(" ")
+                        .slice(0, 2)
+                        .map((w) => w[0])
+                        .join("")
+                        .toUpperCase()
+                    : "S"}
                 </div>
-
                 <div>
-                  <h2 className="text-xl font-bold">
-                    {viewSupplier.name}
-                  </h2>
-
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">{viewSupplier.name}</h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     Supplier Details
                   </p>
                 </div>
-
               </div>
 
               <button
                 type="button"
                 onClick={() => setViewSupplier(null)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
                 <X size={20} />
               </button>
-
             </div>
 
             <div className="grid max-h-[65vh] gap-4 overflow-y-auto p-5 sm:grid-cols-2">
-
               <DetailItem
                 label="Contact Person"
                 value={viewSupplier.contactPerson}
               />
-
-              <DetailItem
-                label="Phone Number"
-                value={viewSupplier.phone}
-              />
-
-              <DetailItem
-                label="Email Address"
-                value={viewSupplier.email}
-              />
-
-              <DetailItem
-                label="GSTIN"
-                value={viewSupplier.gstin}
-              />
-
-              <DetailItem
-                label="City"
-                value={viewSupplier.city}
-              />
-
-              <DetailItem
-                label="State"
-                value={viewSupplier.state}
-              />
-
+              <DetailItem label="Phone Number" value={viewSupplier.phone} />
+              <DetailItem label="Email Address" value={viewSupplier.email} />
+              <DetailItem label="GSTIN" value={viewSupplier.gstin} />
+              <DetailItem label="City" value={viewSupplier.city} />
+              <DetailItem label="State" value={viewSupplier.state} />
               <DetailItem
                 label="Balance"
                 value={formatCurrency(viewSupplier.balance)}
               />
-
-              <DetailItem
-                label="Status"
-                value={viewSupplier.status}
-              />
-
+              <DetailItem label="Status" value={viewSupplier.status} />
             </div>
 
             <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-
               <button
                 type="button"
                 onClick={() => setViewSupplier(null)}
-                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold hover:bg-white dark:border-slate-700 dark:hover:bg-slate-800"
+                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Close
               </button>
-
               <button
                 type="button"
                 onClick={() => {
-                  const supplier = viewSupplier;
-
+                  const sup = viewSupplier;
                   setViewSupplier(null);
-                  handleEdit(supplier);
+                  handleEdit(sup);
                 }}
                 className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
               >
                 Edit Supplier
               </button>
-
             </div>
-
           </div>
-
         </ModalOverlay>
       )}
 
-      {/* =======================================================
-          EDIT MODAL
-      ======================================================= */}
-
-      {editingSupplier && (
-        <ModalOverlay onClose={closeEditModal}>
-
-          <div className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
-
+      {/* CREATE / EDIT MODAL */}
+      {(editingSupplier || isAddModalOpen) && (
+        <ModalOverlay onClose={closeFormModal}>
+          <div className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900 dark:text-white">
             <div className="flex items-center justify-between border-b border-slate-200 p-5 dark:border-slate-800">
-
               <div>
-                <h2 className="text-xl font-bold">
-                  Edit Supplier
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  {editingSupplier ? "Edit Supplier" : "Add New Supplier"}
                 </h2>
-
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Update supplier information.
+                  {editingSupplier
+                    ? "Update supplier information."
+                    : "Fill in details to register a new supplier."}
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={closeEditModal}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={closeFormModal}
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
                 <X size={20} />
               </button>
-
             </div>
 
-            <form onSubmit={handleUpdate}>
-
+            <form onSubmit={handleSubmit}>
               <div className="grid max-h-[65vh] gap-5 overflow-y-auto p-5 sm:grid-cols-2">
-
                 <FormField
                   label="Supplier Name"
                   name="name"
@@ -734,14 +552,12 @@ export default function SupplierList() {
                   onChange={handleInputChange}
                   required
                 />
-
                 <FormField
                   label="Contact Person"
                   name="contactPerson"
                   value={formData.contactPerson}
                   onChange={handleInputChange}
                 />
-
                 <FormField
                   label="Phone Number"
                   name="phone"
@@ -750,7 +566,6 @@ export default function SupplierList() {
                   type="tel"
                   required
                 />
-
                 <FormField
                   label="Email Address"
                   name="email"
@@ -758,7 +573,6 @@ export default function SupplierList() {
                   onChange={handleInputChange}
                   type="email"
                 />
-
                 <FormField
                   label="GSTIN"
                   name="gstin"
@@ -766,7 +580,6 @@ export default function SupplierList() {
                   onChange={handleInputChange}
                   maxLength={15}
                 />
-
                 <FormField
                   label="Balance"
                   name="balance"
@@ -775,14 +588,12 @@ export default function SupplierList() {
                   type="number"
                   min="0"
                 />
-
                 <FormField
                   label="City"
                   name="city"
                   value={formData.city}
                   onChange={handleInputChange}
                 />
-
                 <FormField
                   label="State"
                   name="state"
@@ -794,68 +605,48 @@ export default function SupplierList() {
                   <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Status
                   </label>
-
                   <select
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-emerald-500"
                   >
-                    <option value="Active">
-                      Active
-                    </option>
-
-                    <option value="Inactive">
-                      Inactive
-                    </option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
-
               </div>
 
               <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-
                 <button
                   type="button"
-                  onClick={closeEditModal}
-                  className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold hover:bg-white dark:border-slate-700 dark:hover:bg-slate-800"
+                  onClick={closeFormModal}
+                  className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
-
                 <button
                   type="submit"
                   className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
                 >
                   <Save size={17} />
-                  Update Supplier
+                  {editingSupplier ? "Update Supplier" : "Save Supplier"}
                 </button>
-
               </div>
-
             </form>
-
           </div>
-
         </ModalOverlay>
       )}
 
-      {/* =======================================================
-          DELETE MODAL
-      ======================================================= */}
-
+      {/* DELETE MODAL */}
       {deleteSupplier && (
         <ModalOverlay onClose={() => setDeleteSupplier(null)}>
-
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
-
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-500">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 dark:text-white">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-500 dark:bg-rose-500/20">
               <Trash2 size={22} />
             </div>
 
-            <h2 className="mt-4 text-xl font-bold">
-              Delete Supplier?
-            </h2>
+            <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-white">Delete Supplier?</h2>
 
             <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
               Are you sure you want to delete{" "}
@@ -866,15 +657,13 @@ export default function SupplierList() {
             </p>
 
             <div className="mt-6 flex justify-end gap-3">
-
               <button
                 type="button"
                 onClick={() => setDeleteSupplier(null)}
-                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
-
               <button
                 type="button"
                 onClick={confirmDelete}
@@ -882,75 +671,43 @@ export default function SupplierList() {
               >
                 Delete Supplier
               </button>
-
             </div>
-
           </div>
-
         </ModalOverlay>
       )}
-
     </div>
   );
 }
 
 /* =========================================================
-   STAT CARD
+   SUBCOMPONENTS
 ========================================================= */
 
-function StatCard({
-  title,
-  value,
-  icon,
-  iconClass,
-}) {
+function StatCard({ title, value, icon, iconClass }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-
       <div className="flex items-start justify-between gap-4">
-
         <div>
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
             {title}
           </p>
-
-          <p className="mt-2 text-2xl font-bold">
-            {value}
-          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
         </div>
-
-        <div className={`rounded-xl p-3 ${iconClass}`}>
-          {icon}
-        </div>
-
+        <div className={`rounded-xl p-3 ${iconClass}`}>{icon}</div>
       </div>
     </div>
   );
 }
 
-/* =========================================================
-   ACTION BUTTON
-========================================================= */
-
-function ActionButton({
-  title,
-  icon,
-  onClick,
-  edit = false,
-  danger = false,
-}) {
-  let className =
-    "rounded-lg p-2 transition ";
+function ActionButton({ title, icon, onClick, edit = false, danger = false }) {
+  let className = "rounded-lg p-2 transition ";
 
   if (danger) {
-    className +=
-      "text-slate-400 hover:bg-rose-500/10 hover:text-rose-500";
+    className += "text-slate-400 hover:bg-rose-500/10 hover:text-rose-500 dark:text-slate-500 dark:hover:text-rose-400";
   } else if (edit) {
-    className +=
-      "text-slate-400 hover:bg-blue-500/10 hover:text-blue-500";
+    className += "text-slate-400 hover:bg-blue-500/10 hover:text-blue-500 dark:text-slate-500 dark:hover:text-blue-400";
   } else {
-    className +=
-      "text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-500";
+    className += "text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-500 dark:text-slate-500 dark:hover:text-emerald-400";
   }
 
   return (
@@ -966,10 +723,6 @@ function ActionButton({
   );
 }
 
-/* =========================================================
-   FORM FIELD
-========================================================= */
-
 function FormField({
   label,
   name,
@@ -984,14 +737,8 @@ function FormField({
     <div>
       <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
         {label}
-
-        {required && (
-          <span className="ml-1 text-rose-500">
-            *
-          </span>
-        )}
+        {required && <span className="ml-1 text-rose-500">*</span>}
       </label>
-
       <input
         type={type}
         name={name}
@@ -1000,40 +747,29 @@ function FormField({
         required={required}
         maxLength={maxLength}
         min={min}
-        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-emerald-500"
       />
     </div>
   );
 }
 
-/* =========================================================
-   DETAIL ITEM
-========================================================= */
-
 function DetailItem({ label, value }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-400">
         {label}
       </p>
-
       <p className="mt-1.5 break-words text-sm font-semibold text-slate-800 dark:text-slate-200">
         {value || "-"}
       </p>
-
     </div>
   );
 }
 
-/* =========================================================
-   MODAL OVERLAY
-========================================================= */
-
 function ModalOverlay({ children, onClose }) {
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm dark:bg-black/75"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -1044,4 +780,3 @@ function ModalOverlay({ children, onClose }) {
     </div>
   );
 }
-

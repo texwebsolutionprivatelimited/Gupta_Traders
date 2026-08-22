@@ -152,7 +152,7 @@ export default function Categories() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-slate-950 p-4 sm:p-6">
+    <div className="min-h-screen bg-gray-100 dark:bg-slate-950 p-2 sm:p-6">
       <div className="mx-auto max-w-7xl">
 
         {/* Header */}

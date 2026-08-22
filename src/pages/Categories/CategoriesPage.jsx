@@ -304,7 +304,7 @@ function CategoryFormModal({ category, onSave, onCancel }) {
 
           {/* Error */}
           {error && (
-            <div className="px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm flex items-center gap-2">
+            <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
               <WarningIcon />
               {error}
             </div>
@@ -312,8 +312,8 @@ function CategoryFormModal({ category, onSave, onCancel }) {
 
           {/* Category Name */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-semibold text-slate-300">
-              Category Name <span className="text-rose-400 ml-0.5">*</span>
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
+              Category Name <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>
             </label>
             <input
               ref={nameRef}
@@ -321,13 +321,13 @@ function CategoryFormModal({ category, onSave, onCancel }) {
               value={name}
               onChange={e => { setName(e.target.value); setError('') }}
               placeholder="e.g. Grocery, Snacks, Beverages..."
-              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-slate-800/80 border border-slate-700/60 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
             />
           </div>
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-semibold text-slate-300">
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
               Description
             </label>
             <textarea
@@ -335,37 +335,35 @@ function CategoryFormModal({ category, onSave, onCancel }) {
               onChange={e => setDescription(e.target.value)}
               placeholder="Brief description of what this category includes..."
               rows={2}
-              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-slate-800/80 border border-slate-700/60 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all resize-none"
+              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all resize-none"
             />
           </div>
 
           {/* Cover Image — Drag & Drop / Upload */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-semibold text-slate-300">
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
               Cover Image
             </label>
-            <p className="text-xs text-slate-500">Upload an image that covers the category card. Max 2 MB.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Upload an image that covers the category card. Max 2 MB.</p>
 
             {image ? (
               /* ── Preview ── */
-              <div className="relative rounded-xl overflow-hidden border border-slate-700/60 group/img">
+              <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 group/img">
                 <img
                   src={image}
                   alt="Category cover preview"
                   className="w-full h-40 object-cover"
                 />
-                {/* Overlay with name preview */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-4">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent flex flex-col justify-end p-4">
                   <div className="flex items-center gap-2">
                     <span className="text-xl">{icon}</span>
-                    <span className="text-white font-bold text-sm drop-shadow-lg">{name || 'Category Name'}</span>
+                    <span className="text-white font-bold text-sm drop-shadow-md">{name || 'Category Name'}</span>
                   </div>
                 </div>
-                {/* Remove button */}
                 <button
                   type="button"
                   onClick={removeImage}
-                  className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-white/70 hover:text-rose-400 hover:bg-black/80 transition-all opacity-0 group-hover/img:opacity-100 cursor-pointer"
+                  className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-slate-950/70 backdrop-blur-sm border border-slate-700 flex items-center justify-center text-slate-300 hover:text-red-400 hover:bg-slate-900 transition-all opacity-0 group-hover/img:opacity-100 cursor-pointer"
                 >
                   <TrashMiniIcon />
                 </button>
@@ -378,27 +376,26 @@ function CategoryFormModal({ category, onSave, onCancel }) {
                 onDragLeave={handleDragLeave}
                 onClick={() => fileInputRef.current?.click()}
                 className={`
-                  relative w-full h-36 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200
-                  ${isDragging
-                    ? 'border-emerald-500/60 bg-emerald-500/10 scale-[1.01]'
-                    : 'border-slate-700/50 bg-slate-800/40 hover:border-slate-600/60 hover:bg-slate-800/60'}
-                `}
+          relative w-full h-36 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-200
+          ${isDragging
+                    ? 'border-emerald-500 bg-emerald-500/10 scale-[1.01]'
+                    : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 hover:border-slate-400 dark:hover:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800/80'}
+        `}
               >
-                <div className={`transition-colors ${isDragging ? 'text-emerald-400' : 'text-slate-500'}`}>
+                <div className={`transition-colors ${isDragging ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`}>
                   <ImageUploadIcon />
                 </div>
                 <div className="text-center">
-                  <p className={`text-sm font-medium ${isDragging ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  <p className={`text-sm font-medium ${isDragging ? 'text-emerald-500' : 'text-slate-700 dark:text-slate-300'}`}>
                     {isDragging ? 'Drop image here' : 'Drag & drop an image'}
                   </p>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    or <span className="text-emerald-400/80 underline underline-offset-2">click to browse</span>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    or <span className="text-emerald-600 dark:text-emerald-400 underline underline-offset-2">click to browse</span>
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -410,7 +407,7 @@ function CategoryFormModal({ category, onSave, onCancel }) {
 
           {/* Icon Picker */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-semibold text-slate-300">
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
               Icon
             </label>
             <div className="grid grid-cols-10 gap-1.5">
@@ -420,11 +417,11 @@ function CategoryFormModal({ category, onSave, onCancel }) {
                   type="button"
                   onClick={() => setIcon(emoji)}
                   className={`
-                    w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-all cursor-pointer
-                    ${icon === emoji
-                      ? 'bg-emerald-500/20 border-2 border-emerald-500/50 scale-110'
-                      : 'bg-slate-800/60 border border-slate-700/40 hover:bg-slate-700/60 hover:scale-105'}
-                  `}
+            w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-all cursor-pointer
+            ${icon === emoji
+                      ? 'bg-emerald-500/20 border-2 border-emerald-500 scale-110'
+                      : 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 hover:scale-105'}
+          `}
                 >
                   {emoji}
                 </button>
@@ -434,7 +431,7 @@ function CategoryFormModal({ category, onSave, onCancel }) {
 
           {/* Color Picker */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-semibold text-slate-300">
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
               Color
             </label>
             <div className="grid grid-cols-10 gap-1.5">
@@ -444,11 +441,11 @@ function CategoryFormModal({ category, onSave, onCancel }) {
                   type="button"
                   onClick={() => setColor(c)}
                   className={`
-                    w-9 h-9 rounded-lg transition-all cursor-pointer
-                    ${color === c
-                      ? 'ring-2 ring-white/60 scale-110'
+            w-9 h-9 rounded-lg transition-all cursor-pointer
+            ${color === c
+                      ? 'ring-2 ring-slate-900 dark:ring-white ring-offset-2 ring-offset-white dark:ring-offset-slate-900 scale-110'
                       : 'hover:scale-110'}
-                  `}
+          `}
                   style={{ backgroundColor: c }}
                 />
               ))}
@@ -457,7 +454,7 @@ function CategoryFormModal({ category, onSave, onCancel }) {
 
           {/* Status Toggle */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-semibold text-slate-300">
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
               Status
             </label>
             <div className="flex gap-3">
@@ -465,11 +462,11 @@ function CategoryFormModal({ category, onSave, onCancel }) {
                 type="button"
                 onClick={() => setStatus('active')}
                 className={`
-                  flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer
-                  ${status === 'active'
-                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
-                    : 'bg-slate-800/60 border border-slate-700/40 text-slate-400 hover:text-slate-300'}
-                `}
+          flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer
+          ${status === 'active'
+                    ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}
+        `}
               >
                 ● Active
               </button>
@@ -477,11 +474,11 @@ function CategoryFormModal({ category, onSave, onCancel }) {
                 type="button"
                 onClick={() => setStatus('inactive')}
                 className={`
-                  flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer
-                  ${status === 'inactive'
-                    ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
-                    : 'bg-slate-800/60 border border-slate-700/40 text-slate-400 hover:text-slate-300'}
-                `}
+          flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer
+          ${status === 'inactive'
+                    ? 'bg-amber-500/15 border border-amber-500/40 text-amber-600 dark:text-amber-400'
+                    : 'bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}
+        `}
               >
                 ○ Inactive
               </button>

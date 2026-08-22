@@ -77,7 +77,7 @@ export default function PendingSupplierPayment() {
               Suppliers / Pending Payment
             </p>
 
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
               Pending Supplier Payments
             </h1>
 
@@ -101,7 +101,7 @@ export default function PendingSupplierPayment() {
               Pending Invoices
             </p>
 
-            <h2 className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
+            <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-50">
               {filteredPayments.length}
             </h2>
           </div>
@@ -111,7 +111,7 @@ export default function PendingSupplierPayment() {
               Total Pending Amount
             </p>
 
-            <h2 className="mt-2 text-3xl font-bold text-rose-500">
+            <h2 className="mt-2 text-2xl font-bold text-rose-500">
               ₹{totalPending.toLocaleString()}
             </h2>
           </div>
@@ -121,7 +121,7 @@ export default function PendingSupplierPayment() {
               Suppliers
             </p>
 
-            <h2 className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
+            <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-50">
               {
                 new Set(
                   filteredPayments.map(
@@ -186,7 +186,7 @@ export default function PendingSupplierPayment() {
                         key={payment.id}
                         className="border-t border-slate-200 dark:border-slate-800"
                       >
-                        <td className="px-5 py-4 font-medium text-slate-900 dark:text-white">
+                        <td className="px-5 py-4 font-medium text-slate-900 dark:text-slate-50">
                           {payment.supplier}
                         </td>
 

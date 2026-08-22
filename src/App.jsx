@@ -10,7 +10,8 @@ import PlaceholderPage from "./pages/Dashboard/PlaceholderPage";
 import POSBilling from "./pages/Billing/POSBilling";
 
 // Products
-import ProductList from "./pages/Products/ProductList";
+// import ProductsPage from "./pages/Products/ProductsPage"
+
 import AddProduct from "./pages/Products/AddProduct";
 import EditProduct from "./pages/Products/EditProduct";
 import ProductDetails from "./pages/Products/ProductDetails";
@@ -63,6 +64,23 @@ import CustomerList from "./pages/Customers/CustomerList";
 import CustomerPurchaseHistory from "./pages/Customers/CustomerPurchaseHistory";
 import CustomerKhata from "./pages/Customers/CustomerKhata";
 import DuePayment from "./pages/Customers/DuePayment";
+import UserManagement from "./pages/UserManagement/UserManagement";
+import AddUser from "./pages/UserManagement/AddUser";
+import EditUser from "./pages/UserManagement/EditUser";
+import UserDetails from "./pages/UserManagement/UserDetails";
+import RolePermissions from "./pages/UserManagement/RolePermissions";
+import ShopInformation from "./pages/Settings/ShopInformation";
+import GSTSettings from "./pages/Settings/GSTSettings";
+import InvoiceSettings from "./pages/Settings/InvoiceSettings";
+import PrinterSettings from "./pages/Settings/PrinterSettings";
+import BackupRestore from "./pages/Settings/BackupRestore";
+import Settings from "./pages/Settings/Settings";
+import USBPrinter from "./pages/Hardware/USBPrinter";
+import ThermalPrinter from "./pages/Hardware/ThermalPrinter";
+import BarcodeScanner from "./pages/Hardware/BarcodeScanner";
+import Hardware from "./pages/Hardware/Hardware";
+import CategoriesPage from "./pages/Categories";
+import ProductList from "./pages/Products/ProductList";
 
 function App() {
   return (
@@ -88,7 +106,11 @@ function App() {
           {/* ===================================================
               PRODUCTS
           =================================================== */}
-          <Route path="/products" element={<ProductList />} />
+         
+
+          {/* <Route path="/products" element={<ProductsPage />} /> */}
+          <Route path="/products" element={<ProductList />} /> 
+      
 
           <Route
             path="/products/add"
@@ -110,7 +132,7 @@ function App() {
           =================================================== */}
           <Route
             path="/categories"
-            element={<Categories />}
+            element={<CategoriesPage />}
           />
 
           {/* ===================================================
@@ -299,41 +321,45 @@ function App() {
           =================================================== */}
           <Route
             path="/users"
-            element={
-              <PlaceholderPage
-                title="User Management"
-                description="Manage users, roles, and permissions"
-                icon="users"
-              />
-            }
+            element={<UserManagement />}
+          />
+          <Route
+            path="/users/permissions"
+            element={<RolePermissions />}
           />
 
-          {/* ===================================================
-              SETTINGS
-          =================================================== */}
-          <Route
-            path="/settings"
-            element={
-              <PlaceholderPage
-                title="Settings"
-                description="Application settings and configuration"
-                icon="settings"
-              />
-            }
-          />
+          <Route path="/users/add" element={<AddUser />} />
+          <Route path="/users/edit/:id" element={<EditUser />} />
+          <Route path="/users/:id" element={<UserDetails />} />
+
+          {/* ===================================================== SETTINGS ===================================================== */}
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/shop-information" element={<ShopInformation />} />
+          <Route path="/settings/gst" element={<GSTSettings />} />
+          <Route path="/settings/invoice" element={<InvoiceSettings />} />
+          <Route path="/settings/printer" element={<PrinterSettings />} />
+          <Route path="/settings/backup" element={<BackupRestore />} />
 
           {/* ===================================================
               HARDWARE
           =================================================== */}
-          <Route
+         <Route
             path="/hardware"
-            element={
-              <PlaceholderPage
-                title="Hardware"
-                description="Manage connected hardware devices"
-                icon="hardware"
-              />
-            }
+            element={<Hardware />}
+          />
+
+          <Route
+            path="/hardware/usb-printer"
+            element={<USBPrinter />}
+          />
+          <Route
+            path="/hardware/thermal-printer"
+            element={<ThermalPrinter />}
+          />
+
+          <Route
+            path="/hardware/barcode-scanner"
+            element={<BarcodeScanner />}
           />
 
           {/* ===================================================

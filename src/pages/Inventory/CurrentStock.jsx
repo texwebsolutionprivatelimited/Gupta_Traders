@@ -297,7 +297,7 @@ export default function CurrentStock() {
           </div>
 
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">
+             <h2 className="text-xl font-bold sm:text-2xl text-slate-900 dark:text-slate-100">
               Current Stock
             </h2>
 

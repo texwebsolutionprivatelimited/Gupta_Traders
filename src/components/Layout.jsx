@@ -6,6 +6,8 @@ import { getCustomers } from '../hooks/customerData'
 import { getCategoriesV2 } from '../hooks/categoryData'
 import { getSavedBills } from '../hooks/posData'
 import Footer from './footer'
+import { useReport } from '../context/ReportContext'
+import { useExpense } from '../context/ExpenseContext'
 import {
   FaUsers,
   FaCoins,
@@ -1068,6 +1070,576 @@ export default function Layout() {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef(null)
 
+  // Contexts for ERP data
+  const { salesRecords = [], purchaseRecords = [], stockItems = [] } = useReport()
+  const { rentHistory = [], electricityRecords = [], staffSalaryRecords = [], miscExpenses = [] } = useExpense()
+
+  // Export dropdown state
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const exportMenuRef = useRef(null)
+  const [historyType, setHistoryType] = useState('sales') // sales, purchase, expenses, stock, combined
+  const [timeframe, setTimeframe] = useState('weekly') // weekly, monthly, yearly, custom
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
+  // Click outside to close export menu
+  useEffect(() => {
+    function handleClickOutsideExport(event) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
+        setExportMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutsideExport)
+    return () => document.removeEventListener('mousedown', handleClickOutsideExport)
+  }, [])
+
+  // Helper to parse date values safely
+  const parseRecordDate = (dateVal) => {
+    if (!dateVal) return null
+    if (typeof dateVal === 'number') {
+      return new Date(dateVal)
+    }
+    const parsed = new Date(dateVal)
+    if (!isNaN(parsed.getTime())) {
+      return parsed
+    }
+    // Handle manual formats like "15 Aug 2026" or YYYY-MM-DD
+    const parts = String(dateVal).split(' ')
+    if (parts.length === 3) {
+      const months = {
+        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+      }
+      const day = parseInt(parts[0], 10)
+      const monthStr = parts[1].toLowerCase().slice(0, 3)
+      const year = parseInt(parts[2], 10)
+      if (!isNaN(day) && !isNaN(year) && months[monthStr] !== undefined) {
+        return new Date(year, months[monthStr], day)
+      }
+    }
+    return null
+  }
+
+  // Helper to filter records by selected timeframe
+  const filterRecordsByTimeframe = (records, dateField) => {
+    if (timeframe === 'all') return records
+
+    const today = new Date()
+    let startLimit = null
+    let endLimit = new Date()
+    endLimit.setHours(23, 59, 59, 999)
+
+    if (timeframe === 'weekly') {
+      startLimit = new Date()
+      startLimit.setDate(today.getDate() - 7)
+      startLimit.setHours(0, 0, 0, 0)
+    } else if (timeframe === 'monthly') {
+      startLimit = new Date()
+      startLimit.setDate(today.getDate() - 30)
+      startLimit.setHours(0, 0, 0, 0)
+    } else if (timeframe === 'yearly') {
+      startLimit = new Date()
+      startLimit.setDate(today.getDate() - 365)
+      startLimit.setHours(0, 0, 0, 0)
+    } else if (timeframe === 'custom') {
+      if (startDate) {
+        startLimit = new Date(startDate)
+        startLimit.setHours(0, 0, 0, 0)
+      }
+      if (endDate) {
+        endLimit = new Date(endDate)
+        endLimit.setHours(23, 59, 59, 999)
+      }
+    }
+
+    return records.filter(record => {
+      const rawDate = record[dateField]
+      const recDate = parseRecordDate(rawDate)
+      if (!recDate) return true // Keep record if it doesn't have a parseable date
+
+      if (startLimit && recDate < startLimit) return false
+      if (endLimit && recDate > endLimit) return false
+      return true
+    })
+  }
+
+  // Gather and filter data based on selections
+  const getFilteredData = () => {
+    let headers = []
+    let rows = []
+    let title = ""
+    let summaryCards = []
+
+    const dateRangeStr = timeframe === 'custom'
+      ? `${startDate || 'Start'} to ${endDate || 'End'}`
+      : timeframe.toUpperCase()
+
+    if (historyType === 'sales') {
+      title = "Sales History Report"
+      headers = ["Invoice / Sale ID", "Date", "Customer", "Invoice Number", "Items Count", "Total Amount", "Payment Method", "Status"]
+      const filteredSales = filterRecordsByTimeframe(salesRecords, 'date')
+      
+      const totalAmt = filteredSales.reduce((sum, s) => sum + Number(s.total || s.grandTotal || 0), 0)
+      summaryCards = [
+        { title: "Total Invoices", value: filteredSales.length, color: "#2563eb" },
+        { title: "Total Sales Amount", value: '₹' + totalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }), color: "#059669" }
+      ]
+
+      rows = filteredSales.map(s => [
+        s.id || s.billNumber || "-",
+        s.date || "-",
+        s.customer || "Walk-in Customer",
+        s.invoice || "-",
+        s.items ? (Array.isArray(s.items) ? s.items.length : s.items) : (s.itemCount || 0),
+        '₹' + Number(s.total || s.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        s.payment || s.paymentMode || "-",
+        s.status || "Completed"
+      ])
+
+    } else if (historyType === 'purchase') {
+      title = "Purchase History Report"
+      headers = ["Purchase ID", "Date", "Supplier", "Invoice Number", "Items Count", "Subtotal", "GST", "Total Amount", "Payment Status", "Status"]
+      const filteredPurchases = filterRecordsByTimeframe(purchaseRecords, 'date')
+
+      const totalAmt = filteredPurchases.reduce((sum, p) => sum + Number(p.total || 0), 0)
+      summaryCards = [
+        { title: "Total Purchases", value: filteredPurchases.length, color: "#2563eb" },
+        { title: "Total Purchase Amount", value: '₹' + totalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }), color: "#059669" }
+      ]
+
+      rows = filteredPurchases.map(p => [
+        p.id || "-",
+        p.date || "-",
+        p.supplier || "-",
+        p.invoice || "-",
+        p.items ? (Array.isArray(p.items) ? p.items.length : p.items) : (p.itemCount || 0),
+        '₹' + Number(p.subtotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        '₹' + Number(p.gst || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        '₹' + Number(p.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        p.payment || "-",
+        p.status || "-"
+      ])
+
+    } else if (historyType === 'expenses') {
+      title = "Expenses History Report"
+      headers = ["Expense Type", "Reference / Name", "Category / Detail", "Date", "Payment Mode", "Amount", "Status"]
+
+      const fRent = filterRecordsByTimeframe(rentHistory, 'paymentDate').map(r => ({
+        type: "Rent", ref: r.propertyName || "-", detail: `Owner: ${r.ownerName || "-"}`, date: r.paymentDate, mode: r.paymentMode || "-", amount: r.amount, status: "Paid"
+      }))
+
+      const fElec = filterRecordsByTimeframe(electricityRecords, 'paymentDate').map(e => ({
+        type: "Electricity", ref: `Bill: ${e.billNumber || "-"}`, detail: `Consumer: ${e.consumerNumber || "-"} (${e.units || 0} units)`, date: e.paymentDate, mode: "Online", amount: e.amount, status: e.status || "Paid"
+      }))
+
+      const fSalary = filterRecordsByTimeframe(staffSalaryRecords, 'paymentDate').map(s => ({
+        type: "Staff Salary", ref: s.employeeName || "-", detail: s.designation || "-", date: s.paymentDate, mode: s.paymentMode || "-", amount: s.amount, status: s.status || "Paid"
+      }))
+
+      const fMisc = filterRecordsByTimeframe(miscExpenses, 'expenseDate').map(m => ({
+        type: "Miscellaneous", ref: m.vendor || "-", detail: `${m.category || ""} - ${m.description || ""}`, date: m.expenseDate, mode: m.paymentMode || "-", amount: m.amount, status: "Paid"
+      }))
+
+      const allExpenses = [...fRent, ...fElec, ...fSalary, ...fMisc].sort((a, b) => {
+        const da = parseRecordDate(a.date) || new Date(0)
+        const db = parseRecordDate(b.date) || new Date(0)
+        return db - da // newest first
+      })
+
+      const totalAmt = allExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0)
+      summaryCards = [
+        { title: "Total Expense Bills", value: allExpenses.length, color: "#2563eb" },
+        { title: "Total Expenses Amount", value: '₹' + totalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 }), color: "#dc2626" }
+      ]
+
+      rows = allExpenses.map(e => [
+        e.type,
+        e.ref,
+        e.detail,
+        e.date || "-",
+        e.mode,
+        '₹' + Number(e.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        e.status
+      ])
+
+    } else if (historyType === 'stock') {
+      title = "Stock Status Report"
+      headers = ["Product Name", "SKU / Code", "Category", "Current Stock", "Min Stock", "Unit", "Purchase Price", "Selling Price", "GST Rate"]
+      
+      const productsList = stockItems.length > 0 ? stockItems : getAllProducts()
+      
+      const totalStockVal = productsList.reduce((sum, item) => sum + (Number(item.currentStock || item.stock || 0) * Number(item.purchasePrice || item.price || 0)), 0)
+      const lowStockCount = productsList.filter(item => Number(item.currentStock || item.stock || 0) <= Number(item.minStock || 0)).length
+
+      summaryCards = [
+        { title: "Total Products", value: productsList.length, color: "#2563eb" },
+        { title: "Total Stock Value", value: '₹' + totalStockVal.toLocaleString('en-IN', { minimumFractionDigits: 2 }), color: "#059669" },
+        { title: "Low Stock Items", value: lowStockCount, color: "#dc2626" }
+      ]
+
+      rows = productsList.map(item => [
+        item.name || item.product || "-",
+        item.sku || item.productCode || "-",
+        item.category || "-",
+        item.stock !== undefined ? item.stock : (item.currentStock || 0),
+        item.minStock || 0,
+        item.unit || "-",
+        '₹' + Number(item.purchasePrice || item.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        '₹' + Number(item.sellingPrice || item.mrp || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        item.gstRate !== undefined ? `${item.gstRate}%` : "0%"
+      ])
+
+    } else if (historyType === 'combined') {
+      title = "Consolidated ERP Ledger Report"
+      headers = ["Date", "Transaction Type", "Ref ID / Invoice", "Description / Details", "Outflow (Debit)", "Inflow (Credit)", "Net Flow"]
+
+      // Map Sales (Inflow / Credit)
+      const fSales = filterRecordsByTimeframe(salesRecords, 'date').map(s => ({
+        date: s.date, type: "Sale", ref: s.invoice || s.id || "-", detail: `Customer: ${s.customer || "Walk-in"}`, debit: 0, credit: Number(s.total || s.grandTotal || 0)
+      }))
+
+      // Map Purchases (Outflow / Debit)
+      const fPurchases = filterRecordsByTimeframe(purchaseRecords, 'date').map(p => ({
+        date: p.date, type: "Purchase", ref: p.invoice || p.id || "-", detail: `Supplier: ${p.supplier || "-"}`, debit: Number(p.total || 0), credit: 0
+      }))
+
+      // Map Expenses (Outflow / Debit)
+      const fRent = filterRecordsByTimeframe(rentHistory, 'paymentDate').map(r => ({
+        date: r.paymentDate, type: "Expense (Rent)", ref: "Rent", detail: `Prop: ${r.propertyName || "-"}`, debit: Number(r.amount || 0), credit: 0
+      }))
+
+      const fElec = filterRecordsByTimeframe(electricityRecords, 'paymentDate').map(e => ({
+        date: e.paymentDate, type: "Expense (Electricity)", ref: `Bill: ${e.billNumber || "-"}`, detail: `Consumer: ${e.consumerNumber || "-"}`, debit: Number(e.amount || 0), credit: 0
+      }))
+
+      const fSalary = filterRecordsByTimeframe(staffSalaryRecords, 'paymentDate').map(s => ({
+        date: s.paymentDate, type: "Expense (Salary)", ref: "Salary", detail: `Employee: ${s.employeeName || "-"}`, debit: Number(s.amount || 0), credit: 0
+      }))
+
+      const fMisc = filterRecordsByTimeframe(miscExpenses, 'expenseDate').map(m => ({
+        date: m.expenseDate, type: "Expense (Misc)", ref: m.vendor || "-", detail: `${m.category || ""} - ${m.description || ""}`, debit: Number(m.amount || 0), credit: 0
+      }))
+
+      const ledger = [...fSales, ...fPurchases, ...fRent, ...fElec, ...fSalary, ...fMisc].sort((a, b) => {
+        const da = parseRecordDate(a.date) || new Date(0)
+        const db = parseRecordDate(b.date) || new Date(0)
+        return db - da // newest first
+      })
+
+      const totalCredit = ledger.reduce((sum, item) => sum + item.credit, 0)
+      const totalDebit = ledger.reduce((sum, item) => sum + item.debit, 0)
+      const netCashFlow = totalCredit - totalDebit
+
+      summaryCards = [
+        { title: "Total Inflow (Credit)", value: '₹' + totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 }), color: "#059669" },
+        { title: "Total Outflow (Debit)", value: '₹' + totalDebit.toLocaleString('en-IN', { minimumFractionDigits: 2 }), color: "#dc2626" },
+        { title: "Net Cash Flow", value: '₹' + netCashFlow.toLocaleString('en-IN', { minimumFractionDigits: 2 }), color: netCashFlow >= 0 ? "#059669" : "#dc2626" }
+      ]
+
+      rows = ledger.map(item => {
+        const netFlow = item.credit - item.debit
+        return [
+          item.date || "-",
+          item.type,
+          item.ref,
+          item.detail,
+          item.debit > 0 ? '₹' + item.debit.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : "-",
+          item.credit > 0 ? '₹' + item.credit.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : "-",
+          (netFlow >= 0 ? '+' : '-') + '₹' + Math.abs(netFlow).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+        ]
+      })
+    } else if (historyType === 'customers') {
+      title = "Customers Directory Report"
+      headers = ["Customer ID", "Name", "Phone", "Email", "Address", "City", "GSTIN", "Type", "Credit Limit", "Outstanding Balance", "Status", "Created At"]
+      
+      const filteredCustomers = filterRecordsByTimeframe(getCustomers(), 'createdAt')
+      const totalOutstanding = filteredCustomers.reduce((sum, c) => sum + Number(c.outstandingBalance || 0), 0)
+      summaryCards = [
+        { title: "Total Customers", value: filteredCustomers.length, color: "#2563eb" },
+        { title: "Active Customers", value: filteredCustomers.filter(c => c.status === 'active').length, color: "#059669" },
+        { title: "Outstanding Receivables", value: '₹' + totalOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2 }), color: "#dc2626" }
+      ]
+
+      rows = filteredCustomers.map(c => [
+        c.id || "-",
+        c.name || "-",
+        c.phone || "-",
+        c.email || "-",
+        c.address || "-",
+        c.city || "-",
+        c.gstin || "-",
+        c.customerType ? c.customerType.toUpperCase() : "-",
+        '₹' + Number(c.creditLimit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        '₹' + Number(c.outstandingBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        c.status ? c.status.toUpperCase() : "-",
+        c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "-"
+      ])
+
+    } else if (historyType === 'suppliers') {
+      title = "Suppliers Directory Report"
+      headers = ["Supplier ID", "Company Name", "Contact Person", "Phone", "Email", "Address", "City", "GSTIN", "Outstanding Payables", "Status", "Created At"]
+
+      const filteredSuppliers = filterRecordsByTimeframe(getSuppliers(), 'createdAt')
+      const totalPayables = filteredSuppliers.reduce((sum, s) => sum + Number(s.outstandingBalance || 0), 0)
+      summaryCards = [
+        { title: "Total Suppliers", value: filteredSuppliers.length, color: "#2563eb" },
+        { title: "Active Suppliers", value: filteredSuppliers.filter(s => s.status === 'active').length, color: "#059669" },
+        { title: "Outstanding Payables", value: '₹' + totalPayables.toLocaleString('en-IN', { minimumFractionDigits: 2 }), color: "#dc2626" }
+      ]
+
+      rows = filteredSuppliers.map(s => [
+        s.id || "-",
+        s.companyName || "-",
+        s.contactPerson || "-",
+        s.phone || "-",
+        s.email || "-",
+        s.address || "-",
+        s.city || "-",
+        s.gstin || "-",
+        '₹' + Number(s.outstandingBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        s.status ? s.status.toUpperCase() : "-",
+        s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "-"
+      ])
+    }
+
+    return { title, headers, rows, summaryCards, dateRangeStr }
+  }
+
+  // Download Excel Handler (CSV format)
+  const handleDownloadExcel = () => {
+    const { title, headers, rows, dateRangeStr } = getFilteredData()
+    const filename = `${title.toLowerCase().replace(/\s+/g, '_')}_${dateRangeStr.toLowerCase().replace(/\s+/g, '_')}.csv`
+    
+    let csvContent = "\uFEFF" // UTF-8 BOM for Rupee symbol support in Excel
+    
+    // Title & Meta Info header
+    csvContent += `"${title.toUpperCase()}"\n`
+    csvContent += `"Period:","${dateRangeStr}"\n`
+    csvContent += `"Generated on:","${new Date().toLocaleString()}"\n\n`
+
+    // Headers
+    csvContent += headers.map(h => `"${h.replace(/"/g, '""')}"`).join(",") + "\n"
+
+    // Rows
+    rows.forEach(row => {
+      csvContent += row.map(cell => {
+        const val = cell === null || cell === undefined ? "" : String(cell)
+        return `"${val.replace(/"/g, '""')}"`
+      }).join(",") + "\n"
+    })
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute("download", filename)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    setExportMenuOpen(false)
+  }
+
+  // Download PDF Handler (Styled HTML Print Window)
+  const handleDownloadPDF = () => {
+    const { title, headers, rows, summaryCards, dateRangeStr } = getFilteredData()
+    const printWindow = window.open("", "_blank")
+    if (!printWindow) {
+      alert("Please allow popups to download/print the PDF.")
+      return
+    }
+
+    printWindow.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+  <title>${title}</title>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #0f172a;
+      margin: 40px;
+      line-height: 1.5;
+      background: #ffffff;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px dashed #cbd5e1;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .company-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.025em;
+    }
+    .company-sub {
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .meta-info {
+      text-align: right;
+      font-size: 13px;
+      color: #475569;
+    }
+    .report-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #10b981;
+      margin-bottom: 5px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(${summaryCards.length}, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .card-value {
+      font-size: 24px;
+      font-weight: 800;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th {
+      background: #f1f5f9;
+      color: #475569;
+      font-weight: 700;
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    td {
+      padding: 12px 14px;
+      font-size: 13px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+    }
+    tr:nth-child(even) {
+      background: #fafafb;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .footer {
+      margin-top: 60px;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 20px;
+    }
+    @media print {
+      body { margin: 20px; }
+      .no-print { display: none; }
+      tr { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="company-title">Gupta Traders</div>
+      <div class="company-sub">ERP Management System</div>
+    </div>
+    <div class="meta-info">
+      <div class="report-title">${title}</div>
+      <div><strong>Period:</strong> ${dateRangeStr}</div>
+      <div><strong>Generated:</strong> ${new Date().toLocaleString()}</div>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    ${summaryCards.map(c => `
+      <div class="card">
+        <div class="card-title">${c.title}</div>
+        <div class="card-value" style="color: ${c.color || '#0f172a'}">${c.value}</div>
+      </div>
+    `).join('')}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        ${headers.map((h, i) => {
+          let alignClass = '';
+          const lowerH = h.toLowerCase();
+          if (lowerH.includes('total') || lowerH.includes('amount') || lowerH.includes('price') || lowerH.includes('balance') || lowerH.includes('debit') || lowerH.includes('credit') || lowerH.includes('flow') || lowerH.includes('subtotal') || lowerH.includes('gst')) {
+            alignClass = ' class="text-right"';
+          } else if (lowerH.includes('status') || lowerH.includes('method') || lowerH.includes('mode') || lowerH.includes('items') || lowerH.includes('count') || lowerH.includes('date')) {
+            alignClass = ' class="text-center"';
+          }
+          return `<th${alignClass}>${h}</th>`;
+        }).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map(row => `
+        <tr>
+          ${row.map((cell, idx) => {
+            const h = headers[idx];
+            let alignClass = '';
+            const lowerH = h.toLowerCase();
+            if (lowerH.includes('total') || lowerH.includes('amount') || lowerH.includes('price') || lowerH.includes('balance') || lowerH.includes('debit') || lowerH.includes('credit') || lowerH.includes('flow') || lowerH.includes('subtotal') || lowerH.includes('gst')) {
+              alignClass = ' class="text-right"';
+            } else if (lowerH.includes('status') || lowerH.includes('method') || lowerH.includes('mode') || lowerH.includes('items') || lowerH.includes('count') || lowerH.includes('date')) {
+              alignClass = ' class="text-center"';
+            }
+            return `<td${alignClass}>${cell}</td>`;
+          }).join('')}
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Thank you for using Gupta Traders ERP Management System. This is an official system generated document.
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 250);
+    }
+  </script>
+</body>
+</html>
+    `)
+    printWindow.document.close()
+    setExportMenuOpen(false)
+  }
+
   const [userName, setUserName] = useState('Admin')
   const [userRole, setUserRole] = useState('Admin')
   const [userTitle, setUserTitle] = useState('Owner')
@@ -1366,6 +1938,121 @@ export default function Layout() {
                 </svg>
               )}
             </button>
+
+            {/* Export Filter Dropdown */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setExportMenuOpen(!exportMenuOpen)}
+                className={`p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer ${exportMenuOpen ? 'bg-slate-800/60 text-slate-200' : ''}`}
+                title="Export ERP History"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+              </button>
+
+              {exportMenuOpen && (
+                <div className="absolute right-0 mt-2.5 w-72 rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-slate-800/80 p-4 shadow-2xl z-50 animate-scaleIn text-slate-200">
+                  <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-800/60">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    <p className="text-sm font-semibold text-slate-100">Export ERP History</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Report Type Selection */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                        History Type
+                      </label>
+                      <select
+                        value={historyType}
+                        onChange={(e) => setHistoryType(e.target.value)}
+                        className="w-full rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2.5 text-xs text-slate-200 outline-none transition focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 cursor-pointer"
+                      >
+                        <option className="bg-slate-900 text-slate-200" value="sales">Sales History</option>
+                        <option className="bg-slate-900 text-slate-200" value="purchase">Purchase History</option>
+                        <option className="bg-slate-900 text-slate-200" value="expenses">Expenses History</option>
+                        <option className="bg-slate-900 text-slate-200" value="stock">Stock / Inventory Status</option>
+                        <option className="bg-slate-900 text-slate-200" value="combined">Combined ERP Ledger</option>
+                        <option className="bg-slate-900 text-slate-200" value="customers">Customers Directory</option>
+                        <option className="bg-slate-900 text-slate-200" value="suppliers">Suppliers Directory</option>
+                      </select>
+                    </div>
+
+                    {/* Timeframe Selection */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Timeframe
+                      </label>
+                      <select
+                        value={timeframe}
+                        onChange={(e) => setTimeframe(e.target.value)}
+                        className="w-full rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2.5 text-xs text-slate-200 outline-none transition focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 cursor-pointer"
+                      >
+                        <option className="bg-slate-900 text-slate-200" value="weekly">Weekly (Last 7 Days)</option>
+                        <option className="bg-slate-900 text-slate-200" value="monthly">Monthly (Last 30 Days)</option>
+                        <option className="bg-slate-900 text-slate-200" value="yearly">Yearly (Last 365 Days)</option>
+                        <option className="bg-slate-900 text-slate-200" value="all">All-Time History</option>
+                        <option className="bg-slate-900 text-slate-200" value="custom">Custom Date Range</option>
+                      </select>
+                    </div>
+
+                    {/* Custom Date Pickers */}
+                    {timeframe === 'custom' && (
+                      <div className="grid grid-cols-2 gap-2.5 animate-fadeIn">
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">Start Date</label>
+                          <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="w-full rounded-lg border border-slate-800/60 bg-slate-950/40 px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-emerald-500/40"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">End Date</label>
+                          <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="w-full rounded-lg border border-slate-800/60 bg-slate-950/40 px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-emerald-500/40"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Export Actions */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/60">
+                      <button
+                        onClick={handleDownloadPDF}
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose-500/10 to-pink-500/10 hover:from-rose-500/20 hover:to-pink-500/20 border border-rose-500/20 text-rose-400 py-2.5 text-xs font-semibold transition-all cursor-pointer"
+                        title="Download as PDF Report"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        </svg>
+                        PDF Doc
+                      </button>
+
+                      <button
+                        onClick={handleDownloadExcel}
+                        className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-500/20 text-emerald-400 py-2.5 text-xs font-semibold transition-all cursor-pointer"
+                        title="Download as Excel CSV"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 19.5h18" />
+                        </svg>
+                        Excel CSV
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Notification bell */}
             <button className="relative p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">

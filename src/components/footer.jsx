@@ -4,8 +4,8 @@ export default function Footer() {
   const currentYear = new Date().getFullYear()
 
   return (
-    <footer className="mt-auto border-t border-slate-800/60 bg-slate-950/60 backdrop-blur-md px-6 py-6 sm:px-8">
-      <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-4">
+    <footer className="mt-auto px-4 pb-6 pt-2 sm:px-6 lg:px-8 print:hidden">
+      <div className="mx-auto max-w-7xl rounded-2xl border border-slate-800/50 bg-slate-900/45 backdrop-blur-xl px-6 py-5 shadow-2xl shadow-slate-950/30 hover:border-slate-700/60 transition-all duration-300 flex flex-col md:flex-row items-center justify-between gap-4">
 
         {/* Left Section: Branding & Copyright */}
         <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-left flex-wrap">
@@ -15,11 +15,11 @@ export default function Footer() {
             </div>
             <span className="font-semibold text-sm text-slate-200">Gupta Traders</span>
           </div>
-          <span className="hidden sm:inline text-slate-850">|</span>
+          <span className="hidden sm:inline text-slate-700/50">|</span>
           <p className="text-xs text-slate-500">
             &copy; {currentYear} Gupta Traders. All rights reserved.
           </p>
-          <span className="hidden sm:inline text-slate-850">|</span>
+          <span className="hidden sm:inline text-slate-700/50">|</span>
           <p className="text-xs text-slate-500">
             Designed & Developed by{' '}
             <a

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   getPackagedProducts, getLooseProducts, addProduct, updateProduct,
   deleteProduct, searchProductsByQuery, getCategories, formatINR,
@@ -180,23 +181,30 @@ const Field = ({ label, field, type: inputType = 'text', placeholder, required, 
           </span>
         )}
         {options ? (
-          <select
-            value={form[field]}
-            onChange={e => handleChange(field, e.target.value)}
-            disabled={disabled}
-            className={`
-              w-full px-4 py-3 rounded-xl text-sm font-medium
-              bg-slate-800/80 border text-slate-200
-              focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20
-              transition-all appearance-none cursor-pointer
-              ${errors[field] ? 'border-rose-500/50' : 'border-slate-700/60'}
-              ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
-            `}
-          >
-            {options.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+          <>
+            <select
+              value={form[field]}
+              onChange={e => handleChange(field, e.target.value)}
+              disabled={disabled}
+              className={`
+                w-full pl-4 pr-10 py-3 rounded-xl text-sm font-medium
+                bg-slate-800/80 border text-slate-200
+                focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20
+                transition-all appearance-none cursor-pointer
+                ${errors[field] ? 'border-rose-500/50' : 'border-slate-700/60'}
+                ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+              `}
+            >
+              {options.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </>
         ) : (
           <input
             type={inputType}
@@ -539,7 +547,7 @@ function ProductCard({ product, type, onEdit, onDelete }) {
             <p className="text-sm text-slate-500 truncate">{product.nameHi}</p>
           )}
         </div>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => onEdit(product)}
             className="p-2 rounded-lg text-blue-400 hover:bg-blue-500/15 transition-all cursor-pointer"
@@ -732,8 +740,12 @@ function ProductTable({ products, type, onEdit, onDelete }) {
 const ITEMS_PER_PAGE = 10
 
 export default function ProductsPage() {
-  const [activeTab, setActiveTab] = useState('packaged')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlSearch = searchParams.get('search') || ''
+  const urlTab = searchParams.get('tab') || ''
+
+  const [activeTab, setActiveTab] = useState(urlTab || 'packaged')
+  const [searchQuery, setSearchQuery] = useState(urlSearch)
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [products, setProducts] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
@@ -744,6 +756,30 @@ export default function ProductsPage() {
   const [formType, setFormType] = useState('packaged')
   const [showAddMenu, setShowAddMenu] = useState(false)
   const addMenuRef = useRef(null)
+
+  // Sync state if URL params change
+  useEffect(() => {
+    setSearchQuery(urlSearch)
+    if (urlTab) {
+      setActiveTab(urlTab)
+    }
+  }, [urlSearch, urlTab])
+
+  const handleSearchChange = (val) => {
+    setSearchQuery(val)
+    const params = {}
+    if (val) params.search = val
+    if (activeTab) params.tab = activeTab
+    setSearchParams(params)
+  }
+
+  const handleTabChange = (tabVal) => {
+    setActiveTab(tabVal)
+    setCategoryFilter('all')
+    const params = { tab: tabVal }
+    if (searchQuery) params.search = searchQuery
+    setSearchParams(params)
+  }
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -780,6 +816,8 @@ export default function ProductsPage() {
         results = all.filter(p => p.category === catFilter)
       }
     }
+    // Sort by latest added first
+    results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     setProducts(results)
   }
 
@@ -838,7 +876,7 @@ export default function ProductsPage() {
   const lowStockCount = [...allPackaged, ...allLoose].filter(p => p.currentStock <= (p.minStock || 10)).length
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="px-3 sm:px-6 py-4 sm:py-6 lg:p-8 max-w-[1400px] mx-auto">
 
       {/* ── Toast ─────────────────────────────────── */}
       {toast && (
@@ -906,7 +944,7 @@ export default function ProductsPage() {
       {/* ── Summary Cards ─────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         {/* Total Products */}
-        <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-4 sm:p-5">
+        <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-3 sm:p-5">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center">
               <PackagedIcon />
@@ -917,7 +955,7 @@ export default function ProductsPage() {
         </div>
 
         {/* Packaged */}
-        <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-4 sm:p-5">
+        <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-3 sm:p-5">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
               <PackagedIcon />
@@ -928,7 +966,7 @@ export default function ProductsPage() {
         </div>
 
         {/* Loose */}
-        <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-4 sm:p-5">
+        <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-3 sm:p-5">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center">
               <LooseIcon />
@@ -939,7 +977,7 @@ export default function ProductsPage() {
         </div>
 
         {/* Low Stock */}
-        <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-4 sm:p-5">
+        <div className="bg-slate-900/80 border border-slate-800/60 rounded-2xl p-3 sm:p-5">
           <div className="flex items-center gap-3 mb-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${lowStockCount > 0
               ? 'bg-rose-500/15 text-rose-400'
@@ -956,33 +994,33 @@ export default function ProductsPage() {
       </div>
 
       {/* ── Tabs: Packaged / Loose ─────────────────── */}
-      <div className="flex items-center gap-2 mb-6 bg-slate-900/50 p-1.5 rounded-2xl border border-slate-800/40 w-fit">
+      <div className="flex items-center gap-1.5 mb-6 bg-slate-900/50 p-1 rounded-2xl border border-slate-800/40 w-full sm:w-fit">
         <button
-          onClick={() => { setActiveTab('packaged'); setCategoryFilter('all'); setSearchQuery('') }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${activeTab === 'packaged'
+          onClick={() => handleTabChange('packaged')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${activeTab === 'packaged'
             ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20 shadow-sm'
             : 'text-slate-500 hover:text-slate-300 border border-transparent'
             }`}
         >
-          <PackagedIcon />
+          <span className="hidden sm:inline-flex"><PackagedIcon /></span>
           <span className="hidden sm:inline">Packaged Products</span>
           <span className="sm:hidden">Packaged</span>
-          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${activeTab === 'packaged' ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
+          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${activeTab === 'packaged' ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-500'
             }`}>
             {allPackaged.length}
           </span>
         </button>
         <button
-          onClick={() => { setActiveTab('loose'); setCategoryFilter('all'); setSearchQuery('') }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer ${activeTab === 'loose'
+          onClick={() => handleTabChange('loose')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${activeTab === 'loose'
             ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20 shadow-sm'
             : 'text-slate-500 hover:text-slate-300 border border-transparent'
             }`}
         >
-          <LooseIcon />
+          <span className="hidden sm:inline-flex"><LooseIcon /></span>
           <span className="hidden sm:inline">Loose Products</span>
           <span className="sm:hidden">Loose</span>
-          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${activeTab === 'loose' ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-500'
+          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${activeTab === 'loose' ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-500'
             }`}>
             {allLoose.length}
           </span>
@@ -999,14 +1037,14 @@ export default function ProductsPage() {
           <input
             type="text"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={e => handleSearchChange(e.target.value)}
             placeholder="Search by name, barcode, SKU, brand..."
             id="product-search-input"
             className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-900/80 border border-slate-800/60 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium"
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={() => handleSearchChange('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800/60 transition-all cursor-pointer"
             >
               <CloseIcon />
@@ -1015,28 +1053,35 @@ export default function ProductsPage() {
         </div>
 
         {/* Category filter */}
-        <select
-          value={categoryFilter}
-          onChange={e => setCategoryFilter(e.target.value)}
-          id="category-filter"
-          className="px-4 py-3 rounded-xl bg-slate-900/80 border border-slate-800/60 text-sm text-slate-300 font-medium focus:outline-none focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/20 transition-all appearance-none cursor-pointer min-w-[160px]"
-        >
-          <option value="all">All Categories</option>
-          {categories.map(cat => (
-            <option key={cat.id} value={cat.id}>{cat.name}</option>
-          ))}
-        </select>
+        <div className="relative w-full sm:w-auto sm:min-w-[180px]">
+          <select
+            value={categoryFilter}
+            onChange={e => setCategoryFilter(e.target.value)}
+            id="category-filter"
+            className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-900/80 border border-slate-800/60 text-sm text-slate-300 font-medium focus:outline-none focus:border-emerald-500/40 focus:ring-2 focus:ring-emerald-500/20 transition-all appearance-none cursor-pointer"
+          >
+            <option value="all">All Categories</option>
+            {categories.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+          <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </div>
+        </div>
       </div>
 
       {/* ── Results count ──────────────────────────── */}
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
           Showing <span className="text-slate-300 font-semibold">{startIndex + 1}–{Math.min(endIndex, products.length)}</span> of <span className="text-slate-300 font-semibold">{products.length}</span> {activeTab} products
           {searchQuery && <span> for "<span className="text-emerald-400">{searchQuery}</span>"</span>}
           {categoryFilter !== 'all' && <span> in <span className="text-blue-400 capitalize">{categoryFilter}</span></span>}
         </p>
         {totalPages > 1 && (
-          <p className="text-sm text-slate-500">
+          <p className="text-xs sm:text-sm text-slate-500 font-medium">
             Page <span className="text-slate-300 font-semibold">{currentPage}</span> of <span className="text-slate-300 font-semibold">{totalPages}</span>
           </p>
         )}

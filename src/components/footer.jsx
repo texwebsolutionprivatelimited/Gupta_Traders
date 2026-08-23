@@ -6,7 +6,7 @@ export default function Footer() {
   return (
     <footer className="mt-auto border-t border-slate-800/60 bg-slate-950/60 backdrop-blur-md px-6 py-6 sm:px-8">
       <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-4">
-        
+
         {/* Left Section: Branding & Copyright */}
         <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-left flex-wrap">
           <div className="flex items-center gap-2">
@@ -22,10 +22,10 @@ export default function Footer() {
           <span className="hidden sm:inline text-slate-850">|</span>
           <p className="text-xs text-slate-500">
             Designed & Developed by{' '}
-            <a 
-              href="https://texwebsolution.in" 
-              target="_blank" 
-              rel="noopener noreferrer" 
+            <a
+              href="https://texwebsolution.in"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
             >
               texwebsolution.in

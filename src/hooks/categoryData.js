@@ -1,6 +1,7 @@
 // ─── Categories Data Management ────────────────────────────────
 import { categories as seedCategories } from './posData'
 import { getAllProducts } from './productData'
+import { moveToTrash } from './trashData'
 
 const CATEGORY_STORAGE_KEY = 'gt_categories_v2'
 
@@ -137,9 +138,14 @@ export function updateCategory(id, updates) {
 
 export function deleteCategory(id) {
   let all = getCategoriesV2()
-  all = all.filter(c => c.id !== id)
-  localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(all))
-  return true
+  const target = all.find(c => c.id === id)
+  if (target) {
+    moveToTrash('category', target)
+    all = all.filter(c => c.id !== id)
+    localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(all))
+    return true
+  }
+  return false
 }
 
 export function reorderCategories(orderedIds) {

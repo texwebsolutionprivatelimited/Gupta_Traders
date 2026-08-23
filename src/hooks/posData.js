@@ -86,24 +86,53 @@ export const products = [
   { id: 52, name: 'Loose Jaggery', nameHi: 'खुला गुड़', barcode: 'LOOSE008', price: 60, mrp: 60, gstRate: 0, category: 'loose', unit: 'kg', packSize: 'per kg', stock: 80, isLoose: true },
 ]
 
+function toPOSProduct(p) {
+  if (!p) return null
+  return {
+    ...p,
+    price: Number(p.sellingPrice) || 0,
+    mrp: Number(p.sellingPrice) || 0,
+    stock: Number(p.currentStock) || 0,
+    isLoose: p.type === 'loose',
+  }
+}
+
+function getLiveProducts() {
+  const stored = localStorage.getItem('gt_products')
+  if (stored) {
+    try {
+      const all = JSON.parse(stored)
+      if (Array.isArray(all)) {
+        return all.map(toPOSProduct)
+      }
+    } catch {
+      // fall through
+    }
+  }
+  return products
+}
+
 // ─── Search Products ─────────────────────────────────────────────
 export function searchProducts(query, categoryFilter = 'all') {
   const q = query.toLowerCase().trim()
-  return products.filter(p => {
+  const liveProducts = getLiveProducts()
+  return liveProducts.filter(p => {
     const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter
     if (!q) return matchesCategory
     const matchesQuery =
       p.name.toLowerCase().includes(q) ||
-      (p.nameHi && p.nameHi.includes(q)) ||
-      p.barcode.includes(q) ||
-      p.category.toLowerCase().includes(q)
+      (p.nameHi && p.nameHi.toLowerCase().includes(q)) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+      (p.category && p.category.toLowerCase().includes(q))
     return matchesQuery && matchesCategory
   })
 }
 
 // ─── Barcode Lookup ──────────────────────────────────────────────
 export function lookupBarcode(barcode) {
-  return products.find(p => p.barcode === barcode.trim()) || null
+  const liveProducts = getLiveProducts()
+  const cleanBarcode = barcode.trim().toLowerCase()
+  return liveProducts.find(p => p.barcode && p.barcode.trim().toLowerCase() === cleanBarcode) || null
 }
 
 // ─── Bill Number Generator ───────────────────────────────────────

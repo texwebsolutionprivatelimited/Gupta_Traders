@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   getCategoriesV2, addCategory, updateCategory, deleteCategory,
   getProductCountByCategory, iconPresets, colorPresets,
@@ -518,7 +519,7 @@ function CategoryFormModal({ category, onSave, onCancel }) {
 
 function StatCard({ icon, label, value, color }) {
   return (
-    <div className="bg-slate-900/60 border border-slate-700/40 rounded-2xl px-5 py-4 flex items-center gap-4">
+    <div className="bg-slate-900/60 border border-slate-700/40 rounded-2xl px-3 sm:px-5 py-3.5 sm:py-4 flex items-center gap-3 sm:gap-4">
       <div
         className="w-11 h-11 rounded-xl flex items-center justify-center text-lg"
         style={{ backgroundColor: color + '20', color }}
@@ -554,7 +555,7 @@ function CategoryCard({ category, productCount, onEdit, onDelete }) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
           {/* Action buttons — top right */}
-          <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => onEdit(category)}
               className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-emerald-400 transition-all cursor-pointer"
@@ -597,7 +598,7 @@ function CategoryCard({ category, productCount, onEdit, onDelete }) {
           <span className="absolute -right-2 -bottom-2 text-6xl opacity-15 select-none">{category.icon}</span>
 
           {/* Action buttons */}
-          <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
             <button
               onClick={() => onEdit(category)}
               className="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-700/40 flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all cursor-pointer"
@@ -654,12 +655,12 @@ function CategoryRow({ category, productCount, index, onEdit, onDelete }) {
   return (
     <div
       className={`
-        group flex items-center gap-4 px-5 py-4 transition-all duration-200 hover:bg-slate-800/40
+        group flex items-center gap-3 px-3 sm:px-5 py-3 sm:py-4 transition-all duration-200 hover:bg-slate-800/40
         ${index > 0 ? 'border-t border-slate-700/30' : ''}
       `}
     >
       {/* Index */}
-      <span className="w-6 text-xs text-slate-600 font-mono text-center shrink-0">{index + 1}</span>
+      <span className="w-6 text-xs text-slate-600 font-mono text-center shrink-0 hidden sm:block">{index + 1}</span>
 
       {/* Icon / Thumbnail */}
       {category.image ? (
@@ -700,10 +701,10 @@ function CategoryRow({ category, productCount, index, onEdit, onDelete }) {
       </span>
 
       {/* Color dot */}
-      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: category.color }} />
+      <div className="w-3 h-3 rounded-full shrink-0 hidden sm:block" style={{ backgroundColor: category.color }} />
 
       {/* Actions */}
-      <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      <div className="flex gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
         <button
           onClick={() => onEdit(category)}
           className="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-700/40 flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all cursor-pointer"
@@ -750,18 +751,30 @@ function EmptyState({ isSearch, onAdd }) {
     </div>
   )
 }
-
-
-// ═══════════════════════════════════════════════════════════════
 // ─── MAIN PAGE COMPONENT ──────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════
-
 export default function CategoriesPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlSearch = searchParams.get('search') || ''
+
   const [categories, setCategories] = useState([])
   const [productCounts, setProductCounts] = useState({})
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(urlSearch)
   const [viewMode, setViewMode] = useState('grid') // 'grid' | 'list'
   const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'active' | 'inactive'
+
+  // Sync state if URL params change
+  useEffect(() => {
+    setSearch(urlSearch)
+  }, [urlSearch])
+
+  const handleSearchChange = (val) => {
+    setSearch(val)
+    if (val) {
+      setSearchParams({ search: val })
+    } else {
+      setSearchParams({})
+    }
+  }
 
   // Modals
   const [showFormModal, setShowFormModal] = useState(false)
@@ -892,7 +905,7 @@ export default function CategoriesPage() {
               id="search-categories"
               type="text"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
               placeholder="Search categories..."
               className="w-full pl-11 pr-4 py-2.5 rounded-xl text-sm font-medium bg-slate-800/80 border border-slate-700/60 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
             />

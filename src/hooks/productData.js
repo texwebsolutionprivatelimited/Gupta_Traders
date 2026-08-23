@@ -1,7 +1,6 @@
 // ─── Products Data Management ──────────────────────────────────
-// Persists to localStorage; seeds from posData on first load.
-
 import { products as seedProducts, categories as seedCategories } from './posData'
+import { moveToTrash } from './trashData'
 
 const STORAGE_KEY = 'gt_products'
 const CATEGORY_STORAGE_KEY = 'gt_categories'
@@ -123,9 +122,14 @@ export function updateProduct(id, updates) {
 
 export function deleteProduct(id) {
   let all = getAllProducts()
-  all = all.filter(p => p.id !== id)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
-  return true
+  const target = all.find(p => p.id === id)
+  if (target) {
+    moveToTrash('product', target)
+    all = all.filter(p => p.id !== id)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+    return true
+  }
+  return false
 }
 
 export function searchProductsByQuery(query, type = 'all') {

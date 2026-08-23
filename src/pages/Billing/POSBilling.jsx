@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import ProductSearch from './ProductSearch'
 import Cart from './Cart'
 import PaymentPanel from './PaymentPanel'
@@ -17,11 +17,21 @@ import { FaShoppingCart as CartIcon } from 'react-icons/fa'
 
 // ─── Main POS Billing Page ──────────────────────────────────────
 export default function POSBilling() {
+  const [searchParams] = useSearchParams()
   // ─── State ───────────────────────────────────────────────────
   const [cart, setCart] = useState([])
   const [billDiscount, setBillDiscount] = useState(0)
   const [isGSTInclusive, setIsGSTInclusive] = useState(true)
-  const [customerName, setCustomerName] = useState('')
+  const [customerName, setCustomerName] = useState(
+    searchParams.get('customer') || searchParams.get('customerName') || ''
+  )
+
+  useEffect(() => {
+    const queryCust = searchParams.get('customer') || searchParams.get('customerName')
+    if (queryCust) {
+      setCustomerName(queryCust)
+    }
+  }, [searchParams])
   const [heldBills, setHeldBills] = useState(() => getHeldBills())
 
   // Modals
@@ -272,6 +282,18 @@ export default function POSBilling() {
               </svg>
               ← Back to Products
             </button>
+          </div>
+
+          {/* Mobile Customer input */}
+          <div className="md:hidden px-4 py-3 bg-slate-950/20 border-b border-slate-800/60 flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Customer:</span>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Walk-in Customer (ग्राहक का नाम)"
+              className="w-full px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800/60 text-xs text-slate-300 placeholder:text-slate-650 focus:outline-none focus:border-emerald-500/40 transition-all"
+            />
           </div>
 
           {/* Cart Items */}

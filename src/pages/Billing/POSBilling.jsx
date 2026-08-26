@@ -12,6 +12,7 @@ import {
   getHeldBills,
   saveHeldBills,
   formatINR,
+  lookupBarcode,
 } from '../../hooks/posData'
 import { FaShoppingCart as CartIcon } from 'react-icons/fa'
 
@@ -40,6 +41,8 @@ export default function POSBilling() {
   const [showReceipt, setShowReceipt] = useState(null) // bill object
   const [showSuccess, setShowSuccess] = useState(null) // bill object
   const [showMobileCart, setShowMobileCart] = useState(false)
+
+
 
   // ─── Cart Operations ────────────────────────────────────────
   const addToCart = useCallback((product) => {
@@ -162,6 +165,160 @@ export default function POSBilling() {
     setCustomerName('')
   }, [cart, billDiscount, isGSTInclusive, customerName])
 
+  // ─── Barcode Scanner Settings & Toast State ─────────────────
+  const [scannerStatus, setScannerStatus] = useState({
+    connected: true,
+    erpConnected: true,
+    scannerName: "USB Barcode Scanner",
+    prefix: "",
+    suffix: "Enter"
+  })
+  const [toast, setToast] = useState(null)
+
+  const triggerToast = useCallback((type, title, message) => {
+    setToast({ type, title, message })
+  }, [])
+
+  // Synthesize realistic register scanner sound
+  const playScanBeep = (success) => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+
+      if (success) {
+        osc.type = "sine"
+        osc.frequency.setValueAtTime(1400, ctx.currentTime)
+        gain.gain.setValueAtTime(0.08, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1)
+        osc.start(ctx.currentTime)
+        osc.stop(ctx.currentTime + 0.1)
+      } else {
+        osc.type = "sawtooth"
+        osc.frequency.setValueAtTime(320, ctx.currentTime)
+        gain.gain.setValueAtTime(0.12, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22)
+        osc.start(ctx.currentTime)
+        osc.stop(ctx.currentTime + 0.22)
+      }
+    } catch (e) {
+      console.warn("Scan audio beep failed:", e)
+    }
+  }
+
+  // Load scanner settings dynamically
+  useEffect(() => {
+    const checkSettings = () => {
+      try {
+        const stored = localStorage.getItem("barcodeScannerSettings")
+        if (stored) {
+          setScannerStatus(JSON.parse(stored))
+        }
+      } catch (e) {
+        console.error("Failed to parse scanner settings:", e)
+      }
+    }
+
+    checkSettings()
+    window.addEventListener("storage", checkSettings)
+    const interval = setInterval(checkSettings, 2000)
+
+    return () => {
+      window.removeEventListener("storage", checkSettings)
+      clearInterval(interval)
+    }
+  }, [])
+
+  // Auto hide Toast alert
+  useEffect(() => {
+    if (!toast) return
+    const timeout = setTimeout(() => setToast(null), 2500)
+    return () => clearTimeout(timeout)
+  }, [toast])
+
+  // Global scanner keystroke interception
+  useEffect(() => {
+    let buffer = ""
+    let lastKeyTime = 0
+    let timeoutId = null
+
+    const handleGlobalKeyDown = (e) => {
+      if (!scannerStatus.connected || !scannerStatus.erpConnected) return
+
+      const currentTime = Date.now()
+      const isRapid = (currentTime - lastKeyTime) < 45 || buffer.length === 0
+      lastKeyTime = currentTime
+
+      const prefixChar = scannerStatus.prefix || ""
+      const suffixType = scannerStatus.suffix || "Enter"
+
+      const isSuffix = (suffixType === "Enter" && e.key === "Enter") ||
+        (suffixType === "Tab" && e.key === "Tab")
+
+      if (isSuffix) {
+        if (buffer.length >= 3 && isRapid) {
+          e.preventDefault()
+          e.stopPropagation()
+          processBarcode(buffer)
+          buffer = ""
+        }
+        buffer = ""
+        return
+      }
+
+      if (suffixType === "None") {
+        clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => {
+          if (buffer.length >= 3) {
+            processBarcode(buffer)
+          }
+          buffer = ""
+        }, 50)
+      }
+
+      if (e.key.length === 1) {
+        if (buffer.length === 0 && prefixChar && e.key !== prefixChar) {
+          return
+        }
+
+        if (isRapid) {
+          buffer += e.key
+        } else {
+          buffer = e.key
+        }
+      }
+    }
+
+    const processBarcode = (scannedCode) => {
+      let cleanCode = scannedCode
+      const prefixChar = scannerStatus.prefix || ""
+      if (prefixChar && cleanCode.startsWith(prefixChar)) {
+        cleanCode = cleanCode.substring(prefixChar.length)
+      }
+
+      const prod = lookupBarcode(cleanCode)
+      if (prod) {
+        addToCart(prod)
+        triggerToast("success", `Scanned: ${prod.name}`, `Added to cart • ₹${prod.price}`)
+        playScanBeep(true)
+      } else {
+        triggerToast("error", `Scanned: ${cleanCode}`, "Item not found in product database!")
+        playScanBeep(false)
+      }
+    }
+
+    window.addEventListener("keydown", handleGlobalKeyDown, true)
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown, true)
+      clearTimeout(timeoutId)
+    }
+  }, [scannerStatus, addToCart, triggerToast])
+
   // ─── Keyboard Shortcuts ─────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -236,6 +393,20 @@ export default function POSBilling() {
 
         {/* Right: Quick Info + Shortcuts */}
         <div className="flex items-center gap-3">
+          {/* Scanner Sync Badge */}
+          <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${scannerStatus.connected && scannerStatus.erpConnected
+              ? 'bg-emerald-550/10 text-emerald-400 border-emerald-500/20'
+              : 'bg-rose-550/10 text-rose-400 border-rose-500/20'
+            }`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${scannerStatus.connected && scannerStatus.erpConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+              }`} />
+            <span>
+              {scannerStatus.connected && scannerStatus.erpConnected
+                ? `Scanner: Synced`
+                : 'Scanner Offline'}
+            </span>
+          </div>
+
           {/* Keyboard shortcuts hint */}
           <div className="hidden lg:flex items-center gap-2 text-[10px] text-slate-600">
             <kbd className="px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/40">F1</kbd>
@@ -359,6 +530,53 @@ export default function POSBilling() {
           }}
         />
       )}
+
+      {/* ─── Scan Intercept Toast Alert ──────────────── */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-55 flex items-center gap-3 px-4 py-3.5 rounded-xl border shadow-2xl transition-all duration-300 animate-slide-up ${toast.type === "success"
+            ? "bg-slate-900 border-emerald-500/30 text-emerald-400"
+            : "bg-slate-900 border-rose-500/30 text-rose-450"
+          }`}>
+          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${toast.type === "success" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+            }`}>
+            {toast.type === "success" ? (
+              <svg xmlns="http://www.w3.org/2500/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-bold leading-tight">{toast.title}</p>
+            <p className="text-xs text-slate-400 mt-0.5 leading-snug">{toast.message}</p>
+          </div>
+          <button
+            onClick={() => setToast(null)}
+            className="text-slate-500 hover:text-slate-300 ml-2 text-sm font-bold focus:outline-none"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideUp {
+          from {
+            transform: translateY(1.5rem);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-up {
+          animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
     </div>
   )
 }

@@ -196,7 +196,7 @@ export default function USBPrinter() {
         navigator.hid.removeEventListener("disconnect", handleDisconnect);
       }
     };
-  }, [settings, printerName]);
+  }, [settings]);
 
   const handleSave = () => {
     setSaving(true);

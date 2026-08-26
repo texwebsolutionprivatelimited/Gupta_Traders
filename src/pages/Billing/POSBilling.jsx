@@ -47,7 +47,6 @@ export default function POSBilling() {
   // ─── Cart Operations ────────────────────────────────────────
   const addToCart = useCallback((product) => {
     setCart(prev => {
-      // Check if product already in cart (not loose custom items)
       const existing = prev.find(item =>
         item.id === product.id && !String(product.id).startsWith('loose-')
       )
@@ -395,8 +394,8 @@ export default function POSBilling() {
         <div className="flex items-center gap-3">
           {/* Scanner Sync Badge */}
           <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${scannerStatus.connected && scannerStatus.erpConnected
-              ? 'bg-emerald-550/10 text-emerald-400 border-emerald-500/20'
-              : 'bg-rose-550/10 text-rose-400 border-rose-500/20'
+            ? 'bg-emerald-550/10 text-emerald-400 border-emerald-500/20'
+            : 'bg-rose-550/10 text-rose-400 border-rose-500/20'
             }`}>
             <span className={`h-1.5 w-1.5 rounded-full ${scannerStatus.connected && scannerStatus.erpConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
               }`} />
@@ -534,8 +533,8 @@ export default function POSBilling() {
       {/* ─── Scan Intercept Toast Alert ──────────────── */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-55 flex items-center gap-3 px-4 py-3.5 rounded-xl border shadow-2xl transition-all duration-300 animate-slide-up ${toast.type === "success"
-            ? "bg-slate-900 border-emerald-500/30 text-emerald-400"
-            : "bg-slate-900 border-rose-500/30 text-rose-450"
+          ? "bg-slate-900 border-emerald-500/30 text-emerald-400"
+          : "bg-slate-900 border-rose-500/30 text-rose-450"
           }`}>
           <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${toast.type === "success" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
             }`}>

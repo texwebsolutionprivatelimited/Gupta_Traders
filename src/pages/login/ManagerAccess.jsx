@@ -16,32 +16,7 @@ import {
   FaChartBar
 } from 'react-icons/fa'
 
-// ─── Sample Data ────────────────────────────────────────────────
-const dashboardData = {
-  todaysSales: 24850,
-  todaysPurchase: 18200,
-  todaysProfit: 6650,
-  totalProducts: 342,
-  totalCustomers: 1285,
-  lowStockItems: 8,
-}
-
-const recentSales = [
-  { id: 'INV-001', customer: 'Rajesh Kumar', items: 'Cement (50 bags)', amount: 12500, time: '2 min ago', status: 'completed' },
-  { id: 'INV-002', customer: 'Amit Sharma', items: 'Steel Rods (20 pcs)', amount: 8400, time: '15 min ago', status: 'completed' },
-  { id: 'INV-003', customer: 'Priya Singh', items: 'Paint (10 L)', amount: 3200, time: '45 min ago', status: 'pending' },
-  { id: 'INV-004', customer: 'Sunil Gupta', items: 'Bricks (500 pcs)', amount: 4500, time: '1 hr ago', status: 'completed' },
-]
-
-const salesOverview = [
-  { day: 'Mon', sales: 18500 },
-  { day: 'Tue', sales: 22300 },
-  { day: 'Wed', sales: 19800 },
-  { day: 'Thu', sales: 27600 },
-  { day: 'Fri', sales: 24100 },
-  { day: 'Sat', sales: 31200 },
-  { day: 'Sun', sales: 14500 },
-]
+// Static Sample Data removed. Sourced dynamically from localStorage.
 
 // ─── Icons ─────────────────────────────────────────
 
@@ -132,6 +107,79 @@ export default function ManagerAccess() {
     month: 'long',
     day: 'numeric',
   })
+
+  const [dashboardData, setDashboardData] = useState({
+    todaysSales: 0,
+    todaysPurchase: 0,
+    todaysProfit: 0,
+    totalProducts: 0,
+    totalCustomers: 0,
+    lowStockItems: 0,
+  })
+
+  const [recentSales, setRecentSales] = useState([])
+  const [salesOverview, setSalesOverview] = useState([])
+
+  useEffect(() => {
+    const products = JSON.parse(localStorage.getItem('gt_products') || '[]')
+    const customers = JSON.parse(localStorage.getItem('gt_customers') || '[]')
+    const sales = JSON.parse(localStorage.getItem('salesHistory') || '[]')
+    const purchases = JSON.parse(localStorage.getItem('purchaseHistory') || '[]')
+
+    const todayStr = new Date().toISOString().split('T')[0]
+
+    const todaysSalesVal = sales
+      .filter(s => s.date === todayStr)
+      .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+
+    const todaysPurchaseVal = purchases
+      .filter(p => p.date === todayStr)
+      .reduce((sum, p) => sum + (Number(p.total) || 0), 0)
+
+    const todaysProfitVal = todaysSalesVal - todaysPurchaseVal
+
+    const lowStockCount = products.filter(p => (Number(p.currentStock) || 0) <= (Number(p.minStock) || 10)).length
+
+    setDashboardData({
+      todaysSales: todaysSalesVal,
+      todaysPurchase: todaysPurchaseVal,
+      todaysProfit: todaysProfitVal,
+      totalProducts: products.length,
+      totalCustomers: customers.length,
+      lowStockItems: lowStockCount,
+    })
+
+    const recent = sales.slice(0, 4).map(s => {
+      const itemsDesc = Array.isArray(s.items) 
+        ? s.items.map(it => `${it.product} (${it.quantity})`).join(', ') 
+        : ''
+      return {
+        id: s.invoice || s.id,
+        customer: s.customer,
+        items: itemsDesc || 'No items',
+        amount: Number(s.total) || 0,
+        time: s.createdAt ? new Date(s.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Today',
+        status: s.status === 'Returned' ? 'returned' : 'completed'
+      }
+    })
+    setRecentSales(recent)
+
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const today = new Date()
+    const last7Days = Array.from({ length: 7 }, (_, idx) => {
+      const d = new Date(today)
+      d.setDate(today.getDate() - (6 - idx))
+      const dateStr = d.toISOString().split('T')[0]
+      const daySales = sales
+        .filter(s => s.date === dateStr)
+        .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+      return {
+        day: days[d.getDay()],
+        sales: daySales
+      }
+    })
+    setSalesOverview(last7Days)
+  }, [])
 
   // List of all modules allowed for Manager
   const managerModules = [

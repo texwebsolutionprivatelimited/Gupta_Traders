@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { addStock, findInventoryProduct } from "../../hooks/inventoryStorage";
 import { getSuppliers } from "../../hooks/supplierData";
 import SearchableSelect from "../../components/SearchableSelect";
+import { queueSync } from "../../supabase/syncManager";
 
 const initialItems = [
   {
@@ -231,6 +232,9 @@ export default function PurchaseEntry() {
       "purchaseHistory",
       JSON.stringify([purchaseData, ...existingPurchases])
     );
+
+    // Sync to Supabase
+    queueSync("purchases", "insert", purchaseData);
 
     const supplierTransactions =
       JSON.parse(localStorage.getItem("supplierTransactions")) || {};

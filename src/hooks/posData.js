@@ -1,3 +1,5 @@
+import { queueSync } from '../supabase/syncManager'
+
 // ─── POS Data & Utilities ──────────────────────────────────────
 // Sample product catalog for Gupta Traders with barcodes, GST rates, etc.
 
@@ -109,7 +111,7 @@ function getLiveProducts() {
       // fall through
     }
   }
-  return products
+  return []
 }
 
 // ─── Search Products ─────────────────────────────────────────────
@@ -218,6 +220,37 @@ export function saveBill(bill) {
   // Keep only last 50 bills
   if (bills.length > 50) bills.length = 50
   localStorage.setItem('gt_completed_bills', JSON.stringify(bills))
+
+  // Map POS bill to salesHistory format so it populates the dashboards and reports
+  const mappedSale = {
+    id: `SAL-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+    date: bill.timestamp.split('T')[0],
+    customer: bill.customerName || 'Walk-in Customer',
+    invoice: bill.billNumber,
+    items: bill.items.map(item => ({
+      id: item.id,
+      product: item.name,
+      quantity: Number(item.quantity) || 0,
+      salesPrice: Number(item.price) || 0,
+      gst: Number(item.gstRate) || 0
+    })),
+    itemCount: bill.items.length,
+    subtotal: Number(bill.summary.subtotal) || 0,
+    gst: Number(bill.summary.totalGST) || 0,
+    total: Number(bill.summary.grandTotal) || 0,
+    status: 'Completed',
+    payment: bill.paymentMode === 'Credit' ? 'Pending' : 'Paid',
+    paymentMode: bill.paymentMode || 'Cash',
+    notes: 'POS Billed Transaction',
+    createdAt: bill.timestamp
+  }
+
+  const salesHistory = JSON.parse(localStorage.getItem('salesHistory') || '[]')
+  salesHistory.unshift(mappedSale)
+  localStorage.setItem('salesHistory', JSON.stringify(salesHistory))
+
+  // Queue background push sync to Supabase
+  queueSync('sales', 'insert', mappedSale)
 }
 
 export function getSavedBills() {

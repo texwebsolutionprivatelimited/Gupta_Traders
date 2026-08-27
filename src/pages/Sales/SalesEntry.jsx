@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SearchableSelect from "../../components/SearchableSelect";
+import { queueSync } from "../../supabase/syncManager";
 
 const initialItems = [
   {
@@ -142,6 +143,9 @@ export default function SalesEntry() {
       "salesHistory",
       JSON.stringify([saleData, ...existingSales])
     );
+
+    // Sync to Supabase
+    queueSync("sales", "insert", saleData);
 
     const transactions =
       JSON.parse(localStorage.getItem("transactions")) || [];

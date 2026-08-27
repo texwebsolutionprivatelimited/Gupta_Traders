@@ -13,53 +13,9 @@ function getInitialLogs() {
     }
   }
 
-  const products = getAllProducts()
-  const seedLogs = []
-
-  // Create some initial log entries for the last few days
-  const reasons = [
-    { type: 'inward', text: 'Supplier Delivery (Standard Purchase Order)', qtyRange: [10, 50] },
-    { type: 'outward', text: 'Damaged packaging write-off', qtyRange: [-1, -5] },
-    { type: 'reconcile', text: 'Physical inventory audit adjustment', qtyRange: [-2, 3] },
-  ]
-
-  const dateOffset = (days) => {
-    const d = new Date()
-    d.setDate(d.getDate() - days)
-    return d.toISOString()
-  }
-
-  // Seed about 8 logs
-  for (let i = 0; i < 8; i++) {
-    const product = products[i % products.length]
-    if (!product) continue
-
-    const reasonObj = reasons[i % reasons.length]
-    let qty = Math.floor(Math.random() * (reasonObj.qtyRange[1] - reasonObj.qtyRange[0] + 1)) + reasonObj.qtyRange[0]
-    if (qty === 0) qty = 1
-
-    const prevStock = Math.max(10, product.currentStock - qty)
-    const newStock = prevStock + qty
-
-    seedLogs.push({
-      id: `TXN-${String(100000 + i).padStart(6, '0')}`,
-      productId: product.id,
-      productName: product.name,
-      productType: product.type,
-      sku: product.sku || product.productCode || '',
-      barcode: product.barcode,
-      type: qty > 0 ? 'inward' : (reasonObj.type === 'reconcile' ? 'reconcile' : 'outward'),
-      quantity: Math.abs(qty),
-      prevStock,
-      newStock,
-      reason: reasonObj.text,
-      operator: 'Manager (Gupta Traders)',
-      timestamp: dateOffset(i + 1),
-    })
-  }
-
-  localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(seedLogs))
-  return seedLogs
+  // Return empty array by default and cache it
+  localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify([]))
+  return []
 }
 
 // ─── Exported Functions ──────────────────────────────────────────

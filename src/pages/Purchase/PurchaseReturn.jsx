@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { findInventoryProduct } from "../../hooks/inventoryStorage";
 import { getSuppliers } from "../../hooks/supplierData";
 import SearchableSelect from "../../components/SearchableSelect";
+import { queueSync } from "../../supabase/syncManager";
 
 const initialItems = [
   {
@@ -284,6 +285,12 @@ export default function PurchaseReturn() {
     });
 
     localStorage.setItem("purchaseHistory", JSON.stringify(updatedPurchases));
+
+    // Sync updated purchase to Supabase
+    const targetPurchase = updatedPurchases.find((p) => invoiceNo && p.invoice === invoiceNo.trim());
+    if (targetPurchase) {
+      queueSync("purchases", "update", targetPurchase);
+    }
 
     for (const purchaseItem of items) {
       const result = reduceInventoryStock(

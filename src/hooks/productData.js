@@ -13,56 +13,9 @@ function getInitialProducts() {
     try { return JSON.parse(stored) } catch { /* fall through */ }
   }
 
-  // If Supabase sync has initialized successfully, start with an empty array
-  if (localStorage.getItem('gt_sync_initialized') === 'true') {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
-    return []
-  }
-
-  // Transform seed data into our product format
-  const packaged = seedProducts
-    .filter(p => !p.isLoose)
-    .map((p, idx) => ({
-      id: `PKG-${String(idx + 1).padStart(4, '0')}`,
-      type: 'packaged',
-      name: p.name,
-      nameHi: p.nameHi || '',
-      barcode: p.barcode,
-      sku: `SKU-${String(idx + 1).padStart(5, '0')}`,
-      category: p.category,
-      brand: extractBrand(p.name),
-      unit: p.unit,
-      packSize: p.packSize,
-      purchasePrice: p.price,
-      sellingPrice: p.mrp,
-      gstRate: p.gstRate,
-      currentStock: p.stock,
-      minStock: 10,
-      createdAt: new Date().toISOString(),
-    }))
-
-  const loose = seedProducts
-    .filter(p => p.isLoose)
-    .map((p, idx) => ({
-      id: `LOOSE-${String(idx + 1).padStart(4, '0')}`,
-      type: 'loose',
-      name: p.name,
-      nameHi: p.nameHi || '',
-      productCode: `LC-${String(idx + 1).padStart(4, '0')}`,
-      barcode: p.barcode,
-      category: p.category,
-      unit: p.unit,
-      purchasePrice: p.price,
-      sellingPrice: p.mrp,
-      gstRate: p.gstRate,
-      currentStock: p.stock,
-      minStock: 20,
-      createdAt: new Date().toISOString(),
-    }))
-
-  const all = [...packaged, ...loose]
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
-  return all
+  // Return empty array by default and cache it
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
+  return []
 }
 
 function extractBrand(name) {

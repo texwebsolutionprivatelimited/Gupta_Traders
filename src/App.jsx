@@ -100,6 +100,17 @@ function App() {
   useEffect(() => {
     async function initSync() {
       try {
+        if (!localStorage.getItem('gt_dummy_cleared_v1')) {
+          localStorage.removeItem('gt_products')
+          localStorage.removeItem('gt_customers')
+          localStorage.removeItem('gt_suppliers')
+          localStorage.removeItem('salesHistory')
+          localStorage.removeItem('purchaseHistory')
+          localStorage.removeItem('gt_sync_queue')
+          localStorage.removeItem('gt_inventory_logs')
+          localStorage.removeItem('gt_sync_initialized')
+          localStorage.setItem('gt_dummy_cleared_v1', 'true')
+        }
         console.log('[Supabase Sync] Preloading database from Supabase...')
         await pullSupabaseData()
       } catch (err) {

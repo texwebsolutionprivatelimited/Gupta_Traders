@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import SearchableSelect from "../../components/SearchableSelect";
+import { queueSync } from "../../supabase/syncManager";
 
 const productPrices = {
   "Aashirvaad Atta": 420,
@@ -186,6 +187,12 @@ export default function SalesReturn() {
     });
 
     localStorage.setItem("salesHistory", JSON.stringify(updatedSales));
+
+    // Sync updated sale to Supabase
+    const targetSale = updatedSales.find((s) => invoiceNo && s.invoice === invoiceNo);
+    if (targetSale) {
+      queueSync("sales", "update", targetSale);
+    }
 
     // Save Sales Return History
     const salesReturns =

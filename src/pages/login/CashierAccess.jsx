@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaReceipt,
@@ -5,21 +6,7 @@ import {
   FaChartLine
 } from 'react-icons/fa'
 
-// ─── Sample Shift Data ───────────────────────────────────────────
-const shiftStats = {
-  billsBilled: 18,
-  totalBilled: 12450,
-  cashCollected: 8200,
-  cardCollected: 4250,
-  shiftStarted: '09:00 AM',
-  drawerStatus: 'Balanced',
-}
-
-const shiftSales = [
-  { id: 'INV-001', customer: 'Rajesh Kumar', items: 'Cement (50 bags)', amount: 12500, time: '2 min ago', method: 'Cash' },
-  { id: 'INV-002', customer: 'Amit Sharma', items: 'Steel Rods (20 pcs)', amount: 8400, time: '15 min ago', method: 'Card' },
-  { id: 'INV-004', customer: 'Sunil Gupta', items: 'Bricks (500 pcs)', amount: 4500, time: '1 hr ago', method: 'Cash' },
-]
+// Static Sample Shift Data removed. Sourced dynamically from localStorage.
 
 export default function CashierAccess() {
   const navigate = useNavigate()
@@ -30,6 +17,58 @@ export default function CashierAccess() {
     month: 'long',
     day: 'numeric',
   })
+
+  const [shiftStats, setShiftStats] = useState({
+    billsBilled: 0,
+    totalBilled: 0,
+    cashCollected: 0,
+    cardCollected: 0,
+    shiftStarted: '09:00 AM',
+    drawerStatus: 'Balanced',
+  })
+
+  const [shiftSales, setShiftSales] = useState([])
+
+  useEffect(() => {
+    const sales = JSON.parse(localStorage.getItem('salesHistory') || '[]')
+    const todayStr = new Date().toISOString().split('T')[0]
+    const todaySales = sales.filter(s => s.date === todayStr)
+
+    const billsCount = todaySales.length
+    const revenue = todaySales.reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+
+    const cash = todaySales
+      .filter(s => (s.paymentMode || '').toLowerCase() === 'cash')
+      .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+
+    const card = todaySales
+      .filter(s => (s.paymentMode || '').toLowerCase() !== 'cash')
+      .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+
+    setShiftStats({
+      billsBilled: billsCount,
+      totalBilled: revenue,
+      cashCollected: cash,
+      cardCollected: card,
+      shiftStarted: '09:00 AM',
+      drawerStatus: 'Balanced',
+    })
+
+    const recent = todaySales.slice(0, 5).map(s => {
+      const itemsDesc = Array.isArray(s.items) 
+        ? s.items.map(it => `${it.product} (${it.quantity})`).join(', ') 
+        : ''
+      return {
+        id: s.invoice || s.id,
+        customer: s.customer,
+        items: itemsDesc || 'No items',
+        amount: Number(s.total) || 0,
+        time: s.createdAt ? new Date(s.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Today',
+        method: s.paymentMode || 'Cash'
+      }
+    })
+    setShiftSales(recent)
+  }, [])
 
 
   return (

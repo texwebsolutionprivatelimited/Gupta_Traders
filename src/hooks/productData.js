@@ -1,6 +1,7 @@
 // ─── Products Data Management ──────────────────────────────────
 import { products as seedProducts, categories as seedCategories } from './posData'
 import { moveToTrash } from './trashData'
+import { queueSync } from '../supabase/syncManager'
 
 const STORAGE_KEY = 'gt_products'
 const CATEGORY_STORAGE_KEY = 'gt_categories'
@@ -108,6 +109,10 @@ export function addProduct(product) {
   }
   all.push(newProduct)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  queueSync('products', 'insert', newProduct)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('gt_products_updated'))
+  }
   return newProduct
 }
 
@@ -117,6 +122,10 @@ export function updateProduct(id, updates) {
   if (idx === -1) return null
   all[idx] = { ...all[idx], ...updates }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  queueSync('products', 'update', all[idx])
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('gt_products_updated'))
+  }
   return all[idx]
 }
 
@@ -127,6 +136,10 @@ export function deleteProduct(id) {
     moveToTrash('product', target)
     all = all.filter(p => p.id !== id)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+    queueSync('products', 'delete', target)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('gt_products_updated'))
+    }
     return true
   }
   return false

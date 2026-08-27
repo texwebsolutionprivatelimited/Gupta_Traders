@@ -15,10 +15,20 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
       <head>
         <title>Bill ${bill.billNumber}</title>
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-weight: bold !important;
+          }
           body {
             font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
+            font-size: 13px;
+            line-height: 1.3;
             width: 80mm;
             padding: 4mm;
             color: #000;
@@ -26,18 +36,22 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
           }
           .center { text-align: center; }
           .right { text-align: right; }
-          .bold { font-weight: bold; }
-          .separator { border-top: 1px dashed #000; margin: 4px 0; }
-          .double-separator { border-top: 2px solid #000; margin: 4px 0; }
-          .shop-name { font-size: 18px; font-weight: bold; }
-          .item-row { display: flex; justify-content: space-between; padding: 1px 0; }
+          .bold { font-weight: bold !important; }
+          .separator { border-top: 2px dashed #000; margin: 6px 0; }
+          .double-separator { border-top: 3px double #000; margin: 6px 0; }
+          .shop-name { font-size: 20px; font-weight: 900 !important; }
+          .item-row { display: flex; justify-content: space-between; padding: 2px 0; }
           .item-name { flex: 1; }
-          .item-qty { width: 50px; text-align: center; }
-          .item-amount { width: 60px; text-align: right; }
-          .total-row { display: flex; justify-content: space-between; padding: 2px 0; font-weight: bold; }
-          .grand-total { font-size: 16px; font-weight: bold; }
+          .item-qty { width: 60px; text-align: center; }
+          .item-amount { width: 70px; text-align: right; }
+          .total-row { display: flex; justify-content: space-between; padding: 3px 0; font-weight: bold !important; }
+          .grand-total { font-size: 18px; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 4px 0; margin-top: 4px; }
           @media print {
-            body { width: 80mm; }
+            body {
+              width: 80mm;
+              margin: 0;
+              padding: 4mm;
+            }
           }
         </style>
       </head>

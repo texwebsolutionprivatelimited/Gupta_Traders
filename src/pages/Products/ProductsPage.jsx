@@ -831,6 +831,18 @@ export default function ProductsPage() {
     setCurrentPage(1)
   }, [activeTab, searchQuery, categoryFilter])
 
+  useEffect(() => {
+    const handleUpdate = () => {
+      loadProducts(searchQuery, activeTab, categoryFilter)
+    }
+    window.addEventListener('gt_products_updated', handleUpdate)
+    window.addEventListener('storage', handleUpdate)
+    return () => {
+      window.removeEventListener('gt_products_updated', handleUpdate)
+      window.removeEventListener('storage', handleUpdate)
+    }
+  }, [searchQuery, activeTab, categoryFilter])
+
   // ─── Handlers ─────────────────────────────────────────
   const handleAddNew = (typeValue) => {
     setEditingProduct(null)

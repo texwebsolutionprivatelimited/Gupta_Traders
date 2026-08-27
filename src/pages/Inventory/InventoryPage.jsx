@@ -70,6 +70,15 @@ export default function InventoryPage() {
     reloadData()
   }, [])
 
+  useEffect(() => {
+    window.addEventListener('gt_products_updated', reloadData)
+    window.addEventListener('storage', reloadData)
+    return () => {
+      window.removeEventListener('gt_products_updated', reloadData)
+      window.removeEventListener('storage', reloadData)
+    }
+  }, [])
+
   // Handle updates from modals
   const handleSavedUpdate = (updatedProduct, message) => {
     setAdjustTarget(null)

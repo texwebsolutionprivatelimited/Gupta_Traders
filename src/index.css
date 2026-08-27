@@ -427,3 +427,10 @@ select option {
     }
   }
 }
+
+/* Custom Gupta Traders Font Style */
+.font-gupta {
+  font-family: 'Cinzel', 'Gupter', 'Outfit', 'Montserrat', serif;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}

@@ -1,4 +1,5 @@
 import { moveToTrash } from './trashData'
+import { queueSync } from '../supabase/syncManager'
 const STORAGE_KEY = 'gt_customers'
 
 function getInitialCustomers() {
@@ -282,6 +283,7 @@ export function addCustomer(customer) {
 
   all.push(newCustomer)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  queueSync('customers', 'insert', newCustomer)
   return { data: newCustomer }
 }
 
@@ -300,6 +302,7 @@ export function updateCustomer(id, updates) {
   }
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  queueSync('customers', 'update', all[idx])
   return { data: all[idx] }
 }
 
@@ -311,6 +314,7 @@ export function deleteCustomer(id) {
   moveToTrash('customer', target)
   all = all.filter(c => c.id !== id)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  queueSync('customers', 'delete', target)
   return { success: true }
 }
 

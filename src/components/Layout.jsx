@@ -6,6 +6,7 @@ import { getCustomers } from '../hooks/customerData'
 import { getCategoriesV2 } from '../hooks/categoryData'
 import { getSavedBills } from '../hooks/posData'
 import Footer from './footer'
+import guptaTradersLogo from '../assets/gupta traders logo.png'
 import { useReport } from '../context/ReportContext'
 import { useExpense } from '../context/ExpenseContext'
 import {
@@ -1791,12 +1792,14 @@ export default function Layout() {
       >
         {/* ── Logo Area ──────────────────────────────────── */}
         <div className={`flex items-center h-16 border-b border-slate-800/60 flex-shrink-0 ${sidebarOpen ? 'px-5 gap-3' : 'px-0 justify-center'}`}>
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-emerald-500/20 flex-shrink-0">
-            G
-          </div>
+          <img
+            src={guptaTradersLogo}
+            alt="Gupta Traders Logo"
+            className="w-9 h-9 object-contain rounded-xl shadow-md border border-slate-800/80 bg-slate-900/50 p-0.5 flex-shrink-0 animate-pulse-slow"
+          />
           {sidebarOpen && (
             <div className="overflow-hidden">
-              <h1 className="text-base font-bold text-slate-50 leading-tight whitespace-nowrap">Gupta Traders</h1>
+              <h1 className="text-base font-bold text-slate-50 leading-tight whitespace-nowrap font-gupta">Gupta Traders</h1>
               <p className="text-[10px] text-slate-500 font-medium tracking-wider uppercase whitespace-nowrap">Management System</p>
             </div>
           )}

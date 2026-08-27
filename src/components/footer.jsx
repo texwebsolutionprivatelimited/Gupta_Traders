@@ -1,4 +1,5 @@
 import React from 'react'
+import guptaTradersLogo from '../assets/gupta traders logo.png'
 
 export default function Footer() {
   const currentYear = new Date().getFullYear()
@@ -10,9 +11,11 @@ export default function Footer() {
         {/* Left Section: Branding & Copyright */}
         <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-left flex-wrap">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-emerald-500/10">
-              G
-            </div>
+            <img
+              src={guptaTradersLogo}
+              alt="Gupta Traders Logo"
+              className="w-6 h-6 object-contain rounded-lg shadow-sm border border-slate-800/80 bg-slate-900/50 p-0.5 flex-shrink-0"
+            />
             <span className="font-semibold text-sm text-slate-200">Gupta Traders</span>
           </div>
           <span className="hidden sm:inline text-slate-700/50">|</span>

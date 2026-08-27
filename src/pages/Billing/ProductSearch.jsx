@@ -64,6 +64,7 @@ export default function ProductSearch({ onAddToCart }) {
   const [showLooseForm, setShowLooseForm] = useState(false)
   const [addedId, setAddedId] = useState(null)
   const [barcodeMode, setBarcodeMode] = useState(false)
+  const [productsVersion, setProductsVersion] = useState(0)
   const searchRef = useRef(null)
   const barcodeRef = useRef(null)
   const barcodeBuffer = useRef('')
@@ -98,7 +99,20 @@ export default function ProductSearch({ onAddToCart }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const filteredProducts = searchProducts(query, activeCategory)
+  // Listen to product database updates
+  useEffect(() => {
+    const handleUpdate = () => {
+      setProductsVersion(v => v + 1)
+    }
+    window.addEventListener('gt_products_updated', handleUpdate)
+    window.addEventListener('storage', handleUpdate)
+    return () => {
+      window.removeEventListener('gt_products_updated', handleUpdate)
+      window.removeEventListener('storage', handleUpdate)
+    }
+  }, [])
+
+  const filteredProducts = searchProducts(query, activeCategory, productsVersion)
 
   // Handle barcode scanner input (rapid keystrokes ending with Enter)
   const handleBarcodeKeyDown = (e) => {

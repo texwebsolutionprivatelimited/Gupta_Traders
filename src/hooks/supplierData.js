@@ -1,5 +1,6 @@
 // ─── Suppliers Data Management ──────────────────────────────────
 import { moveToTrash } from './trashData'
+import { queueSync } from '../supabase/syncManager'
 const STORAGE_KEY = 'gt_suppliers'
 
 // ─── Seed initial suppliers data ────────────────────────────────
@@ -220,6 +221,7 @@ export function addSupplier(supplier) {
 
   all.push(newSupplier)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  queueSync('suppliers', 'insert', newSupplier)
   return { data: newSupplier }
 }
 
@@ -237,6 +239,7 @@ export function updateSupplier(id, updates) {
   }
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  queueSync('suppliers', 'update', all[idx])
   return { data: all[idx] }
 }
 
@@ -248,6 +251,7 @@ export function deleteSupplier(id) {
   moveToTrash('supplier', target)
   all = all.filter(s => s.id !== id)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  queueSync('suppliers', 'delete', target)
   return { success: true }
 }
 

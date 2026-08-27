@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import guptaTradersShowcase from '../../assets/Gupta traders.png'
+import guptaTradersLogo from '../../assets/gupta traders logo.png'
+import { supabase } from '../../supabase/supabase'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -63,7 +65,7 @@ export default function LoginPage() {
     }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!email.trim() || !password.trim()) {
       setError('Please fill in all fields')
@@ -73,7 +75,50 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    // Simulate login loading and credentials validation
+    // Try Supabase Auth first
+    try {
+      const { data, error: authErr } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password
+      })
+
+      if (!authErr && data.user) {
+        setLoading(false)
+        setSuccess(true)
+
+        const matchedUser = {
+          email: data.user.email,
+          name: data.user.user_metadata?.name || data.user.email.split('@')[0],
+          role: data.user.user_metadata?.role || 'Admin',
+          title: data.user.user_metadata?.title || 'Owner'
+        }
+
+        const storage = rememberMe ? localStorage : sessionStorage
+        storage.setItem('isLoggedIn', 'true')
+        storage.setItem('userRole', matchedUser.role)
+        storage.setItem('userName', matchedUser.name)
+        storage.setItem('userTitle', matchedUser.title)
+        storage.setItem('userEmail', matchedUser.email)
+
+        localStorage.setItem('userRole', matchedUser.role)
+        localStorage.setItem('userName', matchedUser.name)
+        localStorage.setItem('userTitle', matchedUser.title)
+        localStorage.setItem('userEmail', matchedUser.email)
+
+        setTimeout(() => {
+          if (matchedUser.role === 'Cashier') {
+            navigate('/pos')
+          } else {
+            navigate('/')
+          }
+        }, 800)
+        return
+      }
+    } catch (err) {
+      console.warn('[Supabase Auth] Login failed, falling back to local credentials...', err)
+    }
+
+    // Local Fallback validation
     setTimeout(() => {
       // Defined credentials according to requirements
       const credentials = [
@@ -151,14 +196,14 @@ export default function LoginPage() {
         className="absolute inset-0 w-full h-full object-cover object-center select-none"
       />
       <div className={`absolute inset-0 transition-all duration-300 pointer-events-none ${theme === 'light'
-          ? 'bg-slate-950/20 backdrop-blur-[0.5px]'
-          : 'bg-slate-950/60 backdrop-blur-[2px]'
+        ? 'bg-slate-950/20 backdrop-blur-[0.5px]'
+        : 'bg-slate-950/60 backdrop-blur-[2px]'
         }`} />
 
       {/* Subtle vignettes for visual contrast */}
       <div className={`absolute inset-0 transition-all duration-300 pointer-events-none ${theme === 'light'
-          ? 'bg-gradient-to-t from-slate-950/20 via-transparent to-slate-950/10'
-          : 'bg-gradient-to-t from-slate-950/50 via-transparent to-slate-950/30'
+        ? 'bg-gradient-to-t from-slate-950/20 via-transparent to-slate-950/10'
+        : 'bg-gradient-to-t from-slate-950/50 via-transparent to-slate-950/30'
         }`} />
 
       {/* Floating Theme Toggle (Top Right of Page) */}
@@ -184,14 +229,16 @@ export default function LoginPage() {
       <div className="w-full max-w-[440px] bg-slate-900/70 border border-slate-800/80 rounded-3xl p-6 sm:p-10 backdrop-blur-xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] relative z-10 animate-scaleIn transition-all duration-300">
 
         {/* Brand / Logo */}
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 mb-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6.5 h-6.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72l1.189-1.19A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72M6.75 18h3.5a.75.75 0 00.75-.75V14a.75.75 0 00-.75-.75h-3.5A.75.75 0 006 14v3.25c0 .414.336.75.75.75Z" />
-            </svg>
+        <div className="flex items-center gap-4 justify-center mb-6 bg-slate-950/40 p-3 rounded-2xl border border-slate-800/40">
+          <img
+            src={guptaTradersLogo}
+            alt="Gupta Traders Logo"
+            className="w-14 h-14 object-contain rounded-xl shadow-lg shadow-emerald-500/10 border border-slate-800/80 bg-slate-900/50 p-1 flex-shrink-0"
+          />
+          <div className="text-left">
+            <h1 className="text-2xl font-bold text-slate-100 leading-none tracking-tight font-gupta">Gupta Traders</h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Management Workspace</p>
           </div>
-          <h1 className="text-xl font-black text-slate-100 tracking-tight leading-tight">Gupta Traders</h1>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Management Workspace</p>
         </div>
 
         {/* Role Quick-Select Tabs */}
@@ -202,11 +249,10 @@ export default function LoginPage() {
               type="button"
               onClick={() => handleTabChange(role)}
               disabled={loading || success}
-              className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                activeTab === role
+              className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeTab === role
                   ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
-              }`}
+                }`}
             >
               {role}
             </button>
@@ -373,11 +419,11 @@ export default function LoginPage() {
       {modalType && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn" onClick={() => setModalType(null)}>
           {/* Modal Container */}
-          <div 
+          <div
             className="relative w-full max-w-2xl bg-slate-900 border border-slate-800/80 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] text-slate-200 transition-all duration-300 animate-scaleIn"
             onClick={(e) => e.stopPropagation()}
           >
-            
+
             {/* Header */}
             <div className="p-6 border-b border-slate-800/80 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -399,7 +445,7 @@ export default function LoginPage() {
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Gupta Traders &bull; Effective August 2026</p>
                 </div>
               </div>
-              
+
               {/* Close Icon Button */}
               <button
                 onClick={() => setModalType(null)}
@@ -417,22 +463,20 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setModalType('terms')}
-                className={`pb-3 text-xs font-bold transition-all relative cursor-pointer ${
-                  modalType === 'terms'
+                className={`pb-3 text-xs font-bold transition-all relative cursor-pointer ${modalType === 'terms'
                     ? 'text-emerald-500 border-b-2 border-emerald-500'
                     : 'text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 Terms of Service
               </button>
               <button
                 type="button"
                 onClick={() => setModalType('privacy')}
-                className={`pb-3 text-xs font-bold transition-all relative cursor-pointer ${
-                  modalType === 'privacy'
+                className={`pb-3 text-xs font-bold transition-all relative cursor-pointer ${modalType === 'privacy'
                     ? 'text-emerald-500 border-b-2 border-emerald-500'
                     : 'text-slate-400 hover:text-slate-200'
-                }`}
+                  }`}
               >
                 Privacy Policy
               </button>

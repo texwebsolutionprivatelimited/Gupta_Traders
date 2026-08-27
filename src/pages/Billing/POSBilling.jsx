@@ -14,12 +14,13 @@ import {
   formatINR,
   lookupBarcode,
 } from '../../hooks/posData'
+import { getAllProducts, updateProduct } from '../../hooks/productData'
 import { FaShoppingCart as CartIcon } from 'react-icons/fa'
+import guptaTradersLogo from '../../assets/gupta traders logo.png'
 
 // ─── Main POS Billing Page ──────────────────────────────────────
 export default function POSBilling() {
   const [searchParams] = useSearchParams()
-  // ─── State ───────────────────────────────────────────────────
   const [cart, setCart] = useState([])
   const [billDiscount, setBillDiscount] = useState(0)
   const [isGSTInclusive, setIsGSTInclusive] = useState(true)
@@ -154,6 +155,24 @@ export default function POSBilling() {
       customerName,
       timestamp: new Date().toISOString(),
     }
+
+    // Deduct stock for sold items
+    cart.forEach(item => {
+      if (!String(item.id).startsWith('loose-')) {
+        const allProds = getAllProducts()
+        const prod = allProds.find(p => 
+          (p.id !== undefined && String(p.id).toLowerCase() === String(item.id).toLowerCase()) ||
+          (p.barcode !== undefined && item.barcode !== undefined && String(p.barcode).trim() === String(item.barcode).trim()) ||
+          (p.sku !== undefined && item.sku !== undefined && String(p.sku).trim() === String(item.sku).trim())
+        )
+        if (prod) {
+          const currentStock = Number(prod.currentStock) || 0
+          const quantitySold = Number(item.quantity) || 0
+          const newStock = Math.max(0, currentStock - quantitySold)
+          updateProduct(prod.id, { currentStock: newStock })
+        }
+      }
+    })
 
     saveBill(bill)
     setShowSuccess(bill)
@@ -367,12 +386,14 @@ export default function POSBilling() {
           </Link>
           <div className="h-6 w-px bg-slate-800/60 hidden sm:block" />
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-amber-500/20">
-              POS
-            </div>
+            <img
+              src={guptaTradersLogo}
+              alt="Gupta Traders Logo"
+              className="w-7 h-7 object-contain rounded-lg shadow-md border border-slate-800/80 bg-slate-900/50 p-0.5 flex-shrink-0"
+            />
             <div>
               <h1 className="text-sm font-bold text-slate-100 leading-tight">POS Billing</h1>
-              <p className="text-[10px] text-slate-500 hidden sm:block">बिलिंग काउंटर</p>
+              <p className="text-[10px] text-slate-500 hidden sm:block">Gupta Traders • बिलिंग काउंटर</p>
             </div>
           </div>
         </div>

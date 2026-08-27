@@ -29,7 +29,11 @@ export default function ProductSelector({ onSelect, selectedProduct, onClear }) 
   useEffect(() => {
     const handleStorage = () => setProducts(getAllProducts())
     window.addEventListener('storage', handleStorage)
-    return () => window.removeEventListener('storage', handleStorage)
+    window.addEventListener('gt_products_updated', handleStorage)
+    return () => {
+      window.removeEventListener('storage', handleStorage)
+      window.removeEventListener('gt_products_updated', handleStorage)
+    }
   }, [])
 
   const filtered = query.trim()

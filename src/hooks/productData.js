@@ -13,6 +13,12 @@ function getInitialProducts() {
     try { return JSON.parse(stored) } catch { /* fall through */ }
   }
 
+  // If Supabase sync has initialized successfully, start with an empty array
+  if (localStorage.getItem('gt_sync_initialized') === 'true') {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
+    return []
+  }
+
   // Transform seed data into our product format
   const packaged = seedProducts
     .filter(p => !p.isLoose)

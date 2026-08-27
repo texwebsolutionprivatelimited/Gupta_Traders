@@ -12,8 +12,11 @@ import {
 import emailjs from "@emailjs/browser"; // npm install @emailjs/browser
 
 const BACKUP_KEYS = [
-  "customers",
-  "suppliers",
+  "gt_products",
+  "gt_customers",
+  "gt_suppliers",
+  "gt_expenses",
+  "gt_sync_queue",
   "users",
   "shopInformation",
   "gstSettings",

@@ -11,6 +11,12 @@ function getInitialCustomers() {
     }
   }
 
+  // If Supabase sync has initialized successfully, start with an empty array
+  if (localStorage.getItem('gt_sync_initialized') === 'true') {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
+    return []
+  }
+
   const now = new Date()
   const dateStr = (offsetDays) => {
     const d = new Date(now)

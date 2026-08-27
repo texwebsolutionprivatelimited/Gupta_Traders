@@ -1744,6 +1744,31 @@ export default function Layout() {
     sessionStorage.removeItem('isLoggedIn')
     navigate('/login')
   }
+  
+  const [pendingSyncCount, setPendingSyncCount] = useState(0)
+
+  useEffect(() => {
+    const updateQueueCount = () => {
+      try {
+        const queue = JSON.parse(localStorage.getItem('gt_sync_queue') || '[]')
+        setPendingSyncCount(queue.length)
+      } catch (_) {
+        setPendingSyncCount(0)
+      }
+    }
+
+    updateQueueCount()
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('gt_sync_queue_changed', updateQueueCount)
+      window.addEventListener('storage', updateQueueCount)
+      return () => {
+        window.removeEventListener('gt_sync_queue_changed', updateQueueCount)
+        window.removeEventListener('storage', updateQueueCount)
+      }
+    }
+  }, [])
+
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
@@ -2074,6 +2099,31 @@ export default function Layout() {
               </svg>
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-slate-950 animate-pulse" />
             </button>
+
+            {/* Database Sync Status */}
+            <div 
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold select-none transition-all cursor-default
+                ${pendingSyncCount > 0
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-sm shadow-amber-500/5'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5'
+                }`}
+              title={pendingSyncCount > 0 
+                ? `${pendingSyncCount} pending updates waiting to sync to Supabase. Ensure email confirmation is disabled in Supabase console if stuck.` 
+                : 'All data is fully synchronized with Supabase'
+              }
+            >
+              <div className={`w-2 h-2 rounded-full relative ${pendingSyncCount > 0 ? 'bg-amber-400' : 'bg-emerald-400'}`}>
+                {pendingSyncCount > 0 && (
+                  <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
+                )}
+                {pendingSyncCount === 0 && (
+                  <span className="absolute inset-0 rounded-full bg-emerald-400 animate-pulse opacity-75" />
+                )}
+              </div>
+              <span className="hidden sm:inline">
+                {pendingSyncCount > 0 ? `Syncing (${pendingSyncCount})` : 'Cloud Synced'}
+              </span>
+            </div>
 
             {/* Divider */}
             <div className="w-px h-8 bg-slate-800/80" />

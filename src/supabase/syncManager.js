@@ -163,6 +163,11 @@ export function queueSync(table, action, data) {
     })
     
     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue))
+    
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('gt_sync_queue_changed'))
+    }
+
     // Trigger background processing
     processSyncQueue()
   } catch (e) {
@@ -248,6 +253,9 @@ export async function processSyncQueue() {
         // Remove item from queue
         queue.shift()
         localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue))
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('gt_sync_queue_changed'))
+        }
       } else {
         // Non-fatal error (network down or auth RLS block) - pause queue
         break
@@ -263,9 +271,12 @@ export async function processSyncQueue() {
 // ─── Bidirectional Pull Sync (Supabase -> LocalStorage) ──────
 
 export async function pullSupabaseData() {
+  if (isPulling) return
+  isPulling = true
   try {
     console.log('[Supabase Sync] Initializing pull sync...')
     const tables = ['products', 'customers', 'suppliers', 'expenses']
+    let syncSuccessful = false
     
     for (const table of tables) {
       const storageKey = getStorageKey(table)
@@ -275,6 +286,14 @@ export async function pullSupabaseData() {
       if (error) {
         console.log(`[Supabase Sync] Skipping pull for ${table} (RLS protected or offline):`, error.message)
         continue
+      }
+
+      syncSuccessful = true
+
+      // Initialize local storage table keys to empty list if not already present
+      // This signals that sync was successful and we pulled a clean database.
+      if (!localStorage.getItem(storageKey)) {
+        localStorage.setItem(storageKey, '[]')
       }
 
       if (!data || data.length === 0) continue
@@ -324,9 +343,14 @@ export async function pullSupabaseData() {
       }
     }
     
+    if (syncSuccessful) {
+      localStorage.setItem('gt_sync_initialized', 'true')
+    }
     console.log('[Supabase Sync] Pull sync complete!')
   } catch (err) {
     console.error('[Supabase Sync] Pull sync failed:', err)
+  } finally {
+    isPulling = false
   }
 }
 
@@ -391,12 +415,26 @@ function handleRemoteChange(table, payload) {
   }
 }
 
+let activeChannels = []
+let isSyncInitialized = false
+let isPulling = false
+
 export function initRealtimeSubscription() {
   console.log('[Supabase Realtime] Subscribing to postgres changes...')
   const tables = ['products', 'customers', 'suppliers', 'expenses']
   
+  // Clean up any existing channels to prevent duplicate subscription errors during Hot Module Replacement (HMR)
+  activeChannels.forEach(channel => {
+    try {
+      supabase.removeChannel(channel)
+    } catch (err) {
+      console.warn('[Supabase Realtime] Error cleaning up channel:', err)
+    }
+  })
+  activeChannels = []
+  
   tables.forEach(table => {
-    supabase
+    const channel = supabase
       .channel(`realtime:${table}`)
       .on(
         'postgres_changes',
@@ -406,15 +444,24 @@ export function initRealtimeSubscription() {
           handleRemoteChange(table, payload)
         }
       )
-      .subscribe((status) => {
-        console.log(`[Supabase Realtime] Subscription status for ${table}:`, status)
-      })
+      
+    channel.subscribe((status) => {
+      console.log(`[Supabase Realtime] Subscription status for ${table}:`, status)
+    })
+    
+    activeChannels.push(channel)
   })
 }
 
 // ─── Main Init Entrypoint ─────────────────────────────────────
 
 export function initSyncManager() {
+  if (isSyncInitialized) {
+    console.log('[Supabase Sync] Sync Manager already initialized, skipping duplicate init.')
+    return
+  }
+  isSyncInitialized = true
+
   console.log('[Supabase Sync] Sync Manager Initialized.')
   
   // 1. Trigger initial pull

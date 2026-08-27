@@ -56,7 +56,12 @@ export default function InventoryPage() {
   const reloadData = () => {
     // Read directly from productData
     const all = getAllProducts()
-    setProducts(all)
+    const sorted = [...all].sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return timeB - timeA
+    })
+    setProducts(sorted)
     setLogs(getInventoryLogs())
     setSummary(getInventorySummary())
   }

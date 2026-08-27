@@ -179,14 +179,29 @@ export function formatINR(amount) {
 
 // ─── Unit options ──────────────────────────────────────────────
 export const unitOptions = [
+  { value: 'Piece', label: 'Piece' },
+  { value: 'Kg', label: 'Kg' },
+  { value: 'Gram', label: 'Gram' },
+  { value: 'Litre', label: 'Litre' },
+  { value: 'ML', label: 'ML' },
+  { value: 'Pack', label: 'Pack' },
+  { value: 'Box', label: 'Box' },
+  { value: 'Bottle', label: 'Bottle' },
+  { value: 'Dozen', label: 'Dozen' },
+  { value: 'Meter', label: 'Meter' },
+  { value: 'Other', label: 'Other' },
+  // Compatibility fallbacks so old codes don't break select components in ProductsPage.jsx
+  { value: 'pcs', label: 'Piece (pcs)' },
   { value: 'kg', label: 'Kilogram (kg)' },
   { value: 'g', label: 'Gram (g)' },
   { value: 'L', label: 'Litre (L)' },
   { value: 'ml', label: 'Millilitre (ml)' },
-  { value: 'pcs', label: 'Piece (pcs)' },
+  { value: 'pack', label: 'Pack' },
   { value: 'box', label: 'Box' },
-  { value: 'packet', label: 'Packet' },
+  { value: 'bottle', label: 'Bottle' },
   { value: 'dozen', label: 'Dozen' },
+  { value: 'meter', label: 'Meter' },
+  { value: 'other', label: 'Other' },
 ]
 
 // ─── GST Rate options ──────────────────────────────────────────

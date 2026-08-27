@@ -73,6 +73,15 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    label: 'Barcode Generator',
+    path: '/barcode-generator',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 5v14M6 5v14M8 5v14M12 5v14M15 5v14M18 5v14M21 5v14" />
+      </svg>
+    ),
+  },
   { type: 'divider', label: 'Transactions' },
   {
     label: 'Purchase',
@@ -168,6 +177,7 @@ const navItems = [
       </svg>
     ),
   },
+
 ]
 
 // ─── Sidebar Toggle Icons ───────────────────────────────────────
@@ -1178,7 +1188,7 @@ export default function Layout() {
       title = "Sales History Report"
       headers = ["Invoice / Sale ID", "Date", "Customer", "Invoice Number", "Items Count", "Total Amount", "Payment Method", "Status"]
       const filteredSales = filterRecordsByTimeframe(salesRecords, 'date')
-      
+
       const totalAmt = filteredSales.reduce((sum, s) => sum + Number(s.total || s.grandTotal || 0), 0)
       summaryCards = [
         { title: "Total Invoices", value: filteredSales.length, color: "#2563eb" },
@@ -1265,9 +1275,9 @@ export default function Layout() {
     } else if (historyType === 'stock') {
       title = "Stock Status Report"
       headers = ["Product Name", "SKU / Code", "Category", "Current Stock", "Min Stock", "Unit", "Purchase Price", "Selling Price", "GST Rate"]
-      
+
       const productsList = stockItems.length > 0 ? stockItems : getAllProducts()
-      
+
       const totalStockVal = productsList.reduce((sum, item) => sum + (Number(item.currentStock || item.stock || 0) * Number(item.purchasePrice || item.price || 0)), 0)
       const lowStockCount = productsList.filter(item => Number(item.currentStock || item.stock || 0) <= Number(item.minStock || 0)).length
 
@@ -1351,7 +1361,7 @@ export default function Layout() {
     } else if (historyType === 'customers') {
       title = "Customers Directory Report"
       headers = ["Customer ID", "Name", "Phone", "Email", "Address", "City", "GSTIN", "Type", "Credit Limit", "Outstanding Balance", "Status", "Created At"]
-      
+
       const filteredCustomers = filterRecordsByTimeframe(getCustomers(), 'createdAt')
       const totalOutstanding = filteredCustomers.reduce((sum, c) => sum + Number(c.outstandingBalance || 0), 0)
       summaryCards = [
@@ -1409,9 +1419,9 @@ export default function Layout() {
   const handleDownloadExcel = () => {
     const { title, headers, rows, dateRangeStr } = getFilteredData()
     const filename = `${title.toLowerCase().replace(/\s+/g, '_')}_${dateRangeStr.toLowerCase().replace(/\s+/g, '_')}.csv`
-    
+
     let csvContent = "\uFEFF" // UTF-8 BOM for Rupee symbol support in Excel
-    
+
     // Title & Meta Info header
     csvContent += `"${title.toUpperCase()}"\n`
     csvContent += `"Period:","${dateRangeStr}"\n`
@@ -1592,31 +1602,31 @@ export default function Layout() {
     <thead>
       <tr>
         ${headers.map((h, i) => {
-          let alignClass = '';
-          const lowerH = h.toLowerCase();
-          if (lowerH.includes('total') || lowerH.includes('amount') || lowerH.includes('price') || lowerH.includes('balance') || lowerH.includes('debit') || lowerH.includes('credit') || lowerH.includes('flow') || lowerH.includes('subtotal') || lowerH.includes('gst')) {
-            alignClass = ' class="text-right"';
-          } else if (lowerH.includes('status') || lowerH.includes('method') || lowerH.includes('mode') || lowerH.includes('items') || lowerH.includes('count') || lowerH.includes('date')) {
-            alignClass = ' class="text-center"';
-          }
-          return `<th${alignClass}>${h}</th>`;
-        }).join('')}
+      let alignClass = '';
+      const lowerH = h.toLowerCase();
+      if (lowerH.includes('total') || lowerH.includes('amount') || lowerH.includes('price') || lowerH.includes('balance') || lowerH.includes('debit') || lowerH.includes('credit') || lowerH.includes('flow') || lowerH.includes('subtotal') || lowerH.includes('gst')) {
+        alignClass = ' class="text-right"';
+      } else if (lowerH.includes('status') || lowerH.includes('method') || lowerH.includes('mode') || lowerH.includes('items') || lowerH.includes('count') || lowerH.includes('date')) {
+        alignClass = ' class="text-center"';
+      }
+      return `<th${alignClass}>${h}</th>`;
+    }).join('')}
       </tr>
     </thead>
     <tbody>
       ${rows.map(row => `
         <tr>
           ${row.map((cell, idx) => {
-            const h = headers[idx];
-            let alignClass = '';
-            const lowerH = h.toLowerCase();
-            if (lowerH.includes('total') || lowerH.includes('amount') || lowerH.includes('price') || lowerH.includes('balance') || lowerH.includes('debit') || lowerH.includes('credit') || lowerH.includes('flow') || lowerH.includes('subtotal') || lowerH.includes('gst')) {
-              alignClass = ' class="text-right"';
-            } else if (lowerH.includes('status') || lowerH.includes('method') || lowerH.includes('mode') || lowerH.includes('items') || lowerH.includes('count') || lowerH.includes('date')) {
-              alignClass = ' class="text-center"';
-            }
-            return `<td${alignClass}>${cell}</td>`;
-          }).join('')}
+      const h = headers[idx];
+      let alignClass = '';
+      const lowerH = h.toLowerCase();
+      if (lowerH.includes('total') || lowerH.includes('amount') || lowerH.includes('price') || lowerH.includes('balance') || lowerH.includes('debit') || lowerH.includes('credit') || lowerH.includes('flow') || lowerH.includes('subtotal') || lowerH.includes('gst')) {
+        alignClass = ' class="text-right"';
+      } else if (lowerH.includes('status') || lowerH.includes('method') || lowerH.includes('mode') || lowerH.includes('items') || lowerH.includes('count') || lowerH.includes('date')) {
+        alignClass = ' class="text-center"';
+      }
+      return `<td${alignClass}>${cell}</td>`;
+    }).join('')}
         </tr>
       `).join('')}
     </tbody>

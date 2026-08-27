@@ -63,6 +63,7 @@ import Hardware from './pages/Hardware/Hardware'
 import BarcodeScanner from './pages/Hardware/BarcodeScanner'
 import ThermalPrinter from './pages/Hardware/ThermalPrinter'
 import USBPrinter from './pages/Hardware/USBPrinter'
+import BarcodeGenerator from './pages/Barcode Generator/BarcodeGenerator'
 
 function ProtectedRoute() {
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true' || sessionStorage.getItem('isLoggedIn') === 'true'
@@ -163,6 +164,7 @@ function App() {
                 <Route path="/hardware/usb-printer" element={<USBPrinter />} />
 
                 <Route path="/trash" element={<TrashPage />} />
+                <Route path="/barcode-generator" element={<BarcodeGenerator />} />
               </Route>
             </Route>
           </Routes>

@@ -187,6 +187,54 @@ html.light {
   }
 }
 
+/* ─── Barcode Label Print Styles ──────────────────────────────── */
+
+/* Screen: hide the print area completely */
+.barcode-print-area {
+  display: none;
+}
+
+@media print {
+
+  /* Show barcode print area */
+  .barcode-print-area {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    background: #fff !important;
+    z-index: 9999 !important;
+    padding: 5mm !important;
+    margin: 0 !important;
+  }
+
+  .barcode-print-area * {
+    visibility: visible !important;
+    color: #000 !important;
+  }
+
+  /* Label grid layout */
+  .barcode-label-grid {
+    display: grid !important;
+    gap: 2mm !important;
+    justify-content: center !important;
+  }
+
+  /* Prevent labels from breaking across pages */
+  .barcode-label-print {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* A4 page settings for label sheets */
+  @page {
+    size: A4;
+    margin: 5mm;
+  }
+}
+
 /* ─── Number Input: Hide Spinners ─────────────────────────────── */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
@@ -363,19 +411,19 @@ select option {
   display: grid !important;
   gap: 1rem !important;
   margin-bottom: 1.5rem !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important; /* Default (mobile & up to 768px) */
-}
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 
-/* 768px to 1440px: 3 columns */
-@media (min-width: 768px) and (max-width: 1440px) {
-  .dashboard-stats-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  /* 768px to 1440px: 3 columns */
+  @media (min-width: 768px) and (max-width: 1440px) {
+    .dashboard-stats-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
   }
-}
 
-/* Above 1440px: 6 columns */
-@media (min-width: 1440.01px) {
-  .dashboard-stats-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  /* Above 1440px: 6 columns */
+  @media (min-width: 1440.01px) {
+    .dashboard-stats-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    }
   }
 }

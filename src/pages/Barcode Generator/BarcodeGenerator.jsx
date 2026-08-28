@@ -9,6 +9,8 @@ import {
   updateProduct,
   addProduct,
   generateNextSKU,
+  generateNextProductCode,
+  generateNextBarcode,
 } from '../../hooks/productData'
 
 function generateUniqueBarcode() {
@@ -93,6 +95,8 @@ const INITIAL_FORM = {
   quantity: '1',
   price: '',
   barcodeCount: '10',
+  productType: 'packaged',
+  manualBarcode: '',
 }
 
 // ─── Empty State Component ──────────────────────────────────────
@@ -223,6 +227,8 @@ export default function BarcodeGenerator() {
       quantity: parsed.qty || '1',
       price: String(product.sellingPrice || product.mrp || ''),
       barcodeCount: '10',
+      productType: product.type || 'packaged',
+      manualBarcode: product.barcode || '',
     })
     setGeneratedBarcode(product.barcode || '')
     setErrors({})
@@ -303,19 +309,34 @@ export default function BarcodeGenerator() {
         }
       }
 
+      // Check if manual barcode was entered and if a product with that barcode already exists
+      const manualBarcodeTrimmed = formData.manualBarcode?.trim()
+      if (!productToUse && manualBarcodeTrimmed) {
+        const foundByBarcode = getAllProducts().find(p => p.barcode?.trim() === manualBarcodeTrimmed)
+        if (foundByBarcode) {
+          productToUse = foundByBarcode
+          setSelectedProduct(foundByBarcode)
+        }
+      }
+
       if (productToUse) {
         // ── Existing Product ──
-        if (productToUse.barcode) {
-          // Reuse existing barcode
-          barcode = productToUse.barcode
-        } else {
-          // Generate new barcode for product that has none
-          barcode = generateUniqueBarcode()
-          updateProduct(productToUse.id, { barcode })
-        }
+        barcode = manualBarcodeTrimmed || productToUse.barcode || generateUniqueBarcode()
         
-        // Update product metadata in DB if needed (newly translated Hindi name, brand, or price changes)
         const updates = {}
+        if (barcode !== productToUse.barcode) {
+          updates.barcode = barcode
+        }
+        if (formData.productType && formData.productType !== productToUse.type) {
+          updates.type = formData.productType
+          if (formData.productType === 'loose') {
+            updates.category = 'loose'
+            updates.productCode = productToUse.productCode || generateNextProductCode()
+          } else {
+            updates.category = 'grocery'
+            updates.sku = productToUse.sku || generateNextSKU()
+          }
+        }
         if (formData.nameHi.trim() && !productToUse.nameHi) {
           updates.nameHi = formData.nameHi.trim()
         }
@@ -325,28 +346,29 @@ export default function BarcodeGenerator() {
         if (formData.price && Number(formData.price) !== Number(productToUse.sellingPrice)) {
           updates.sellingPrice = Number(formData.price)
         }
+        
         if (Object.keys(updates).length > 0) {
           updateProduct(productToUse.id, updates)
         }
-      } else if (generatedBarcode) {
-        // ── Previously generated manual barcode — reuse barcode ──
-        barcode = generatedBarcode
       } else {
         // ── New Manual Product — Create & Associate ──
-        barcode = generateUniqueBarcode()
+        const isLoose = formData.productType === 'loose'
+        barcode = manualBarcodeTrimmed || (isLoose ? (generateNextBarcode('loose') || generateUniqueBarcode()) : generateUniqueBarcode())
+        
         const newProduct = addProduct({
-          type: 'packaged',
+          type: formData.productType || 'packaged',
           name: formData.name.trim(),
           nameHi: formData.nameHi.trim(),
           barcode,
-          sku: generateNextSKU(),
+          sku: isLoose ? undefined : generateNextSKU(),
+          productCode: isLoose ? generateNextProductCode() : undefined,
           brand: formData.brand.trim() || 'General',
           unit: formData.unit,
           packSize: `${formData.quantity} ${formData.unit}`,
           purchasePrice: Number(formData.price),
           sellingPrice: Number(formData.price),
-          category: 'grocery',
-          currentStock: 0,
+          category: isLoose ? 'loose' : 'grocery',
+          currentStock: Number(formData.quantity) || 0,
           minStock: 10,
           gstRate: 0,
         })

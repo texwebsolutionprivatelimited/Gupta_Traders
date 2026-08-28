@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+import JsBarcode from 'jsbarcode'
 import { unitOptions } from '../../hooks/productData'
 
 export default function BarcodeForm({
@@ -11,6 +13,26 @@ export default function BarcodeForm({
   onTranslate,
   isTranslating,
 }) {
+  const manualBarcodeSvgRef = useRef(null)
+
+  useEffect(() => {
+    if (manualBarcodeSvgRef.current && formData.manualBarcode && formData.manualBarcode.trim()) {
+      try {
+        JsBarcode(manualBarcodeSvgRef.current, formData.manualBarcode.trim(), {
+          format: 'CODE128',
+          width: 1.5,
+          height: 35,
+          displayValue: false,
+          margin: 0,
+          background: 'transparent',
+          lineColor: '#000000',
+        })
+      } catch (e) {
+        console.warn('Live barcode rendering error:', e)
+      }
+    }
+  }, [formData.manualBarcode])
+
   const handleChange = (field) => (e) => onChange(field, e.target.value)
 
   const inputClass = (field) =>
@@ -34,6 +56,48 @@ export default function BarcodeForm({
         </svg>
         Product Details
       </h3>
+
+      {/* Product Type & Manual Barcode Input */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            Product Type <span className="text-rose-400">*</span>
+          </label>
+          <select
+            value={formData.productType || 'packaged'}
+            onChange={handleChange('productType')}
+            className={selectClass('productType')}
+            id="barcode-product-type"
+          >
+            <option value="packaged">Packaged Product</option>
+            <option value="loose">Loose Product</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            Barcode / SKU <span className="text-slate-600">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            value={formData.manualBarcode || ''}
+            onChange={handleChange('manualBarcode')}
+            placeholder="Auto-generates if blank"
+            className={inputClass('manualBarcode')}
+            id="barcode-manual-input"
+          />
+        </div>
+      </div>
+
+      {/* Live Barcode Preview on Paste */}
+      {formData.manualBarcode && formData.manualBarcode.trim() && (
+        <div className="bg-slate-950/40 border border-slate-800/40 rounded-xl p-3 flex flex-col items-center justify-center animate-fadeIn">
+          <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider mb-1">Instant Barcode Preview</p>
+          <div className="bg-white p-2 rounded-lg flex justify-center w-full max-w-[200px]">
+            <svg ref={manualBarcodeSvgRef} className="max-w-full" />
+          </div>
+          <p className="text-[10px] font-mono text-slate-400 mt-1">{formData.manualBarcode.trim()}</p>
+        </div>
+      )}
 
       {/* Product Name — English */}
       <div>

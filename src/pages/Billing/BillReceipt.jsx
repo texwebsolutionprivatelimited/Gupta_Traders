@@ -30,7 +30,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
             font-size: 13px;
             line-height: 1.3;
             width: 80mm;
-            padding: 4mm;
+            padding: 4mm 4mm 4mm 8mm; /* Increased left padding to prevent left-side cutting */
             color: #000;
             background: #fff;
           }
@@ -42,15 +42,15 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
           .shop-name { font-size: 20px; font-weight: 900 !important; }
           .item-row { display: flex; justify-content: space-between; padding: 2px 0; }
           .item-name { flex: 1; }
-          .item-qty { width: 60px; text-align: center; }
-          .item-amount { width: 70px; text-align: right; }
+          .item-qty { width: 45px; text-align: center; } /* Reduced from 60px to compensate for left padding */
+          .item-amount { width: 60px; text-align: right; } /* Reduced from 70px to compensate for left padding */
           .total-row { display: flex; justify-content: space-between; padding: 3px 0; font-weight: bold !important; }
           .grand-total { font-size: 18px; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 4px 0; margin-top: 4px; }
           @media print {
             body {
               width: 80mm;
               margin: 0;
-              padding: 4mm;
+              padding: 4mm 4mm 4mm 8mm; /* Increased left padding to prevent left-side cutting */
             }
           }
         </style>

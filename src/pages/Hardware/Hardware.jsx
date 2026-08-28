@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ScanLine,
@@ -14,6 +15,51 @@ import {
 export default function Hardware() {
   const navigate = useNavigate();
 
+  const [scannerConnected, setScannerConnected] = useState(false);
+  const [thermalConnected, setThermalConnected] = useState(false);
+  const [usbConnected, setUsbConnected] = useState(false);
+
+  useEffect(() => {
+    const checkStatuses = () => {
+      try {
+        const scannerSaved = localStorage.getItem("barcodeScannerSettings");
+        if (scannerSaved) {
+          const parsed = JSON.parse(scannerSaved);
+          setScannerConnected(Boolean(parsed.connected && parsed.erpConnected));
+        } else {
+          setScannerConnected(false);
+        }
+
+        const thermalSaved = localStorage.getItem("thermalPrinterSettings");
+        if (thermalSaved) {
+          const parsed = JSON.parse(thermalSaved);
+          setThermalConnected(Boolean(parsed.connected));
+        } else {
+          setThermalConnected(false);
+        }
+
+        const usbSaved = localStorage.getItem("usbPrinterSettings");
+        if (usbSaved) {
+          const parsed = JSON.parse(usbSaved);
+          setUsbConnected(Boolean(parsed.connected));
+        } else {
+          setUsbConnected(false);
+        }
+      } catch (e) {
+        console.error("Error loading hardware statuses:", e);
+      }
+    };
+
+    checkStatuses();
+    window.addEventListener("storage", checkStatuses);
+    const interval = setInterval(checkStatuses, 2000);
+
+    return () => {
+      window.removeEventListener("storage", checkStatuses);
+      clearInterval(interval);
+    };
+  }, []);
+
   const devices = [
     {
       title: "Barcode Scanner",
@@ -21,7 +67,7 @@ export default function Hardware() {
       icon: ScanLine,
       iconColor: "text-sky-600 dark:text-sky-400",
       bg: "from-sky-500/10 to-sky-600/5 dark:from-sky-500/10 dark:to-sky-600/5",
-      status: "Connected",
+      status: scannerConnected ? "Connected" : "Disconnected",
       path: "/hardware/barcode-scanner",
     },
     {
@@ -30,7 +76,7 @@ export default function Hardware() {
       icon: Printer,
       iconColor: "text-emerald-600 dark:text-emerald-400",
       bg: "from-emerald-500/10 to-emerald-600/5 dark:from-emerald-500/10 dark:to-emerald-600/5",
-      status: "Disconnected",
+      status: thermalConnected ? "Connected" : "Disconnected",
       path: "/hardware/thermal-printer",
     },
     {
@@ -39,7 +85,7 @@ export default function Hardware() {
       icon: Usb,
       iconColor: "text-violet-600 dark:text-violet-400",
       bg: "from-violet-500/10 to-violet-600/5 dark:from-violet-500/10 dark:to-violet-600/5",
-      status: "Setup Required",
+      status: usbConnected ? "Connected" : "Setup Required",
       path: "/hardware/usb-printer",
     },
   ];

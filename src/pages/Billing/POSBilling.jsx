@@ -191,6 +191,10 @@ export default function POSBilling() {
     prefix: "",
     suffix: "Enter"
   })
+  const [printerStatus, setPrinterStatus] = useState({
+    connected: false,
+    printerName: "Printer"
+  })
   const [toast, setToast] = useState(null)
 
   const triggerToast = useCallback((type, title, message) => {
@@ -229,7 +233,7 @@ export default function POSBilling() {
     }
   }
 
-  // Load scanner settings dynamically
+  // Load scanner and printer settings dynamically
   useEffect(() => {
     const checkSettings = () => {
       try {
@@ -237,8 +241,32 @@ export default function POSBilling() {
         if (stored) {
           setScannerStatus(JSON.parse(stored))
         }
+
+        const thermalStored = localStorage.getItem("thermalPrinterSettings");
+        const usbStored = localStorage.getItem("usbPrinterSettings");
+        
+        let printerConnected = false;
+        let printerName = "Printer";
+        
+        if (thermalStored) {
+          const parsed = JSON.parse(thermalStored);
+          if (parsed && parsed.connected) {
+            printerConnected = true;
+            printerName = parsed.printerName || "Thermal Printer";
+          }
+        }
+        
+        if (!printerConnected && usbStored) {
+          const parsed = JSON.parse(usbStored);
+          if (parsed && parsed.connected) {
+            printerConnected = true;
+            printerName = parsed.printerName || "USB Printer";
+          }
+        }
+        
+        setPrinterStatus({ connected: printerConnected, printerName });
       } catch (e) {
-        console.error("Failed to parse scanner settings:", e)
+        console.error("Failed to parse scanner or printer settings:", e)
       }
     }
 
@@ -424,6 +452,20 @@ export default function POSBilling() {
               {scannerStatus.connected && scannerStatus.erpConnected
                 ? `Scanner: Synced`
                 : 'Scanner Offline'}
+            </span>
+          </div>
+
+          {/* Printer Sync Badge */}
+          <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${printerStatus.connected
+            ? 'bg-emerald-550/10 text-emerald-400 border-emerald-500/20'
+            : 'bg-rose-550/10 text-rose-400 border-rose-500/20'
+            }`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${printerStatus.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+              }`} />
+            <span>
+              {printerStatus.connected
+                ? `Printer: Synced`
+                : 'Printer Offline'}
             </span>
           </div>
 

@@ -7,6 +7,7 @@ import {
     ScanLine,
     Settings2,
     XCircle,
+    RefreshCw,
 } from "lucide-react";
 
 export default function BarcodeScanner() {
@@ -129,6 +130,72 @@ export default function BarcodeScanner() {
             erpConnected: false
         };
         localStorage.setItem("barcodeScannerSettings", JSON.stringify(settings));
+    };
+
+    // Scan and Request browser permission for physical USB/HID devices
+    const handleScanForPhysicalDevices = async () => {
+        try {
+            if (typeof navigator === "undefined") {
+                alert("Browser APIs not loaded.");
+                return;
+            }
+            addLog("Opening native device selection dialog. Please choose your barcode scanner...");
+            
+            // Try WebUSB first
+            if (navigator.usb) {
+                const device = await navigator.usb.requestDevice({ filters: [] });
+                if (device) {
+                    const name = device.productName || device.manufacturerName || "USB Barcode Scanner";
+                    const devId = `usb-scanner-${device.vendorId}-${device.productId}-${Date.now()}`;
+                    
+                    setDiscoveredDevices(prev => {
+                        if (prev.some(d => d.vendorId === device.vendorId && d.productId === device.productId)) {
+                            return prev;
+                        }
+                        return [...prev, {
+                            id: devId,
+                            name,
+                            type: "USB",
+                            vendorId: device.vendorId,
+                            productId: device.productId,
+                            status: "found"
+                        }];
+                    });
+                    
+                    addLog(`Discovered physical USB device: "${name}" (VID: 0x${device.vendorId.toString(16)}, PID: 0x${device.productId.toString(16)}).`);
+                    return;
+                }
+            }
+            
+            // Fallback/Option to try WebHID
+            if (navigator.hid) {
+                const devices = await navigator.hid.requestDevice({ filters: [] });
+                if (devices && devices.length > 0) {
+                    const device = devices[0];
+                    const name = device.productName || "HID Scanner";
+                    const devId = `hid-scanner-${device.vendorId}-${device.productId}-${Date.now()}`;
+                    
+                    setDiscoveredDevices(prev => {
+                        if (prev.some(d => d.vendorId === device.vendorId && d.productId === device.productId)) {
+                            return prev;
+                        }
+                        return [...prev, {
+                            id: devId,
+                            name,
+                            type: "HID",
+                            vendorId: device.vendorId,
+                            productId: device.productId,
+                            status: "found"
+                        }];
+                    });
+                    
+                    addLog(`Discovered physical HID device: "${name}" (VID: 0x${device.vendorId.toString(16)}, PID: 0x${device.productId.toString(16)}).`);
+                }
+            }
+        } catch (err) {
+            console.error("Device scan failed:", err);
+            addLog(`Device Port Scan canceled: ${err.message}`);
+        }
     };
 
     // Listen to real-time WebUSB/WebHID connection signals
@@ -338,7 +405,17 @@ export default function BarcodeScanner() {
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                type="button"
+                                onClick={handleScanForPhysicalDevices}
+                                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition flex items-center gap-2"
+                                disabled={isSyncing}
+                            >
+                                <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
+                                Scan & Pair Physical Barcode Scanner
+                            </button>
+
                             <button
                                 type="button"
                                 onClick={() => {

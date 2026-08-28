@@ -7,6 +7,7 @@ import {
   Settings2,
   TestTube2,
   XCircle,
+  RefreshCw,
 } from "lucide-react";
 
 export default function ThermalPrinter() {
@@ -45,6 +46,7 @@ export default function ThermalPrinter() {
 
   // Bluetooth-earbud style pairing list
   const [discoveredDevices, setDiscoveredDevices] = useState([]);
+  const [manualDeviceName, setManualDeviceName] = useState("");
   const [erpStatus, setErpStatus] = useState(initialSettings.connected ? "Connected" : "Disconnected");
   const [isSyncing, setIsSyncing] = useState(false);
   const [logs, setLogs] = useState([
@@ -53,6 +55,33 @@ export default function ThermalPrinter() {
 
   const addLog = (text) => {
     setLogs(prev => [{ time: new Date().toLocaleTimeString(), text }, ...prev]);
+  };
+
+  const handleAddManualDevice = () => {
+    if (!manualDeviceName.trim()) {
+      alert("Please enter a valid printer name.");
+      return;
+    }
+    const name = manualDeviceName.trim();
+    const devId = `manual-${Date.now()}`;
+    
+    setDiscoveredDevices(prev => {
+      if (prev.some(d => d.name.toLowerCase() === name.toLowerCase())) {
+        alert("This device is already in the list.");
+        return prev;
+      }
+      return [...prev, {
+        id: devId,
+        name,
+        type: "USB",
+        vendorId: 0x0fe6,
+        productId: 0x811e,
+        status: "found"
+      }];
+    });
+    
+    addLog(`Manually registered printer device: "${name}". Ready to pair.`);
+    setManualDeviceName("");
   };
 
   // Populate active settings if already paired
@@ -98,7 +127,7 @@ export default function ThermalPrinter() {
 
           const settings = {
             printerName: device.name,
-            connectionType: "USB",
+            connectionType,
             paperSize,
             printDensity,
             copies,
@@ -130,6 +159,42 @@ export default function ThermalPrinter() {
       connected: false,
     };
     localStorage.setItem("thermalPrinterSettings", JSON.stringify(settings));
+  };
+
+  // Scan and Request browser permission for physical USB devices
+  const handleScanForPhysicalDevices = async () => {
+    try {
+      if (typeof navigator === "undefined" || !navigator.usb) {
+        alert("WebUSB is not supported in this browser/environment. Please use Chrome, Edge, or Opera.");
+        return;
+      }
+      addLog("Opening native device selection dialog. Please choose your thermal printer...");
+      const device = await navigator.usb.requestDevice({ filters: [] });
+      
+      if (device) {
+        const name = device.productName || device.manufacturerName || "Thermal Receipt Printer";
+        const devId = `thermal-${device.vendorId}-${device.productId}-${Date.now()}`;
+        
+        setDiscoveredDevices(prev => {
+          if (prev.some(d => d.vendorId === device.vendorId && d.productId === device.productId)) {
+            return prev;
+          }
+          return [...prev, {
+            id: devId,
+            name,
+            type: "USB",
+            vendorId: device.vendorId,
+            productId: device.productId,
+            status: "found"
+          }];
+        });
+        
+        addLog(`Discovered physical USB device: "${name}" (VID: 0x${device.vendorId.toString(16)}, PID: 0x${device.productId.toString(16)}).`);
+      }
+    } catch (err) {
+      console.error("WebUSB scan failed:", err);
+      addLog(`USB Port Scan canceled: ${err.message}`);
+    }
   };
 
   // Listen to WebUSB/WebHID ports
@@ -349,7 +414,17 @@ export default function ThermalPrinter() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleScanForPhysicalDevices}
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition flex items-center gap-2"
+                disabled={isSyncing}
+              >
+                <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
+                Scan & Pair Physical Thermal Printer
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -487,6 +562,29 @@ export default function ThermalPrinter() {
               ))}
             </div>
           )}
+
+          {/* Manual Input Fallback */}
+          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+            <p className="text-xs text-slate-550 dark:text-slate-400 mb-2 font-medium">
+              If your USB printer does not appear in the scanner popup (Windows Spooler lock), register it manually by name:
+            </p>
+            <div className="flex gap-2 max-w-md">
+              <input
+                type="text"
+                placeholder="Enter printer name (e.g., Epson TM-T82, POS-80)"
+                value={manualDeviceName}
+                onChange={(e) => setManualDeviceName(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:border-emerald-500 transition"
+              />
+              <button
+                type="button"
+                onClick={handleAddManualDevice}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white rounded-xl text-sm font-semibold transition shadow-sm"
+              >
+                Add Device
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">

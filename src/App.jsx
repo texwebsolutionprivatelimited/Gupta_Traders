@@ -97,6 +97,176 @@ function ProtectedRoute() {
 function App() {
   const [syncing, setSyncing] = useState(true)
 
+  // Global Hardware Connectivity manager
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+
+    const handleConnect = (event) => {
+      const dev = event.device;
+      const devName = dev.productName || dev.manufacturerName || "";
+      const lowerName = devName.toLowerCase();
+
+      // Check if it's a USB Printer
+      const isUsbPrinter = (dev.vendorId === 0x03f0 && dev.productId === 0x0117) || 
+                          lowerName.includes("usb printer") || 
+                          lowerName.includes("laserjet") ||
+                          lowerName.includes("inkjet");
+      
+      // Check if it's a Thermal Printer
+      const isThermal = (dev.vendorId === 0x0fe6 && dev.productId === 0x811e) || 
+                        (dev.vendorId === 0x04b8 && dev.productId === 0x0202) || 
+                        lowerName.includes("thermal") || 
+                        lowerName.includes("receipt printer") ||
+                        lowerName.includes("epson") || 
+                        lowerName.includes("pos-58") || 
+                        lowerName.includes("pos-80");
+
+      // Check if it's a Barcode Scanner
+      const isScanner = (dev.vendorId === 0x05f9 && dev.productId === 0x2201) || 
+                        lowerName.includes("scanner") || 
+                        lowerName.includes("barcode") || 
+                        lowerName.includes("hid scanner");
+
+      if (isUsbPrinter) {
+        try {
+          const saved = localStorage.getItem("usbPrinterSettings");
+          const settings = saved ? JSON.parse(saved) : {};
+          const updated = {
+            ...settings,
+            printerName: dev.productName || settings.printerName || "USB Printer",
+            connected: true,
+          };
+          localStorage.setItem("usbPrinterSettings", JSON.stringify(updated));
+          window.dispatchEvent(new Event("storage"));
+          console.log("[Global Hardware] USB Printer Connected:", dev.productName);
+        } catch (e) {
+          console.error("Error setting usb printer connection status:", e);
+        }
+      }
+
+      if (isThermal) {
+        try {
+          const saved = localStorage.getItem("thermalPrinterSettings");
+          const settings = saved ? JSON.parse(saved) : {};
+          const updated = {
+            ...settings,
+            printerName: dev.productName || settings.printerName || "Thermal Receipt Printer",
+            connected: true,
+          };
+          localStorage.setItem("thermalPrinterSettings", JSON.stringify(updated));
+          window.dispatchEvent(new Event("storage"));
+          console.log("[Global Hardware] Thermal Printer Connected:", dev.productName);
+        } catch (e) {
+          console.error("Error setting thermal printer connection status:", e);
+        }
+      }
+
+      if (isScanner) {
+        try {
+          const saved = localStorage.getItem("barcodeScannerSettings");
+          const settings = saved ? JSON.parse(saved) : {};
+          const updated = {
+            ...settings,
+            scannerName: dev.productName || settings.scannerName || "USB Barcode Scanner",
+            connected: true,
+            erpConnected: true
+          };
+          localStorage.setItem("barcodeScannerSettings", JSON.stringify(updated));
+          window.dispatchEvent(new Event("storage"));
+          console.log("[Global Hardware] Barcode Scanner Connected:", dev.productName);
+        } catch (e) {
+          console.error("Error setting barcode scanner connection status:", e);
+        }
+      }
+    };
+
+    const handleDisconnect = (event) => {
+      const dev = event.device;
+      const devName = dev.productName || dev.manufacturerName || "";
+      const lowerName = devName.toLowerCase();
+
+      // Check if it's a USB Printer
+      const isUsbPrinter = (dev.vendorId === 0x03f0 && dev.productId === 0x0117) || 
+                          lowerName.includes("usb printer") || 
+                          lowerName.includes("laserjet") ||
+                          lowerName.includes("inkjet");
+      
+      // Check if it's a Thermal Printer
+      const isThermal = (dev.vendorId === 0x0fe6 && dev.productId === 0x811e) || 
+                        (dev.vendorId === 0x04b8 && dev.productId === 0x0202) || 
+                        lowerName.includes("thermal") || 
+                        lowerName.includes("receipt printer") ||
+                        lowerName.includes("epson") || 
+                        lowerName.includes("pos-58") || 
+                        lowerName.includes("pos-80");
+
+      // Check if it's a Barcode Scanner
+      const isScanner = (dev.vendorId === 0x05f9 && dev.productId === 0x2201) || 
+                        lowerName.includes("scanner") || 
+                        lowerName.includes("barcode") || 
+                        lowerName.includes("hid scanner");
+
+      if (isUsbPrinter) {
+        try {
+          const saved = localStorage.getItem("usbPrinterSettings");
+          const settings = saved ? JSON.parse(saved) : {};
+          const updated = { ...settings, connected: false };
+          localStorage.setItem("usbPrinterSettings", JSON.stringify(updated));
+          window.dispatchEvent(new Event("storage"));
+          console.log("[Global Hardware] USB Printer Disconnected:", dev.productName);
+        } catch (e) {
+          console.error("Error disconnecting usb printer status:", e);
+        }
+      }
+
+      if (isThermal) {
+        try {
+          const saved = localStorage.getItem("thermalPrinterSettings");
+          const settings = saved ? JSON.parse(saved) : {};
+          const updated = { ...settings, connected: false };
+          localStorage.setItem("thermalPrinterSettings", JSON.stringify(updated));
+          window.dispatchEvent(new Event("storage"));
+          console.log("[Global Hardware] Thermal Printer Disconnected:", dev.productName);
+        } catch (e) {
+          console.error("Error disconnecting thermal printer status:", e);
+        }
+      }
+
+      if (isScanner) {
+        try {
+          const saved = localStorage.getItem("barcodeScannerSettings");
+          const settings = saved ? JSON.parse(saved) : {};
+          const updated = { ...settings, connected: false, erpConnected: false };
+          localStorage.setItem("barcodeScannerSettings", JSON.stringify(updated));
+          window.dispatchEvent(new Event("storage"));
+          console.log("[Global Hardware] Barcode Scanner Disconnected:", dev.productName);
+        } catch (e) {
+          console.error("Error disconnecting barcode scanner status:", e);
+        }
+      }
+    };
+
+    if (navigator.usb) {
+      navigator.usb.addEventListener("connect", handleConnect);
+      navigator.usb.addEventListener("disconnect", handleDisconnect);
+    }
+    if (navigator.hid) {
+      navigator.hid.addEventListener("connect", handleConnect);
+      navigator.hid.addEventListener("disconnect", handleDisconnect);
+    }
+
+    return () => {
+      if (navigator.usb) {
+        navigator.usb.removeEventListener("connect", handleConnect);
+        navigator.usb.removeEventListener("disconnect", handleDisconnect);
+      }
+      if (navigator.hid) {
+        navigator.hid.removeEventListener("connect", handleConnect);
+        navigator.hid.removeEventListener("disconnect", handleDisconnect);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     async function initSync() {
       try {

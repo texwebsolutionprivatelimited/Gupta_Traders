@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Printer, Save } from "lucide-react";
@@ -81,7 +80,6 @@ export default function PrinterSettings() {
   return (
     <div className="min-h-full bg-slate-50 p-4 dark:bg-slate-950 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-5xl">
-
         <Link
           to="/settings"
           className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-emerald-500"
@@ -96,7 +94,7 @@ export default function PrinterSettings() {
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-300">
               Printer Settings
             </h1>
 
@@ -111,7 +109,6 @@ export default function PrinterSettings() {
           className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
         >
           <div className="grid gap-5 md:grid-cols-2">
-
             <SelectField
               label="Printer Type"
               value={form.printerType}
@@ -184,7 +181,7 @@ export default function PrinterSettings() {
             <button
               type="button"
               onClick={testPrint}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-6 py-3 text-sm font-semibold dark:border-slate-700"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <Printer size={18} />
               Test Print
@@ -200,27 +197,6 @@ export default function PrinterSettings() {
           </div>
         </form>
       </div>
-
-      <style>{`
-        .settings-input {
-          width: 100%;
-          border-radius: 0.75rem;
-          border: 1px solid rgb(203 213 225);
-          background: white;
-          padding: 0.7rem 0.85rem;
-          outline: none;
-        }
-
-        .settings-input:focus {
-          border-color: rgb(16 185 129);
-        }
-
-        .dark .settings-input {
-          border-color: rgb(51 65 85);
-          background: rgb(30 41 59);
-          color: white;
-        }
-      `}</style>
     </div>
   );
 }
@@ -235,7 +211,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium">
+      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
         {label}
       </label>
 
@@ -245,7 +221,7 @@ function Field({
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="settings-input"
+        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
       />
     </div>
   );
@@ -259,14 +235,14 @@ function SelectField({
 }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium">
+      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
         {label}
       </label>
 
       <select
         value={value}
         onChange={onChange}
-        className="settings-input"
+        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -285,7 +261,7 @@ function Toggle({
 }) {
   return (
     <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-      <span className="font-medium">{label}</span>
+      <span className="font-medium text-slate-900 dark:text-slate-300">{label}</span>
 
       <input
         type="checkbox"
@@ -298,4 +274,3 @@ function Toggle({
     </label>
   );
 }
-

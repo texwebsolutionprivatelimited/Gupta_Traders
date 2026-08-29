@@ -92,26 +92,26 @@ function toPOSProduct(p) {
   if (!p) return null
   return {
     ...p,
-    price: Number(p.sellingPrice) || 0,
-    mrp: Number(p.sellingPrice) || 0,
-    stock: Number(p.currentStock) || 0,
-    isLoose: p.type === 'loose',
+    price: Number(p.sellingPrice || p.price) || 0,
+    mrp: Number(p.mrp || p.sellingPrice || p.price) || 0,
+    stock: Number(p.currentStock || p.stock) || 0,
+    isLoose: p.type === 'loose' || p.isLoose === true,
   }
 }
 
 function getLiveProducts() {
-  const stored = localStorage.getItem('gt_products')
+  const stored = localStorage.getItem('gt_products') || localStorage.getItem('pos_products') || localStorage.getItem('products')
   if (stored) {
     try {
       const all = JSON.parse(stored)
-      if (Array.isArray(all)) {
+      if (Array.isArray(all) && all.length > 0) {
         return all.map(toPOSProduct)
       }
     } catch {
       // fall through
     }
   }
-  return []
+  return products.map(toPOSProduct)
 }
 
 // ─── Search Products ─────────────────────────────────────────────
@@ -122,7 +122,7 @@ export function searchProducts(query, categoryFilter = 'all') {
     const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter
     if (!q) return matchesCategory
     const matchesQuery =
-      p.name.toLowerCase().includes(q) ||
+      (p.name && p.name.toLowerCase().includes(q)) ||
       (p.nameHi && p.nameHi.toLowerCase().includes(q)) ||
       (p.barcode && p.barcode.toLowerCase().includes(q)) ||
       (p.category && p.category.toLowerCase().includes(q))
@@ -138,14 +138,13 @@ export function lookupBarcode(barcode) {
 }
 
 // ─── Bill Number Generator ───────────────────────────────────────
-let billCounter = parseInt(localStorage.getItem('gt_bill_counter') || '1000', 10)
+let billCounter = parseInt(localStorage.getItem('gt_bill_counter') || '0', 10)
 
 export function generateBillNumber() {
   billCounter++
   localStorage.setItem('gt_bill_counter', billCounter.toString())
-  const today = new Date()
-  const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
-  return `GT-${dateStr}-${billCounter}`
+  const formattedCounter = String(billCounter).padStart(3, '0')
+  return `INV-${formattedCounter}`
 }
 
 // ─── GST Calculation ─────────────────────────────────────────────
@@ -182,7 +181,7 @@ export function calculateBillSummary(cartItems, billDiscount = 0, isGSTInclusive
   const itemsWithGST = cartItems.map(item => {
     const discountedPrice = item.price - (item.itemDiscount || 0)
     const lineTotal = discountedPrice * item.quantity
-    const gst = calculateItemGST(discountedPrice, item.quantity, item.gstRate, isGSTInclusive)
+    const gst = calculateItemGST(discountedPrice, item.quantity, item.gstRate || 0, isGSTInclusive)
 
     subtotal += gst.taxableAmount
     totalGST += gst.totalGST
@@ -210,7 +209,7 @@ export function calculateBillSummary(cartItems, billDiscount = 0, isGSTInclusive
 
 // ─── Format currency in Indian style ─────────────────────────────
 export function formatINR(amount) {
-  return '₹' + Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return '₹' + Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 // ─── Saved bills for reprint (persisted in localStorage) ─────────
@@ -249,8 +248,54 @@ export function saveBill(bill) {
   salesHistory.unshift(mappedSale)
   localStorage.setItem('salesHistory', JSON.stringify(salesHistory))
 
+  // Adjust stock automatically on bill save
+  if (Array.isArray(bill.items)) {
+    adjustInventoryStock(bill.items)
+  }
+
   // Queue background push sync to Supabase
   queueSync('sales', 'insert', mappedSale)
+}
+
+// ─── Inventory Stock Adjuster ─────────────────────────────────────
+export function adjustInventoryStock(cartItems) {
+  if (!Array.isArray(cartItems) || cartItems.length === 0) return
+
+  const keys = ['gt_products', 'pos_products', 'products']
+
+  keys.forEach(key => {
+    const rawData = localStorage.getItem(key)
+    if (!rawData) return
+
+    try {
+      let productList = JSON.parse(rawData)
+      if (!Array.isArray(productList)) return
+
+      cartItems.forEach(cartItem => {
+        // Skip loose or custom manual items
+        if (cartItem.isCustomItem || String(cartItem.id || '').startsWith('loose-')) return
+
+        productList = productList.map(item => {
+          if (String(item.id) === String(cartItem.id)) {
+            const currentStock = Number(item.stock ?? item.currentStock ?? 0)
+            const qtyToDeduct = Number(cartItem.quantity || 0)
+            const updatedStock = Math.max(0, Number((currentStock - qtyToDeduct).toFixed(3)))
+
+            return {
+              ...item,
+              stock: updatedStock,
+              currentStock: updatedStock
+            }
+          }
+          return item
+        })
+      })
+
+      localStorage.setItem(key, JSON.stringify(productList))
+    } catch (err) {
+      console.error(`Failed to adjust stock for key ${key}:`, err)
+    }
+  })
 }
 
 export function getSavedBills() {

@@ -372,10 +372,10 @@ export default function USBPrinter() {
         {/* Simulated USB Plug-in Control */}
         <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-semibold text-slate-900 dark:text-slate-55">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-50">
               USB Connection Control
             </h3>
-            <p className="text-xs text-slate-550 dark:text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Simulate hardware connections for local development or testing.
             </p>
           </div>
@@ -419,7 +419,7 @@ export default function USBPrinter() {
                   addLog("Simulated USB plug-in: HP LaserJet Pro Printer discovered. Ready to pair.");
                 }
               }}
-              className="rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-750 dark:text-slate-200 transition"
+              className="rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition"
               disabled={isSyncing}
             >
               {discoveredDevices.some(d => d.name === "HP LaserJet Pro Printer") ? "Simulate Printer Unplug" : "Simulate Printer Plug-in"}
@@ -443,14 +443,14 @@ export default function USBPrinter() {
               </p>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-550 dark:bg-blue-400 animate-ping" />
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-ping" />
               Scanning Ports...
             </span>
           </div>
 
           {discoveredDevices.length === 0 ? (
             <div className="border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-8 text-center bg-slate-50/50 dark:bg-slate-950/20">
-              <Printer size={30} className="mx-auto mb-3 text-slate-400 dark:text-slate-655 animate-pulse" />
+              <Printer size={30} className="mx-auto mb-3 text-slate-400 dark:text-slate-600 animate-pulse" />
               <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
                 No printer detected
               </p>
@@ -475,8 +475,8 @@ export default function USBPrinter() {
                       </span>
                       <span className={`text-xs font-semibold ${
                         device.status === 'connected' ? 'text-emerald-600 dark:text-emerald-400' :
-                        device.status === 'syncing' ? 'text-amber-550 dark:text-amber-400' :
-                        'text-blue-650 dark:text-blue-400'
+                        device.status === 'syncing' ? 'text-amber-500 dark:text-amber-400' :
+                        'text-blue-600 dark:text-blue-400'
                       }`}>
                         {device.status === 'connected' ? '● Connected' :
                          device.status === 'syncing' ? '● Connecting...' :
@@ -486,7 +486,7 @@ export default function USBPrinter() {
                     <h4 className="font-semibold text-slate-900 dark:text-slate-100 mt-2">
                       {device.name}
                     </h4>
-                    <p className="text-[11px] text-slate-550 dark:text-slate-450 mt-0.5 font-mono">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
                       VID: 0x{device.vendorId.toString(16).toUpperCase()} | PID: 0x{device.productId.toString(16).toUpperCase()}
                     </p>
                   </div>
@@ -502,9 +502,9 @@ export default function USBPrinter() {
                     {device.status === 'syncing' && (
                       <button
                         disabled
-                        className="w-full text-xs font-semibold py-2 px-3 rounded-lg bg-amber-500/20 text-amber-550 border border-amber-500/30 flex items-center justify-center gap-1.5"
+                        className="w-full text-xs font-semibold py-2 px-3 rounded-lg bg-amber-500/20 text-amber-600 border border-amber-500/30 flex items-center justify-center gap-1.5"
                       >
-                        <span className="w-3 h-3 border-2 border-amber-550 border-t-transparent rounded-full animate-spin" />
+                        <span className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
                         Connecting...
                       </button>
                     )}
@@ -524,7 +524,7 @@ export default function USBPrinter() {
 
           {/* Manual Input Fallback */}
           <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-            <p className="text-xs text-slate-550 dark:text-slate-400 mb-2 font-medium">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">
               If your USB printer does not appear in the scanner popup (Windows Spooler lock), register it manually by name:
             </p>
             <div className="flex gap-2 max-w-md">
@@ -533,7 +533,7 @@ export default function USBPrinter() {
                 placeholder="Enter printer name (e.g., HP LaserJet, POS-80)"
                 value={manualDeviceName}
                 onChange={(e) => setManualDeviceName(e.target.value)}
-                className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:border-emerald-500 transition"
+                className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/50 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 transition"
               />
               <button
                 type="button"
@@ -552,7 +552,7 @@ export default function USBPrinter() {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:col-span-2">
 
             <div className="mb-6">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-55">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
                 Printer Configuration
               </h2>
 
@@ -575,7 +575,7 @@ export default function USBPrinter() {
                     )
                   }
                   placeholder="e.g. Epson TM-T82"
-                  className="input-field"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-500 dark:focus:bg-slate-950"
                 />
               </FormField>
 
@@ -591,7 +591,7 @@ export default function USBPrinter() {
                     )
                   }
                   placeholder="e.g. USB001"
-                  className="input-field"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-500 dark:focus:bg-slate-950"
                 />
               </FormField>
 
@@ -605,7 +605,7 @@ export default function USBPrinter() {
                       e.target.value
                     )
                   }
-                  className="input-field"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:border-emerald-500 dark:focus:bg-slate-950"
                 >
                   <option value="58mm">
                     58mm
@@ -633,7 +633,7 @@ export default function USBPrinter() {
                       )
                     )
                   }
-                  className="input-field"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-500 dark:focus:bg-slate-950"
                 />
               </FormField>
 
@@ -647,7 +647,7 @@ export default function USBPrinter() {
                     Auto Print Invoice
                   </p>
 
-                  <p className="mt-1 text-xs text-slate-655 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     Automatically print invoice after successful billing.
                   </p>
                 </div>
@@ -758,7 +758,7 @@ export default function USBPrinter() {
             <button
               type="button"
               onClick={handleRefresh}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-105 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               <RefreshCw size={17} />
               Check Connection
@@ -785,11 +785,11 @@ export default function USBPrinter() {
             </span>
             Hardware Console Logs (ERP Communication)
           </h3>
-          <div className="mt-3 font-mono text-xs text-slate-650 dark:text-slate-400 max-h-40 overflow-y-auto space-y-1 bg-slate-950 p-4 rounded-xl border border-slate-850">
+          <div className="mt-3 font-mono text-xs text-slate-400 max-h-40 overflow-y-auto space-y-1 bg-slate-950 p-4 rounded-xl border border-slate-800">
             {logs.map((log, index) => (
               <div key={index} className="flex gap-2">
                 <span className="text-emerald-500">[{log.time}]</span>
-                <span className="text-slate-450">&gt;</span>
+                <span className="text-slate-500">&gt;</span>
                 <span>{log.text}</span>
               </div>
             ))}
@@ -823,40 +823,6 @@ export default function USBPrinter() {
         </section>
 
       </div>
-
-      <style>{`
-        .input-field {
-          width: 100%;
-          border-radius: 0.75rem;
-          border: 1px solid rgb(226, 232, 240);
-          background-color: rgb(255, 255, 255);
-          padding: 0.7rem 0.9rem;
-          font-size: 0.875rem;
-          color: rgb(15, 23, 42);
-          outline: none;
-          transition: all 0.2s;
-        }
-
-        .input-field:focus {
-          border-color: rgb(16, 185, 129);
-          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
-        }
-
-        .dark .input-field {
-          border-color: rgb(30, 41, 59);
-          background-color: rgb(15, 23, 42);
-          color: rgb(241, 245, 249);
-        }
-
-        .dark .input-field:focus {
-          border-color: rgb(16, 185, 129);
-          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
-        }
-
-        .dark .input-field::placeholder {
-          color: rgb(100, 116, 139);
-        }
-      `}</style>
     </div>
   );
 }
@@ -891,7 +857,7 @@ function StatusRow({
   return (
     <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
 
-      <span className="text-sm text-slate-655 dark:text-slate-400">
+      <span className="text-sm text-slate-500 dark:text-slate-400">
         {label}
       </span>
 
@@ -899,7 +865,7 @@ function StatusRow({
         className={`text-right text-sm font-semibold ${
           active
             ? "text-emerald-600 dark:text-emerald-400"
-            : "text-slate-450 dark:text-slate-500"
+            : "text-slate-400 dark:text-slate-500"
         }`}
       >
         {value}

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ReceiptText, Save } from "lucide-react";
@@ -31,26 +30,24 @@ export default function GSTSettings() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
     localStorage.setItem("gstSettings", JSON.stringify(form));
-
     alert("GST settings saved successfully!");
   };
 
   return (
     <PageShell
-    
       title="GST Settings"
       description="Configure GST and tax settings for your business."
       icon={<ReceiptText size={22} />}
     >
       <form onSubmit={handleSubmit}>
-
         <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="font-semibold">GST Registration</h2>
-              <p className="text-sm text-slate-500">
+              <h2 className="font-semibold text-slate-900 dark:text-slate-100">
+                GST Registration
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 Enable GST calculation in invoices.
               </p>
             </div>
@@ -84,22 +81,14 @@ export default function GSTSettings() {
           <SelectField
             label="Registration Type"
             value={form.registrationType}
-            onChange={(e) =>
-              update("registrationType", e.target.value)
-            }
-            options={[
-              "Regular",
-              "Composition",
-              "Unregistered",
-            ]}
+            onChange={(e) => update("registrationType", e.target.value)}
+            options={["Regular", "Composition", "Unregistered"]}
           />
 
           <SelectField
             label="Default GST Rate"
             value={form.defaultRate}
-            onChange={(e) =>
-              update("defaultRate", e.target.value)
-            }
+            onChange={(e) => update("defaultRate", e.target.value)}
             options={["0", "5", "12", "18", "28"]}
           />
         </div>
@@ -142,7 +131,7 @@ function PageShell({ title, description, icon, children }) {
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
               {title}
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -155,40 +144,14 @@ function PageShell({ title, description, icon, children }) {
           {children}
         </div>
       </div>
-
-      <style>{`
-        .settings-input {
-          width: 100%;
-          border-radius: 0.75rem;
-          border: 1px solid rgb(203 213 225);
-          background: white;
-          padding: 0.7rem 0.85rem;
-          outline: none;
-        }
-
-        .settings-input:focus {
-          border-color: rgb(16 185 129);
-        }
-
-        .dark .settings-input {
-          border-color: rgb(51 65 85);
-          background: rgb(30 41 59);
-          color: white;
-        }
-      `}</style>
     </div>
   );
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-}) {
+function Field({ label, value, onChange, placeholder }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium">
+      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
         {label}
       </label>
 
@@ -196,28 +159,23 @@ function Field({
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="settings-input"
+        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
       />
     </div>
   );
 }
 
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}) {
+function SelectField({ label, value, onChange, options }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium">
+      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
         {label}
       </label>
 
       <select
         value={value}
         onChange={onChange}
-        className="settings-input"
+        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -230,14 +188,10 @@ function SelectField({
   );
 }
 
-function CheckRow({
-  label,
-  checked,
-  onChange,
-}) {
+function CheckRow({ label, checked, onChange }) {
   return (
     <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-      <span className="font-medium">{label}</span>
+      <span className="font-medium text-slate-900 dark:text-slate-300">{label}</span>
 
       <input
         type="checkbox"
@@ -262,4 +216,3 @@ function SaveButton() {
     </div>
   );
 }
-

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Eye, Edit3, Trash2 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
-import { queueSync } from "../../supabase/syncManager";
 
 const initialItems = [
   {
@@ -34,8 +34,14 @@ export default function SalesEntry() {
   );
   const [customer, setCustomer] = useState("");
   const [paymentMode, setPaymentMode] = useState("Cash");
+  const [utrNo, setUtrNo] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState(initialItems);
+
+  // Selected item state for view/edit modals
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const addItem = () => {
     setItems((prev) => [
@@ -90,6 +96,24 @@ export default function SalesEntry() {
     };
   };
 
+  const handleView = (item) => {
+    setSelectedItem(item);
+    setIsViewModalOpen(true);
+  };
+
+  const handleEdit = (item) => {
+    setSelectedItem({ ...item });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveModalEdit = () => {
+    updateItem(selectedItem.id, "product", selectedItem.product);
+    updateItem(selectedItem.id, "quantity", selectedItem.quantity);
+    updateItem(selectedItem.id, "salesPrice", selectedItem.salesPrice);
+    updateItem(selectedItem.id, "gst", selectedItem.gst);
+    setIsEditModalOpen(false);
+  };
+
   const totals = items.reduce(
     (acc, item) => {
       const calculated = calculateItem(item);
@@ -125,6 +149,7 @@ export default function SalesEntry() {
       date: invoiceDate,
       customer,
       invoice: invoiceNo || `INV-${Date.now()}`,
+      utr: utrNo,
       items: [...items],
       itemCount: items.length,
       subtotal: totals.subtotal,
@@ -144,9 +169,6 @@ export default function SalesEntry() {
       JSON.stringify([saleData, ...existingSales])
     );
 
-    // Sync to Supabase
-    queueSync("sales", "insert", saleData);
-
     const transactions =
       JSON.parse(localStorage.getItem("transactions")) || [];
 
@@ -155,6 +177,7 @@ export default function SalesEntry() {
       type: "Sale",
       invoice: saleData.invoice,
       customer,
+      utr: utrNo,
       amount: totals.total,
       paymentMode,
       status: paymentMode === "Credit" ? "Pending" : "Success",
@@ -168,12 +191,12 @@ export default function SalesEntry() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50 p-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold sm:text-3xl text-slate-900 dark:text-slate-100">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 sm:text-3xl">
               Sales Entry
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
@@ -258,6 +281,18 @@ export default function SalesEntry() {
                   <option value="Cheque">Cheque</option>
                 </select>
               </FormField>
+
+              {["UPI", "Bank Transfer", "Cheque"].includes(paymentMode) && (
+                <FormField label="UTR / Ref Number">
+                  <input
+                    type="text"
+                    value={utrNo}
+                    onChange={(e) => setUtrNo(e.target.value)}
+                    placeholder="Enter UTR / Transaction No"
+                    className="input-field"
+                  />
+                </FormField>
+              )}
             </div>
           </section>
 
@@ -293,7 +328,7 @@ export default function SalesEntry() {
                     <th className="px-5 py-4">Amount</th>
                     <th className="px-5 py-4">GST Amount</th>
                     <th className="px-5 py-4">Total</th>
-                    <th className="px-5 py-4">Action</th>
+                    <th className="px-5 py-4 text-center">Action</th>
                   </tr>
                 </thead>
 
@@ -367,15 +402,39 @@ export default function SalesEntry() {
                           ₹{calculated.total.toFixed(2)}
                         </td>
 
-                        <td className="px-5 py-4">
-                          <button
-                            type="button"
-                            onClick={() => removeItem(item.id)}
-                            disabled={items.length === 1}
-                            className="rounded-lg px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-950/40 disabled:cursor-not-allowed disabled:opacity-30"
-                          >
-                            Remove
-                          </button>
+                        <td className="px-5 py-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            {/* View Icon */}
+                            <button
+                              type="button"
+                              onClick={() => handleView(item)}
+                              title="View Details"
+                              className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-950/40"
+                            >
+                              <Eye size={18} />
+                            </button>
+
+                            {/* Edit Icon */}
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(item)}
+                              title="Edit Item"
+                              className="rounded-lg p-2 text-amber-600 transition hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                            >
+                              <Edit3 size={18} />
+                            </button>
+
+                            {/* Delete Icon */}
+                            <button
+                              type="button"
+                              onClick={() => removeItem(item.id)}
+                              disabled={items.length === 1}
+                              title="Delete Item"
+                              className="rounded-lg p-2 text-rose-600 transition hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-950/40 disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -449,6 +508,148 @@ export default function SalesEntry() {
           </div>
         </form>
       </div>
+
+      {/* View Modal */}
+      {isViewModalOpen && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 transition-all">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
+            <h3 className="mb-4 text-xl font-bold text-slate-900 dark:text-slate-100">
+              Item Details
+            </h3>
+            <div className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
+              <p>
+                <strong>Product:</strong> {selectedItem.product || "N/A"}
+              </p>
+              <p>
+                <strong>Quantity:</strong> {selectedItem.quantity}
+              </p>
+              <p>
+                <strong>Sales Price:</strong> ₹{selectedItem.salesPrice}
+              </p>
+              <p>
+                <strong>GST Rate:</strong> {selectedItem.gst}%
+              </p>
+              <p>
+                <strong>Amount:</strong> ₹
+                {calculateItem(selectedItem).amount.toFixed(2)}
+              </p>
+              <p>
+                <strong>GST Amount:</strong> ₹
+                {calculateItem(selectedItem).gstAmount.toFixed(2)}
+              </p>
+              <p className="font-bold text-emerald-600 dark:text-emerald-400">
+                <strong>Total:</strong> ₹
+                {calculateItem(selectedItem).total.toFixed(2)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsViewModalOpen(false)}
+              className="mt-6 w-full rounded-xl bg-slate-800 py-2.5 font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {isEditModalOpen && selectedItem && (
+       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 transition-all">
+    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
+            <h3 className="mb-4 text-xl font-bold text-slate-900 dark:text-slate-100">
+              Edit Item Details
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Product</label>
+                <SearchableSelect
+                  value={selectedItem.product}
+                  onChange={(val) =>
+                    setSelectedItem((prev) => ({
+                      ...prev,
+                      product: val,
+                      salesPrice: productPrices[val] || prev.salesPrice,
+                    }))
+                  }
+                  options={Object.keys(productPrices)}
+                  placeholder="Select Product"
+                  className="input-field"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={selectedItem.quantity}
+                  onChange={(e) =>
+                    setSelectedItem((prev) => ({
+                      ...prev,
+                      quantity: Number(e.target.value),
+                    }))
+                  }
+                  className="input-field"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Sales Price</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={selectedItem.salesPrice}
+                  onChange={(e) =>
+                    setSelectedItem((prev) => ({
+                      ...prev,
+                      salesPrice: Number(e.target.value),
+                    }))
+                  }
+                  className="input-field"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">GST %</label>
+                <select
+                  value={selectedItem.gst}
+                  onChange={(e) =>
+                    setSelectedItem((prev) => ({
+                      ...prev,
+                      gst: Number(e.target.value),
+                    }))
+                  }
+                  className="input-field"
+                >
+                  <option value="0">0%</option>
+                  <option value="5">5%</option>
+                  <option value="12">12%</option>
+                  <option value="18">18%</option>
+                  <option value="28">28%</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="flex-1 rounded-xl border border-slate-300 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveModalEdit}
+                className="flex-1 rounded-xl bg-emerald-500 py-2.5 font-semibold text-white transition hover:bg-emerald-600"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .input-field {

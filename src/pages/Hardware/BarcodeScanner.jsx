@@ -70,7 +70,6 @@ export default function BarcodeScanner() {
 
     // Bluetooth Earbuds style device connect trigger
     const handleConnectDevice = (device) => {
-        // Set state to syncing for this specific device card
         setDiscoveredDevices(prev => prev.map(d =>
             d.id === device.id ? { ...d, status: 'syncing' } : d
         ));
@@ -91,7 +90,6 @@ export default function BarcodeScanner() {
                     setConnected(true);
                     setScannerName(device.name);
                     
-                    // Mark as connected in our discovered devices pool
                     setDiscoveredDevices(prev => prev.map(d =>
                         d.id === device.id ? { ...d, status: 'connected' } : d
                     ));
@@ -141,7 +139,6 @@ export default function BarcodeScanner() {
             }
             addLog("Opening native device selection dialog. Please choose your barcode scanner...");
             
-            // Try WebUSB first
             if (navigator.usb) {
                 const device = await navigator.usb.requestDevice({ filters: [] });
                 if (device) {
@@ -167,7 +164,6 @@ export default function BarcodeScanner() {
                 }
             }
             
-            // Fallback/Option to try WebHID
             if (navigator.hid) {
                 const devices = await navigator.hid.requestDevice({ filters: [] });
                 if (devices && devices.length > 0) {
@@ -208,7 +204,6 @@ export default function BarcodeScanner() {
             const devId = `usb-${dev.vendorId}-${dev.productId}-${Date.now()}`;
             
             setDiscoveredDevices(prev => {
-                // Avoid duplicating if device already exists in pool
                 if (prev.some(d => d.vendorId === dev.vendorId && d.productId === dev.productId)) {
                     return prev;
                 }
@@ -228,7 +223,6 @@ export default function BarcodeScanner() {
         const handleDisconnect = (event) => {
             const dev = event.device;
             
-            // Remove device from list
             setDiscoveredDevices(prev => prev.filter(d => 
                 !(d.vendorId === dev.vendorId && d.productId === dev.productId)
             ));
@@ -334,8 +328,8 @@ export default function BarcodeScanner() {
                     </Link>
 
                     <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                            <Barcode size={25} />
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <Barcode size={24} />
                         </div>
 
                         <div>
@@ -344,19 +338,19 @@ export default function BarcodeScanner() {
                             </h1>
 
                             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                                Configure and test your barcode scanner.
+                                Configure and test your barcode scanner settings and connections.
                             </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Connection Status */}
+                {/* Terminal Pairing Status (Card) */}
                 <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
                         <div className="flex items-center gap-4">
                             <div
-                                className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+                                className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
                                     connected
                                         ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                         : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
@@ -385,9 +379,9 @@ export default function BarcodeScanner() {
                                         ? `Scanner Connected (${scannerName})`
                                         : "Scanner Offline / Not Paired"}
                                 </p>
-                                <div className="mt-2 flex items-center gap-2 text-xs">
+                                <div className="mt-1.5 flex items-center gap-2 text-xs">
                                     <span className="text-slate-500 dark:text-slate-400">ERP Integration:</span>
-                                    <span className={`inline-flex items-center gap-1 font-semibold ${
+                                    <span className={`inline-flex items-center gap-1.5 font-semibold ${
                                         erpStatus === "Connected" ? "text-emerald-600 dark:text-emerald-400" :
                                         erpStatus === "Syncing" ? "text-amber-500 dark:text-amber-400 animate-pulse" :
                                         "text-rose-500 dark:text-rose-400"
@@ -409,7 +403,7 @@ export default function BarcodeScanner() {
                             <button
                                 type="button"
                                 onClick={handleScanForPhysicalDevices}
-                                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition flex items-center gap-2"
+                                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition flex items-center gap-2 shadow-sm"
                                 disabled={isSyncing}
                             >
                                 <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
@@ -424,7 +418,6 @@ export default function BarcodeScanner() {
                                     const isDiscovered = discoveredDevices.some(d => d.name === simulatedName);
 
                                     if (isDiscovered) {
-                                        // Unplug simulated device
                                         setDiscoveredDevices(prev => prev.filter(d => d.name !== simulatedName));
                                         setConnected(false);
                                         setErpStatus("Disconnected");
@@ -440,7 +433,6 @@ export default function BarcodeScanner() {
                                         };
                                         localStorage.setItem("barcodeScannerSettings", JSON.stringify(settings));
                                     } else {
-                                        // Plug in simulated device
                                         setDiscoveredDevices(prev => [...prev, {
                                             id: simulatedId,
                                             name: simulatedName,
@@ -452,7 +444,7 @@ export default function BarcodeScanner() {
                                         addLog("Simulated USB plug-in: Datalogic QuickScan QD2430 discovered. Ready to pair.");
                                     }
                                 }}
-                                className="rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition"
+                                className="rounded-xl border border-slate-300 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700/80 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition shadow-sm"
                                 disabled={isSyncing}
                             >
                                 {discoveredDevices.some(d => d.name === "Datalogic QuickScan QD2430") ? "Simulate USB Unplug" : "Simulate USB Plug-in"}
@@ -461,31 +453,31 @@ export default function BarcodeScanner() {
                     </div>
                 </div>
 
-                {/* Discovered Devices List (Earbuds Bluetooth Style) */}
+                {/* Discovered Devices List */}
                 <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <div className="flex items-center justify-between mb-4">
                         <div>
                             <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
-                                <span className="relative flex h-3 w-3">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                                <span className="relative flex h-2.5 w-2.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                                 </span>
                                 Discovered USB Barcode Scanners (Real-Time)
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                Click on the found device to establish security handshakes and register with the ERP.
+                                Select a detected barcode device to bind with ERP terminal communication.
                             </p>
                         </div>
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-550 dark:bg-blue-400 animate-ping" />
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                             Scanning Ports...
                         </span>
                     </div>
 
                     {discoveredDevices.length === 0 ? (
                         <div className="border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-8 text-center bg-slate-50/50 dark:bg-slate-950/20">
-                            <Barcode size={30} className="mx-auto mb-3 text-slate-400 dark:text-slate-650 animate-pulse" />
-                            <p className="text-sm font-medium text-slate-650 dark:text-slate-400">
+                            <Barcode size={32} className="mx-auto mb-3 text-slate-400 dark:text-slate-600 animate-pulse" />
+                            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
                                 No scanner detected
                             </p>
                             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
@@ -497,30 +489,30 @@ export default function BarcodeScanner() {
                             {discoveredDevices.map(device => (
                                 <div key={device.id} className={`p-4 rounded-xl border flex flex-col justify-between transition duration-200 ${
                                     device.status === 'connected'
-                                        ? 'bg-emerald-500/5 border-emerald-500/30'
+                                        ? 'bg-emerald-500/5 border-emerald-500/30 dark:border-emerald-500/20'
                                         : device.status === 'syncing'
                                             ? 'bg-amber-500/5 border-amber-500/30 animate-pulse'
                                             : 'bg-slate-50/50 border-slate-200 dark:bg-slate-900/60 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                                 }`}>
                                     <div>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                            <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                                                 USB Device
                                             </span>
                                             <span className={`text-xs font-semibold ${
                                                 device.status === 'connected' ? 'text-emerald-600 dark:text-emerald-400' :
-                                                device.status === 'syncing' ? 'text-amber-550 dark:text-amber-400' :
-                                                'text-blue-600 dark:text-blue-405'
+                                                device.status === 'syncing' ? 'text-amber-500 dark:text-amber-400' :
+                                                'text-slate-600 dark:text-slate-400'
                                             }`}>
                                                 {device.status === 'connected' ? '● Connected' :
                                                  device.status === 'syncing' ? '● Connecting...' :
                                                  '● Discovered'}
                                             </span>
                                         </div>
-                                        <h4 className="font-semibold text-slate-900 dark:text-slate-105 mt-2">
+                                        <h4 className="font-semibold text-slate-900 dark:text-slate-100 mt-2">
                                             {device.name}
                                         </h4>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-450 mt-0.5 font-mono">
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
                                             VID: 0x{device.vendorId.toString(16).toUpperCase()} | PID: 0x{device.productId.toString(16).toUpperCase()}
                                         </p>
                                     </div>
@@ -528,7 +520,7 @@ export default function BarcodeScanner() {
                                         {device.status === 'found' && (
                                             <button
                                                 onClick={() => handleConnectDevice(device)}
-                                                className="w-full text-xs font-semibold py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow transition-all duration-200"
+                                                className="w-full text-xs font-semibold py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all duration-200 dark:bg-emerald-500 dark:hover:bg-emerald-600"
                                             >
                                                 Pair with ERP Terminal
                                             </button>
@@ -536,16 +528,16 @@ export default function BarcodeScanner() {
                                         {device.status === 'syncing' && (
                                             <button
                                                 disabled
-                                                className="w-full text-xs font-semibold py-2 px-3 rounded-lg bg-amber-500/20 text-amber-550 border border-amber-500/30 flex items-center justify-center gap-1.5"
+                                                className="w-full text-xs font-semibold py-2 px-3 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center gap-1.5"
                                             >
-                                                <span className="w-3 h-3 border-2 border-amber-550 border-t-transparent rounded-full animate-spin" />
+                                                <span className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
                                                 Connecting...
                                             </button>
                                         )}
                                         {device.status === 'connected' && (
                                             <button
                                                 onClick={() => handleDisconnectDevice(device)}
-                                                className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-500/10 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-950/20 transition-all duration-200"
+                                                className="w-full text-xs font-semibold py-2 px-3 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-all duration-200"
                                             >
                                                 Disconnect Device
                                             </button>
@@ -559,11 +551,11 @@ export default function BarcodeScanner() {
 
                 <div className="grid gap-6 lg:grid-cols-2">
 
-                    {/* Scanner Settings */}
+                    {/* Scanner Settings Card */}
                     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
                         <div className="mb-5 flex items-center gap-3">
-                            <div className="rounded-xl bg-violet-500/10 p-3 text-violet-600 dark:text-violet-400">
+                            <div className="rounded-2xl bg-emerald-500/10 p-3 text-emerald-600 dark:text-emerald-400">
                                 <Settings2 size={20} />
                             </div>
 
@@ -573,7 +565,7 @@ export default function BarcodeScanner() {
                                 </h2>
 
                                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                                    Configure scanner input behavior.
+                                    Configure scanner input options & parsing rules.
                                 </p>
                             </div>
                         </div>
@@ -587,7 +579,7 @@ export default function BarcodeScanner() {
                                     onChange={(e) =>
                                         setScannerName(e.target.value)
                                     }
-                                    className="input-field"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-500 dark:focus:bg-slate-950"
                                     placeholder="Enter scanner name"
                                 />
                             </FormField>
@@ -598,7 +590,7 @@ export default function BarcodeScanner() {
                                     onChange={(e) =>
                                         setConnectionType(e.target.value)
                                     }
-                                    className="input-field"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:border-emerald-500 dark:focus:bg-slate-950"
                                 >
                                     <option value="USB">USB</option>
                                     <option value="Bluetooth">
@@ -617,8 +609,8 @@ export default function BarcodeScanner() {
                                     onChange={(e) =>
                                         setPrefix(e.target.value)
                                     }
-                                    className="input-field"
-                                    placeholder="Optional prefix"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-500 dark:focus:bg-slate-950"
+                                    placeholder="Optional prefix (e.g. STX)"
                                 />
                             </FormField>
 
@@ -628,7 +620,7 @@ export default function BarcodeScanner() {
                                     onChange={(e) =>
                                         setSuffix(e.target.value)
                                     }
-                                    className="input-field"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-100 dark:focus:border-emerald-500 dark:focus:bg-slate-950"
                                 >
                                     <option value="Enter">Enter</option>
                                     <option value="Tab">Tab</option>
@@ -651,7 +643,7 @@ export default function BarcodeScanner() {
                             <button
                                 type="button"
                                 onClick={handleReset}
-                                className="flex-1 rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                className="flex-1 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700/80"
                             >
                                 Reset
                             </button>
@@ -659,11 +651,11 @@ export default function BarcodeScanner() {
                         </div>
                     </section>
 
-                    {/* Test Scanner */}
+                    {/* Test Scanner Card */}
                     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
                         <div className="mb-5 flex items-center gap-3">
-                            <div className="rounded-xl bg-blue-500/10 p-3 text-blue-600 dark:text-blue-400">
+                            <div className="rounded-2xl bg-emerald-500/10 p-3 text-emerald-600 dark:text-emerald-400">
                                 <ScanLine size={20} />
                             </div>
 
@@ -673,7 +665,7 @@ export default function BarcodeScanner() {
                                 </h2>
 
                                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                                    Scan or manually enter a barcode.
+                                    Scan or manually enter a test barcode.
                                 </p>
                             </div>
                         </div>
@@ -689,13 +681,13 @@ export default function BarcodeScanner() {
                                         setBarcode(e.target.value)
                                     }
                                     placeholder="Scan barcode here..."
-                                    className="input-field text-lg tracking-wider font-mono"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 font-mono text-lg tracking-wider text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-500 dark:focus:bg-slate-950"
                                 />
                             </FormField>
 
                             <button
                                 type="submit"
-                                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
                             >
                                 <ScanLine size={18} />
                                 Test Scan
@@ -704,7 +696,7 @@ export default function BarcodeScanner() {
                         </form>
 
                         <div className="mt-5">
-                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Simulate Barcode Scan Actions</p>
+                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Simulate Quick Item Scans</p>
                             <div className="flex flex-wrap gap-2">
                                 {[
                                     { name: "Aashirvaad Atta", code: "8901063010017" },
@@ -727,7 +719,7 @@ export default function BarcodeScanner() {
                                                 setBarcode("");
                                             }, 150);
                                         }}
-                                        className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:text-emerald-600 dark:border-slate-800 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 transition"
+                                        className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:border-emerald-500 hover:text-emerald-600 dark:border-slate-800 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 transition"
                                     >
                                         {prod.name}
                                     </button>
@@ -755,11 +747,11 @@ export default function BarcodeScanner() {
                         )}
 
                         {!lastScanned && (
-                            <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-800">
+                            <div className="mt-6 rounded-2xl border border-dashed border-slate-200 p-8 text-center dark:border-slate-800">
 
                                 <Barcode
-                                    size={40}
-                                    className="mx-auto mb-3 text-slate-400 dark:text-slate-655"
+                                    size={36}
+                                    className="mx-auto mb-3 text-slate-400 dark:text-slate-600"
                                 />
 
                                 <p className="font-medium text-slate-600 dark:text-slate-400">
@@ -767,7 +759,7 @@ export default function BarcodeScanner() {
                                 </p>
 
                                 <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                                    Connect your scanner and scan a barcode.
+                                    Connect your scanner and perform a test scan.
                                 </p>
 
                             </div>
@@ -776,7 +768,7 @@ export default function BarcodeScanner() {
                     </section>
                 </div>
 
-                {/* Console Logs */}
+                {/* Console Logs Card */}
                 <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                     <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
                         <span className="relative flex h-2 w-2">
@@ -785,25 +777,25 @@ export default function BarcodeScanner() {
                         </span>
                         Hardware Console Logs (ERP Communication)
                     </h3>
-                    <div className="mt-3 font-mono text-xs text-slate-650 dark:text-slate-400 max-h-40 overflow-y-auto space-y-1 bg-slate-950 p-4 rounded-xl border border-slate-850">
+                    <div className="mt-3 font-mono text-xs text-slate-600 dark:text-slate-400 max-h-40 overflow-y-auto space-y-1.5 bg-slate-950 p-4 rounded-xl border border-slate-800">
                         {logs.map((log, index) => (
                             <div key={index} className="flex gap-2">
                                 <span className="text-emerald-500">[{log.time}]</span>
-                                <span className="text-slate-450">&gt;</span>
+                                <span className="text-slate-500">&gt;</span>
                                 <span>{log.text}</span>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* Information */}
-                <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-500/20 dark:bg-blue-500/10">
+                {/* Info Guidelines Card */}
+                <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 dark:border-emerald-500/20 dark:bg-emerald-500/10">
 
-                    <h3 className="font-semibold text-blue-800 dark:text-blue-300">
+                    <h3 className="font-semibold text-emerald-900 dark:text-emerald-300">
                         How to use
                     </h3>
 
-                    <ul className="mt-3 space-y-2 text-sm text-blue-700 dark:text-blue-400">
+                    <ul className="mt-3 space-y-2 text-sm text-emerald-800 dark:text-emerald-400">
                         <li>• Connect the barcode scanner through USB or Bluetooth.</li>
                         <li>• Keep the scanner focused on the barcode input field.</li>
                         <li>• Scan a product barcode to test the device.</li>
@@ -814,40 +806,6 @@ export default function BarcodeScanner() {
                 </div>
 
             </div>
-
-            <style>{`
-                .input-field {
-                    width: 100%;
-                    border-radius: 0.75rem;
-                    border: 1px solid rgb(226, 232, 240);
-                    background-color: rgb(255, 255, 255);
-                    padding: 0.7rem 0.9rem;
-                    font-size: 0.875rem;
-                    color: rgb(15, 23, 42);
-                    outline: none;
-                    transition: all 0.2s;
-                }
-
-                .input-field:focus {
-                    border-color: rgb(16, 185, 129);
-                    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
-                }
-
-                .dark .input-field {
-                    border-color: rgb(30, 41, 59);
-                    background-color: rgb(15, 23, 42);
-                    color: rgb(241, 245, 249);
-                }
-
-                .dark .input-field:focus {
-                    border-color: rgb(16, 185, 129);
-                    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
-                }
-
-                .dark .input-field::placeholder {
-                    color: rgb(100, 116, 139);
-                }
-            `}</style>
         </div>
     );
 }

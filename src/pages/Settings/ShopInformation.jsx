@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Store, Save, ArrowLeft } from "lucide-react";
@@ -33,9 +32,7 @@ export default function ShopInformation() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
     localStorage.setItem("shopInformation", JSON.stringify(form));
-
     alert("Shop information saved successfully!");
   };
 
@@ -46,8 +43,7 @@ export default function ShopInformation() {
       icon={<Store size={22} />}
     >
       <form onSubmit={handleSubmit}>
-
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2 dark:text-white">
           <Field
             label="Shop Name"
             name="shopName"
@@ -102,7 +98,7 @@ export default function ShopInformation() {
         </div>
 
         <div className="mt-5">
-          <label className="mb-2 block text-sm font-medium">
+          <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
             Address
           </label>
 
@@ -111,7 +107,7 @@ export default function ShopInformation() {
             rows="4"
             value={form.address}
             onChange={handleChange}
-            className="input-field resize-none"
+            className="w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:focus:border-emerald-500 resize-none"
           />
         </div>
 
@@ -125,7 +121,6 @@ function SettingsPage({ title, description, icon, children }) {
   return (
     <div className="min-h-full bg-slate-50 p-4 dark:bg-slate-950 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-5xl">
-
         <Link
           to="/settings"
           className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-emerald-500 hover:text-emerald-400"
@@ -154,29 +149,6 @@ function SettingsPage({ title, description, icon, children }) {
           {children}
         </div>
       </div>
-
-      <style>{`
-        .input-field {
-          width: 100%;
-          border-radius: 0.75rem;
-          border: 1px solid rgb(203 213 225);
-          background: white;
-          padding: 0.7rem 0.85rem;
-          color: rgb(15 23 42);
-          outline: none;
-        }
-
-        .input-field:focus {
-          border-color: rgb(16 185 129);
-          box-shadow: 0 0 0 2px rgb(16 185 129 / 0.15);
-        }
-
-        .dark .input-field {
-          border-color: rgb(51 65 85);
-          background: rgb(30 41 59);
-          color: white;
-        }
-      `}</style>
     </div>
   );
 }
@@ -202,7 +174,7 @@ function Field({
         value={value}
         onChange={onChange}
         required={required}
-        className="input-field"
+        className="w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:focus:border-emerald-500"
       />
     </div>
   );
@@ -221,4 +193,3 @@ function SaveButton() {
     </div>
   );
 }
-

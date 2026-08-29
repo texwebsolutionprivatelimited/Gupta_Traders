@@ -32,7 +32,7 @@ function SummaryRow({ label, value }) {
   return (
     <div className="flex items-center justify-between text-sm">
       <span className="text-slate-500 dark:text-slate-400">{label}</span>
-      <span className="font-medium text-slate-900 dark:text-white">
+      <span className="font-medium text-slate-900 dark:text-slate-300">
         ₹{Number(value || 0).toFixed(2)}
       </span>
     </div>
@@ -431,11 +431,11 @@ export default function SalesReturn() {
                           </select>
                         </td>
 
-                        <td className="px-5 py-4 font-medium text-slate-900 dark:text-white">
+                        <td className="px-5 py-4 font-medium text-slate-900 dark:text-green-500">
                           ₹{calculated.amount.toFixed(2)}
                         </td>
 
-                        <td className="px-5 py-4 text-slate-900 dark:text-white">
+                        <td className="px-5 py-4 text-slate-900 dark:text-slate-300">
                           ₹{calculated.gstAmount.toFixed(2)}
                         </td>
 

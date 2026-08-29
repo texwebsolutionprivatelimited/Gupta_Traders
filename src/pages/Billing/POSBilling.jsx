@@ -4,6 +4,7 @@ import ProductSearch from './ProductSearch'
 import Cart from './Cart'
 import PaymentPanel from './PaymentPanel'
 import HoldBill from './HoldBill'
+import AddCustomItemModal from './AddCustomItemModal'
 import { ReceiptPreview, ReprintDrawer, SaleSuccessOverlay } from './BillReceipt'
 import {
   generateBillNumber,
@@ -13,9 +14,9 @@ import {
   saveHeldBills,
   formatINR,
   lookupBarcode,
+  adjustInventoryStock,
 } from '../../hooks/posData'
-import { getAllProducts, updateProduct } from '../../hooks/productData'
-import { FaShoppingCart as CartIcon } from 'react-icons/fa'
+import { FaShoppingCart as CartIcon, FaPlus } from 'react-icons/fa'
 import guptaTradersLogo from '../../assets/gupta traders logo.png'
 
 // ─── Main POS Billing Page ──────────────────────────────────────
@@ -34,6 +35,7 @@ export default function POSBilling() {
       setCustomerName(queryCust)
     }
   }, [searchParams])
+
   const [heldBills, setHeldBills] = useState(() => getHeldBills())
 
   // Modals
@@ -42,15 +44,16 @@ export default function POSBilling() {
   const [showReceipt, setShowReceipt] = useState(null) // bill object
   const [showSuccess, setShowSuccess] = useState(null) // bill object
   const [showMobileCart, setShowMobileCart] = useState(false)
-
-
+  const [showCustomItemModal, setShowCustomItemModal] = useState(false)
 
   // ─── Cart Operations ────────────────────────────────────────
   const addToCart = useCallback((product) => {
     setCart(prev => {
-      const existing = prev.find(item =>
-        item.id === product.id && !String(product.id).startsWith('loose-')
-      )
+      const isCustom = product.isCustomItem || String(product.id || '').startsWith('loose-')
+
+      // Agar custom/loose item nahi hai tabhi existing cart item se merge karein
+      const existing = !isCustom ? prev.find(item => item.id === product.id) : null
+
       if (existing) {
         return prev.map(item =>
           item.cartId === existing.cartId
@@ -58,9 +61,10 @@ export default function POSBilling() {
             : item
         )
       }
+
       return [...prev, {
         ...product,
-        cartId: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        cartId: product.cartId || `cart-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         quantity: product.quantity || 1,
         itemDiscount: product.itemDiscount || 0,
       }]
@@ -117,7 +121,6 @@ export default function POSBilling() {
     const bill = heldBills.find(b => b.id === billId)
     if (!bill) return
 
-    // If current cart has items, ask to save or discard
     if (cart.length > 0) {
       if (!window.confirm('Current cart has items. Replace with held bill? (मौजूदा कार्ट बदलें?)')) {
         return
@@ -156,23 +159,8 @@ export default function POSBilling() {
       timestamp: new Date().toISOString(),
     }
 
-    // Deduct stock for sold items
-    cart.forEach(item => {
-      if (!String(item.id).startsWith('loose-')) {
-        const allProds = getAllProducts()
-        const prod = allProds.find(p => 
-          (p.id !== undefined && String(p.id).toLowerCase() === String(item.id).toLowerCase()) ||
-          (p.barcode !== undefined && item.barcode !== undefined && String(p.barcode).trim() === String(item.barcode).trim()) ||
-          (p.sku !== undefined && item.sku !== undefined && String(p.sku).trim() === String(item.sku).trim())
-        )
-        if (prod) {
-          const currentStock = Number(prod.currentStock) || 0
-          const quantitySold = Number(item.quantity) || 0
-          const newStock = Math.max(0, currentStock - quantitySold)
-          updateProduct(prod.id, { currentStock: newStock })
-        }
-      }
-    })
+    // Deduct stock safely (custom/loose items auto-bypass)
+    adjustInventoryStock(cart)
 
     saveBill(bill)
     setShowSuccess(bill)
@@ -201,7 +189,6 @@ export default function POSBilling() {
     setToast({ type, title, message })
   }, [])
 
-  // Synthesize realistic register scanner sound
   const playScanBeep = (success) => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext
@@ -233,38 +220,35 @@ export default function POSBilling() {
     }
   }
 
-  // Load scanner and printer settings dynamically
   useEffect(() => {
     const checkSettings = () => {
       try {
         const stored = localStorage.getItem("barcodeScannerSettings")
-        if (stored) {
-          setScannerStatus(JSON.parse(stored))
-        }
+        if (stored) setScannerStatus(JSON.parse(stored))
 
-        const thermalStored = localStorage.getItem("thermalPrinterSettings");
-        const usbStored = localStorage.getItem("usbPrinterSettings");
+        const thermalStored = localStorage.getItem("thermalPrinterSettings")
+        const usbStored = localStorage.getItem("usbPrinterSettings")
         
-        let printerConnected = false;
-        let printerName = "Printer";
+        let printerConnected = false
+        let printerName = "Printer"
         
         if (thermalStored) {
-          const parsed = JSON.parse(thermalStored);
+          const parsed = JSON.parse(thermalStored)
           if (parsed && parsed.connected) {
-            printerConnected = true;
-            printerName = parsed.printerName || "Thermal Printer";
+            printerConnected = true
+            printerName = parsed.printerName || "Thermal Printer"
           }
         }
         
         if (!printerConnected && usbStored) {
-          const parsed = JSON.parse(usbStored);
+          const parsed = JSON.parse(usbStored)
           if (parsed && parsed.connected) {
-            printerConnected = true;
-            printerName = parsed.printerName || "USB Printer";
+            printerConnected = true
+            printerName = parsed.printerName || "USB Printer"
           }
         }
         
-        setPrinterStatus({ connected: printerConnected, printerName });
+        setPrinterStatus({ connected: printerConnected, printerName })
       } catch (e) {
         console.error("Failed to parse scanner or printer settings:", e)
       }
@@ -280,7 +264,6 @@ export default function POSBilling() {
     }
   }, [])
 
-  // Auto hide Toast alert
   useEffect(() => {
     if (!toast) return
     const timeout = setTimeout(() => setToast(null), 2500)
@@ -368,26 +351,23 @@ export default function POSBilling() {
   // ─── Keyboard Shortcuts ─────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // F2 = Hold Bill
       if (e.key === 'F2') {
         e.preventDefault()
         holdCurrentBill()
       }
-      // F3 = Quick cash payment (if cart has items)
-      if (e.key === 'F3') {
-        e.preventDefault()
-        // Focus will go to payment panel
-      }
-      // F4 = Reprint
       if (e.key === 'F4') {
         e.preventDefault()
         setShowReprint(true)
       }
-      // Escape = close modals
+      if (e.key === 'F8') {
+        e.preventDefault()
+        setShowCustomItemModal(true)
+      }
       if (e.key === 'Escape') {
         setShowHeldBills(false)
         setShowReprint(false)
         setShowReceipt(null)
+        setShowCustomItemModal(false)
         if (showSuccess) setShowSuccess(null)
       }
     }
@@ -439,8 +419,19 @@ export default function POSBilling() {
           />
         </div>
 
-        {/* Right: Quick Info + Shortcuts */}
+        {/* Right: Quick Info + Shortcuts + Custom Item */}
         <div className="flex items-center gap-3">
+          {/* Add Custom Item Button */}
+          <button
+            onClick={() => setShowCustomItemModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium transition-all shadow-sm"
+            title="Add Loose/Unlisted Product (Shortcut: F8)"
+          >
+            <FaPlus className="w-3 h-3" />
+            <span className="hidden sm:inline">Custom Item</span>
+            <kbd className="hidden lg:inline text-[9px] bg-amber-500/20 px-1 py-0.2 rounded border border-amber-500/30 font-mono ml-0.5">F8</kbd>
+          </button>
+
           {/* Scanner Sync Badge */}
           <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${scannerStatus.connected && scannerStatus.erpConnected
             ? 'bg-emerald-550/10 text-emerald-400 border-emerald-500/20'
@@ -477,6 +468,8 @@ export default function POSBilling() {
             <span>Hold</span>
             <kbd className="px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/40">F4</kbd>
             <span>Reprint</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/40">F8</kbd>
+            <span>Custom</span>
           </div>
 
           {/* Mobile cart toggle */}
@@ -593,6 +586,16 @@ export default function POSBilling() {
         />
       )}
 
+      {showCustomItemModal && (
+        <AddCustomItemModal
+          onAddToCart={(customItem) => {
+            addToCart(customItem)
+            triggerToast("success", `Custom Item Added`, `${customItem.name} • ₹${customItem.price}`)
+          }}
+          onClose={() => setShowCustomItemModal(false)}
+        />
+      )}
+
       {/* ─── Scan Intercept Toast Alert ──────────────── */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-55 flex items-center gap-3 px-4 py-3.5 rounded-xl border shadow-2xl transition-all duration-300 animate-slide-up ${toast.type === "success"
@@ -602,7 +605,7 @@ export default function POSBilling() {
           <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${toast.type === "success" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
             }`}>
             {toast.type === "success" ? (
-              <svg xmlns="http://www.w3.org/2500/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             ) : (

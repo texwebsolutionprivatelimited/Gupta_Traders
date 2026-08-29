@@ -181,7 +181,7 @@ function Card({ title, value, valueClass = "" }) {
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900/70">
       <p className="text-sm text-slate-500 dark:text-slate-400">{title}</p>
       <p
-        className={`mt-2 text-2xl font-bold text-slate-900 dark:text-white ${valueClass}`}
+        className={`mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100 ${valueClass}`}
       >
         {value}
       </p>
@@ -290,7 +290,7 @@ export default function SalesHistory() {
                 Sales
               </Link>
               <span>/</span>
-              <span>Sales History</span>
+              <span className="text-blue-400">Sales History</span>
             </div>
 
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
@@ -423,7 +423,7 @@ export default function SalesHistory() {
                     className="transition hover:bg-slate-50 dark:hover:bg-slate-800/40"
                   >
                     <td className="px-5 py-4">
-                      <span className="font-semibold text-slate-900 dark:text-white">
+                      <span className="font-semibold text-slate-900 dark:text-slate-300">
                         {sale.id || "-"}
                       </span>
                     </td>
@@ -433,7 +433,7 @@ export default function SalesHistory() {
                     </td>
 
                     <td className="px-5 py-4">
-                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                      <span className="text-sm font-medium text-slate-900 dark:text-slate-300">
                         {sale.customer || "Walk-in Customer"}
                       </span>
                     </td>

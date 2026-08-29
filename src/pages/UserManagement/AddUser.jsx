@@ -2,9 +2,12 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     ArrowLeft,
-    UserPlus,
     Save,
     ShieldCheck,
+    AlertCircle,
+    UserRound,
+    Lock,
+    KeyRound
 } from "lucide-react";
 
 const roles = [
@@ -24,6 +27,7 @@ export default function AddUser() {
         status: "Active",
         password: "",
         confirmPassword: "",
+        adminPasscode: "", // Security verification field
     });
 
     const [error, setError] = useState("");
@@ -50,8 +54,10 @@ export default function AddUser() {
             status,
             password,
             confirmPassword,
+            adminPasscode,
         } = formData;
 
+        // Basic Validations
         if (!name.trim()) {
             setError("Please enter user name.");
             return;
@@ -68,12 +74,26 @@ export default function AddUser() {
         }
 
         if (!password || password.length < 6) {
-            setError("Password must be at least 6 characters.");
+            setError("New user password must be at least 6 characters.");
             return;
         }
 
         if (password !== confirmPassword) {
             setError("Passwords do not match.");
+            return;
+        }
+
+        // Security Validation: Mandatory Admin Security Code
+        if (!adminPasscode.trim()) {
+            setError("Please enter Admin Passcode to authorize adding a new user.");
+            return;
+        }
+
+        // Default Security PIN/Passcode Check (Aap isse apne requirement ke hisab se change kar sakte hain)
+        const DEFAULT_ADMIN_PASSCODE = "123456"; 
+
+        if (adminPasscode !== DEFAULT_ADMIN_PASSCODE) {
+            setError("Invalid Admin Passcode! Authorization failed.");
             return;
         }
 
@@ -86,8 +106,7 @@ export default function AddUser() {
         }
 
         const emailExists = users.some(
-            (user) =>
-                user.email?.toLowerCase() === email.toLowerCase()
+            (user) => user.email?.toLowerCase() === email.toLowerCase()
         );
 
         if (emailExists) {
@@ -117,76 +136,73 @@ export default function AddUser() {
 
         const updatedUsers = [...users, newUser];
 
-        localStorage.setItem(
-            "users",
-            JSON.stringify(updatedUsers)
-        );
+        localStorage.setItem("users", JSON.stringify(updatedUsers));
 
         alert("User added successfully!");
-
         navigate("/users");
     };
 
+    const inputClassName =
+        "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/20";
+
     return (
-        <div className="min-h-full bg-slate-50 p-4 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100 sm:p-6 lg:p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
             <div className="mx-auto max-w-4xl">
 
+                {/* Back Link */}
+                <Link
+                    to="/users"
+                    className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition-colors hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
+                >
+                    <ArrowLeft size={16} />
+                    <span>Back to Users</span>
+                </Link>
+
                 {/* Header */}
-                <div className="mb-6">
-                    <Link
-                        to="/users"
-                        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-600 transition hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-                    >
-                        <ArrowLeft size={17} />
-                        Back to Users
-                    </Link>
-
-                    <div className="flex items-center gap-3">
-                        <div className="rounded-xl bg-emerald-500/10 p-3 text-emerald-600 dark:text-emerald-400">
-                            <UserPlus size={24} />
-                        </div>
-
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 sm:text-3xl">
-                                Add User
-                            </h1>
-
-                            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                                Create a new system user and assign a role.
-                            </p>
-                        </div>
+                <div className="mb-8 flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+                            Add New User
+                        </h1>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Create a new system user and assign role-based permissions.
+                        </p>
                     </div>
                 </div>
 
-                {/* Form Card */}
-                <form
-                    onSubmit={handleSubmit}
-                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7"
-                >
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Error Banner */}
                     {error && (
-                        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400">
-                            {error}
+                        <div className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700 dark:border-rose-900/40 dark:bg-rose-500/10 dark:text-rose-400">
+                            <AlertCircle size={18} className="shrink-0" />
+                            <span>{error}</span>
                         </div>
                     )}
 
-                    {/* Basic Information */}
-                    <div className="mb-8">
-                        <h2 className="mb-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
-                            Basic Information
-                        </h2>
+                    {/* Section 1: Basic Information */}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+                        <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                                <UserRound size={20} />
+                            </div>
+                            <div>
+                                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                                    Basic Information
+                                </h2>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Enter user's personal details and contact information
+                                </p>
+                            </div>
+                        </div>
 
-                        <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
-                            Enter the user's personal and contact details.
-                        </p>
-
-                        <div className="grid gap-5 md:grid-cols-2">
+                        <div className="grid gap-6 md:grid-cols-2">
                             <FormField label="Full Name" required>
                                 <input
                                     name="name"
                                     value={formData.name}
                                     onChange={handleChange}
-                                    placeholder="Enter full name"
-                                    className="input-field"
+                                    placeholder="e.g. John Doe"
+                                    className={inputClassName}
                                 />
                             </FormField>
 
@@ -197,7 +213,7 @@ export default function AddUser() {
                                     value={formData.email}
                                     onChange={handleChange}
                                     placeholder="user@example.com"
-                                    className="input-field"
+                                    className={inputClassName}
                                 />
                             </FormField>
 
@@ -219,7 +235,7 @@ export default function AddUser() {
                                         setError("");
                                     }}
                                     placeholder="10-digit mobile number"
-                                    className="input-field"
+                                    className={inputClassName}
                                 />
                             </FormField>
 
@@ -228,29 +244,27 @@ export default function AddUser() {
                                     name="status"
                                     value={formData.status}
                                     onChange={handleChange}
-                                    className="input-field"
+                                    className={inputClassName}
                                 >
-                                    <option value="Active" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50">Active</option>
-                                    <option value="Inactive" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-50">Inactive</option>
+                                    <option value="Active" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">Active</option>
+                                    <option value="Inactive" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">Inactive</option>
                                 </select>
                             </FormField>
                         </div>
                     </div>
 
-                    {/* Role */}
-                    <div className="mb-8">
-                        <div className="mb-5 flex items-center gap-3">
-                            <div className="rounded-xl bg-violet-500/10 p-2.5 text-violet-600 dark:text-violet-400">
+                    {/* Section 2: Role & Access */}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+                        <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
                                 <ShieldCheck size={20} />
                             </div>
-
                             <div>
-                                <h2 className="font-semibold text-slate-900 dark:text-slate-50">
+                                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                                     Role & Access
                                 </h2>
-
-                                <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    Select the user's access level.
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Select the user's system access level
                                 </p>
                             </div>
                         </div>
@@ -260,22 +274,21 @@ export default function AddUser() {
                                 name="role"
                                 value={formData.role}
                                 onChange={handleChange}
-                                className="input-field"
+                                className={inputClassName}
                             >
                                 {roles.map((role) => (
-                                    <option key={role} value={role} className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white">
+                                    <option key={role} value={role} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                                         {role}
                                     </option>
                                 ))}
                             </select>
                         </FormField>
 
-                        <div className="mt-4 rounded-xl bg-slate-100 p-4 dark:bg-slate-800/60">
-                            <p className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-50">
-                                Role Access
+                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                Access Summary
                             </p>
-
-                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                            <p className="text-sm text-slate-700 dark:text-slate-300">
                                 {formData.role === "Admin / Owner"
                                     ? "Full access to all modules, settings and user management."
                                     : formData.role === "Manager"
@@ -285,25 +298,31 @@ export default function AddUser() {
                         </div>
                     </div>
 
-                    {/* Password */}
-                    <div className="mb-8">
-                        <h2 className="mb-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
-                            Login Security
-                        </h2>
+                    {/* Section 3: Credentials & Authorization */}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+                        <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
+                                <Lock size={20} />
+                            </div>
+                            <div>
+                                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                                    Login Credentials & Authorization
+                                </h2>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Set initial user credentials and authenticate with Admin passcode
+                                </p>
+                            </div>
+                        </div>
 
-                        <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
-                            Create login credentials for this user.
-                        </p>
-
-                        <div className="grid gap-5 md:grid-cols-2">
-                            <FormField label="Password" required>
+                        <div className="grid gap-6 md:grid-cols-3">
+                            <FormField label="User Password" required>
                                 <input
                                     type="password"
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
-                                    placeholder="Minimum 6 characters"
-                                    className="input-field"
+                                    placeholder="Min 6 characters"
+                                    className={inputClassName}
                                 />
                             </FormField>
 
@@ -314,64 +333,45 @@ export default function AddUser() {
                                     value={formData.confirmPassword}
                                     onChange={handleChange}
                                     placeholder="Re-enter password"
-                                    className="input-field"
+                                    className={inputClassName}
                                 />
+                            </FormField>
+
+                            {/* Admin Authorization Security Field */}
+                            <FormField label="Admin Passcode" required>
+                                <div className="relative">
+                                    <input
+                                        type="password"
+                                        name="adminPasscode"
+                                        value={formData.adminPasscode}
+                                        onChange={handleChange}
+                                        placeholder="Enter Admin PIN"
+                                        className={inputClassName}
+                                    />
+                                </div>
                             </FormField>
                         </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 dark:border-slate-800 sm:flex-row sm:justify-end">
+                    {/* Footer Actions */}
+                    <div className="flex flex-col-reverse items-center justify-end gap-3 pt-2 sm:flex-row">
                         <Link
                             to="/users"
-                            className="rounded-xl border border-slate-300 px-6 py-3 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                            className="w-full rounded-xl border border-slate-300 px-6 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 sm:w-auto"
                         >
                             Cancel
                         </Link>
 
                         <button
                             type="submit"
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 dark:bg-emerald-600 dark:hover:bg-emerald-500 sm:w-auto"
                         >
                             <Save size={18} />
-                            Save User
+                            <span>Save User</span>
                         </button>
                     </div>
                 </form>
             </div>
-
-            <style>{`
-                .input-field {
-                    width: 100%;
-                    border-radius: 0.75rem;
-                    border: 1px solid rgb(226, 232, 240);
-                    background-color: rgb(255, 255, 255);
-                    padding: 0.7rem 0.9rem;
-                    font-size: 0.875rem;
-                    color: rgb(15, 23, 42);
-                    outline: none;
-                    transition: all 0.2s;
-                }
-
-                .input-field:focus {
-                    border-color: rgb(16, 185, 129);
-                    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
-                }
-
-                .input-field::placeholder {
-                    color: rgb(148, 163, 184);
-                }
-
-                .dark .input-field {
-                    border-color: rgb(30, 41, 59);
-                    background-color: rgb(15, 23, 42);
-                    color: rgb(255, 255, 255);
-                }
-
-                .dark .input-field::placeholder {
-                    color: rgb(100, 116, 139);
-                }
-            `}</style>
         </div>
     );
 }
@@ -379,14 +379,10 @@ export default function AddUser() {
 function FormField({ label, required, children }) {
     return (
         <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                 {label}
-
-                {required && (
-                    <span className="ml-1 text-rose-500">*</span>
-                )}
+                {required && <span className="ml-1 text-rose-500">*</span>}
             </label>
-
             {children}
         </div>
     );

@@ -21,8 +21,27 @@ import {
   FaBolt,
   FaTag,
   FaReceipt,
-  FaSearch
+  FaSearch,
+  FaDownload,
+  FaFilePdf,
+  FaFileExcel
 } from 'react-icons/fa'
+
+// Emoji map for category icons fallback
+const emojiToFaMap = {
+  '💡': <FaLightbulb />,
+  '📦': <FaBox />,
+  '👥': <FaUsers />,
+  '💰': <FaCoins />,
+  '📈': <FaChartLine />,
+  '⚠️': <FaExclamationTriangle />,
+  '🏢': <FaBuilding />,
+  '⚖️': <FaBalanceScale />,
+  '⚡': <FaBolt />,
+  '🏷️': <FaTag />,
+  '🧾': <FaReceipt />,
+  '🔍': <FaSearch />
+}
 
 // ─── Navigation Items ───────────────────────────────────────────
 const navItems = [
@@ -121,25 +140,6 @@ const navItems = [
       </svg>
     ),
   },
-  { type: 'divider', label: 'Finance' },
-  {
-    label: 'Expenses',
-    path: '/expenses',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Reports',
-    path: '/reports',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
-      </svg>
-    ),
-  },
   { type: 'divider', label: 'System' },
   {
     label: 'User Management',
@@ -178,7 +178,6 @@ const navItems = [
       </svg>
     ),
   },
-
 ]
 
 // ─── Sidebar Toggle Icons ───────────────────────────────────────
@@ -268,7 +267,6 @@ function getAIAnswer(query) {
 
   // 1. Total Payables / Owed Balance
   if (q.includes('payable') || q.includes('owe') || q.includes('due') || q.includes('debt') || q.includes('outstanding')) {
-    // If it mentions a supplier name, let's skip to supplier lookup!
     const isSpecificSupplier = suppliers.some(s => q.includes(s.companyName.toLowerCase()) || (s.contactPerson && q.includes(s.contactPerson.toLowerCase())))
     if (!isSpecificSupplier) {
       const { totalPayables, totalAdvances } = getPayableStats()
@@ -306,7 +304,6 @@ function getAIAnswer(query) {
 
   // 3. Low stock alerts
   if (q.includes('low') || q.includes('stock') || q.includes('alert') || q.includes('shortage') || q.includes('reorder') || q.includes('limit') || q.includes('warning')) {
-    // If it mentions a product name, skip to product lookup!
     const isSpecificProduct = products.some(p => q.includes(p.name.toLowerCase()))
     if (!isSpecificProduct) {
       const lowStockItems = products.filter(p => {
@@ -383,8 +380,6 @@ function getAIAnswer(query) {
   // 4.5. Specific Customer Lookup
   for (const cust of customers) {
     const nameLower = cust.name.toLowerCase()
-
-    // Check if query contains customer identifiers
     const matchesCust = q.includes(nameLower) ||
       nameLower.split(' ').some(word => word.length > 3 && q.includes(word))
 
@@ -400,11 +395,11 @@ function getAIAnswer(query) {
         name: cust.name,
         lines: [
           { label: 'Outstanding Balance', value: balText, color: balColor },
-          { label: 'Customer Type', value: cust.customerType.toUpperCase(), color: 'text-teal-400 font-semibold' },
-          { label: 'Phone', value: cust.phone || 'N/A', color: 'text-blue-450 font-semibold' },
-          { label: 'Credit Limit', value: formatINR(cust.creditLimit), color: 'text-slate-350' },
-          { label: 'GSTIN', value: cust.gstin || 'N/A', color: 'text-violet-405 font-mono text-xs' },
-          { label: 'City', value: cust.city || 'N/A', color: 'text-slate-450 text-xs' }
+          { label: 'Customer Type', value: cust.customerType ? cust.customerType.toUpperCase() : 'REGULAR', color: 'text-teal-400 font-semibold' },
+          { label: 'Phone', value: cust.phone || 'N/A', color: 'text-blue-400 font-semibold' },
+          { label: 'Credit Limit', value: formatINR(cust.creditLimit || 0), color: 'text-slate-350' },
+          { label: 'GSTIN', value: cust.gstin || 'N/A', color: 'text-violet-400 font-mono text-xs' },
+          { label: 'City', value: cust.city || 'N/A', color: 'text-slate-400 text-xs' }
         ],
         actionText: 'Open Transaction Ledger',
         actionPath: `/customers?search=${encodeURIComponent(cust.name)}`
@@ -417,7 +412,6 @@ function getAIAnswer(query) {
     const companyLower = sup.companyName.toLowerCase()
     const contactLower = (sup.contactPerson || '').toLowerCase()
 
-    // Check if query contains supplier identifiers
     const matchesSupplier = q.includes(companyLower) ||
       companyLower.split(' ').some(word => word.length > 3 && q.includes(word)) ||
       (contactLower && q.includes(contactLower)) ||
@@ -498,7 +492,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [highlightIdx, setHighlightIdx] = useState(-1)
 
-  // Results states
   const [prodResults, setProdResults] = useState([])
   const [supResults, setSupResults] = useState([])
   const [custResults, setCustResults] = useState([])
@@ -511,7 +504,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
   const wrapperRef = useRef(null)
   const inputRef = useRef(null)
 
-  // Close dropdown on click outside
   useEffect(() => {
     const handler = (e) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
@@ -522,18 +514,15 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Search as user types
   const handleChange = (val) => {
     setQuery(val)
     setHighlightIdx(-1)
     if (val.trim().length > 0) {
       const valLower = val.toLowerCase().trim()
 
-      // 1. Search Products
       const prods = searchProductsByQuery(val, 'all')
       setProdResults(prods)
 
-      // 2. Search Suppliers
       let sups = []
       try {
         const allSups = getSuppliers()
@@ -550,7 +539,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       }
       setSupResults(sups)
 
-      // 2.5. Search Customers
       let custs = []
       try {
         const allCusts = getCustomers()
@@ -566,7 +554,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       }
       setCustResults(custs)
 
-      // 3. Search Categories
       let cats = []
       try {
         const allCats = getCategoriesV2()
@@ -579,7 +566,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       }
       setCatResults(cats)
 
-      // 4. Search Invoices
       let bills = []
       try {
         const allBills = getSavedBills()
@@ -593,14 +579,13 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       }
       setBillResults(bills)
 
-      // 5. Search Actions
       const actions = [
         { label: 'POS Billing', path: '/pos', desc: 'Create new customer invoices', keyword: 'pos billing sales checkout invoice print' },
         { label: 'Products Directory', path: '/products', desc: 'Manage inventory catalogs', keyword: 'products items barcode sku' },
         { label: 'Categories Manager', path: '/categories', desc: 'Organize products by departments', keyword: 'categories sections departments' },
         { label: 'Inventory Stock Control', path: '/inventory', desc: 'Physical audit and inward/outward logs', keyword: 'inventory stock warehouse logs audit reconcile adjustment' },
-        { label: 'Suppliers & Vendors', path: '/suppliers', desc: 'Manage payables, ledgers, and vendor details', keyword: 'suppliers vendors payables purchase ledger company Amit Jindal Garg cement Asian Berger' },
-        { label: 'Customers & Debtors', path: '/customers', desc: 'Manage credit limits, payments, and client ledgers', keyword: 'customers clients credit accounts receivable debtor contractor builder wholesaler Sunil Rajesh Priya' },
+        { label: 'Suppliers & Vendors', path: '/suppliers', desc: 'Manage payables, ledgers, and vendor details', keyword: 'suppliers vendors payables purchase ledger company' },
+        { label: 'Customers & Debtors', path: '/customers', desc: 'Manage credit limits, payments, and client ledgers', keyword: 'customers clients credit accounts receivable debtor' },
         { label: 'Sales History', path: '/sales', desc: 'Track sales records and transactions', keyword: 'sales bills transaction invoices' },
         { label: 'Expenses Tracker', path: '/expenses', desc: 'Log and monitor utility, rent, and other costs', keyword: 'expenses cost pay spend bill cash' },
         { label: 'Business Reports', path: '/reports', desc: 'Detailed financial statements & charts', keyword: 'reports profit analysis tax balance sheet analytics gst' },
@@ -613,11 +598,9 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       )
       setActionResults(matchedActions)
 
-      // 6. Natural Language AI Answer
       const answer = getAIAnswer(val)
       setAiAnswer(answer)
 
-      // Compile selectable list for keyboard arrows
       const selectables = []
       if (answer) selectables.push({ type: 'ai', data: answer })
       matchedActions.slice(0, 3).forEach(act => selectables.push({ type: 'action', data: act }))
@@ -642,7 +625,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
     }
   }
 
-  // Clear search
   const clearSearch = () => {
     setQuery('')
     setProdResults([])
@@ -657,7 +639,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
     inputRef.current?.focus()
   }
 
-  // Pick a selectable item
   const pickSelectableItem = (item) => {
     setShowDropdown(false)
     onClose?.()
@@ -680,13 +661,11 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
     }
   }
 
-  // Smart search submit when hitting enter
   const handleSearchSubmit = () => {
     if (!query.trim()) return
     setShowDropdown(false)
     onClose?.()
 
-    // Switch to target directories if they are the only matching collections
     if (supResults.length > 0 && prodResults.length === 0) {
       navigate(`/suppliers?search=${encodeURIComponent(query)}`)
     } else if (custResults.length > 0 && prodResults.length === 0 && supResults.length === 0) {
@@ -694,12 +673,10 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
     } else if (catResults.length > 0 && prodResults.length === 0 && supResults.length === 0 && custResults.length === 0) {
       navigate(`/categories?search=${encodeURIComponent(query)}`)
     } else {
-      // Default to products search
       navigate(`/products?search=${encodeURIComponent(query)}`)
     }
   }
 
-  // Keyboard navigation
   const handleKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
@@ -723,12 +700,10 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
   return (
     <div ref={wrapperRef} className={isMobile ? "flex flex-1 relative z-[100]" : "hidden sm:flex items-center gap-2 flex-1 max-w-lg ml-4 lg:ml-0 relative"}>
       <div className="relative w-full">
-        {/* Search Icon */}
         <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
         </svg>
 
-        {/* Input */}
         <input
           ref={inputRef}
           type="text"
@@ -740,7 +715,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
           className="w-full pl-10 pr-9 py-2 rounded-xl bg-slate-900/80 border border-slate-800/60 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"
         />
 
-        {/* Clear button */}
         {query ? (
           <button
             onClick={clearSearch}
@@ -759,11 +733,8 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
         )}
       </div>
 
-      {/* ── Suggestions Dropdown ────────────────────── */}
       {showDropdown && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl overflow-y-auto max-h-[80vh] z-[100] animate-fadeIn scrollbar-thin">
-
-          {/* 1. ERP AI Assistant Card */}
           {aiAnswer && (
             <div className="p-4 m-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/5 border border-emerald-500/25 rounded-2xl shadow-inner relative overflow-hidden">
               <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl -mr-6 -mt-6 pointer-events-none"></div>
@@ -823,7 +794,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
             </div>
           )}
 
-          {/* 2. ERP Actions / Shortcuts */}
           {actionResults.length > 0 && (
             <div className="border-t border-slate-800/40 first:border-0">
               <div className="px-4 py-2 bg-slate-950/40 flex items-center justify-between">
@@ -853,7 +823,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
             </div>
           )}
 
-          {/* 3. Products Section */}
           {prodResults.length > 0 && (
             <div className="border-t border-slate-800/40 first:border-0">
               <div className="px-4 py-2 bg-slate-950/40 flex items-center justify-between">
@@ -896,7 +865,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
             </div>
           )}
 
-          {/* 4. Suppliers Section */}
           {supResults.length > 0 && (
             <div className="border-t border-slate-800/40 first:border-0">
               <div className="px-4 py-2 bg-slate-950/40 flex items-center justify-between">
@@ -940,7 +908,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
             </div>
           )}
 
-          {/* 4.5. Customers Section */}
           {custResults.length > 0 && (
             <div className="border-t border-slate-800/40 first:border-0">
               <div className="px-4 py-2 bg-slate-950/40 flex items-center justify-between">
@@ -973,7 +940,7 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-slate-200 truncate">{cust.name}</p>
-                        <p className="text-[10px] text-slate-500 truncate">{cust.customerType.toUpperCase()} • {cust.city || 'No City'}</p>
+                        <p className="text-[10px] text-slate-500 truncate">{cust.customerType ? cust.customerType.toUpperCase() : 'REGULAR'} • {cust.city || 'No City'}</p>
                       </div>
                       <div className="text-right">
                         <p className={`text-xs font-bold ${cust.outstandingBalance > 0 ? 'text-rose-400' : cust.outstandingBalance < 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
@@ -988,7 +955,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
             </div>
           )}
 
-          {/* 5. Categories Section */}
           {catResults.length > 0 && (
             <div className="border-t border-slate-800/40 first:border-0">
               <div className="px-4 py-2 bg-slate-950/40 flex items-center justify-between">
@@ -1026,7 +992,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
             </div>
           )}
 
-          {/* 6. Completed Invoices Section */}
           {billResults.length > 0 && (
             <div className="border-t border-slate-800/40 first:border-0">
               <div className="px-4 py-2 bg-slate-950/40 flex items-center justify-between">
@@ -1060,7 +1025,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
             </div>
           )}
 
-          {/* 7. Fallback No Results */}
           {selectableItems.length === 0 && (
             <div className="px-4 py-8 text-center bg-slate-900 flex flex-col items-center justify-center">
               <div className="text-2xl mb-2 text-slate-500"><FaSearch /></div>
@@ -1081,19 +1045,16 @@ export default function Layout() {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef(null)
 
-  // Contexts for ERP data
   const { salesRecords = [], purchaseRecords = [], stockItems = [] } = useReport()
   const { rentHistory = [], electricityRecords = [], staffSalaryRecords = [], miscExpenses = [] } = useExpense()
 
-  // Export dropdown state
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const exportMenuRef = useRef(null)
-  const [historyType, setHistoryType] = useState('sales') // sales, purchase, expenses, stock, combined
-  const [timeframe, setTimeframe] = useState('weekly') // weekly, monthly, yearly, custom
+  const [historyType, setHistoryType] = useState('sales')
+  const [timeframe, setTimeframe] = useState('weekly')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
-  // Click outside to close export menu
   useEffect(() => {
     function handleClickOutsideExport(event) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
@@ -1104,7 +1065,6 @@ export default function Layout() {
     return () => document.removeEventListener('mousedown', handleClickOutsideExport)
   }, [])
 
-  // Helper to parse date values safely
   const parseRecordDate = (dateVal) => {
     if (!dateVal) return null
     if (typeof dateVal === 'number') {
@@ -1114,7 +1074,6 @@ export default function Layout() {
     if (!isNaN(parsed.getTime())) {
       return parsed
     }
-    // Handle manual formats like "15 Aug 2026" or YYYY-MM-DD
     const parts = String(dateVal).split(' ')
     if (parts.length === 3) {
       const months = {
@@ -1131,7 +1090,6 @@ export default function Layout() {
     return null
   }
 
-  // Helper to filter records by selected timeframe
   const filterRecordsByTimeframe = (records, dateField) => {
     if (timeframe === 'all') return records
 
@@ -1166,7 +1124,7 @@ export default function Layout() {
     return records.filter(record => {
       const rawDate = record[dateField]
       const recDate = parseRecordDate(rawDate)
-      if (!recDate) return true // Keep record if it doesn't have a parseable date
+      if (!recDate) return true
 
       if (startLimit && recDate < startLimit) return false
       if (endLimit && recDate > endLimit) return false
@@ -1174,7 +1132,6 @@ export default function Layout() {
     })
   }
 
-  // Gather and filter data based on selections
   const getFilteredData = () => {
     let headers = []
     let rows = []
@@ -1254,7 +1211,7 @@ export default function Layout() {
       const allExpenses = [...fRent, ...fElec, ...fSalary, ...fMisc].sort((a, b) => {
         const da = parseRecordDate(a.date) || new Date(0)
         const db = parseRecordDate(b.date) || new Date(0)
-        return db - da // newest first
+        return db - da
       })
 
       const totalAmt = allExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0)
@@ -1304,17 +1261,14 @@ export default function Layout() {
       title = "Consolidated ERP Ledger Report"
       headers = ["Date", "Transaction Type", "Ref ID / Invoice", "Description / Details", "Outflow (Debit)", "Inflow (Credit)", "Net Flow"]
 
-      // Map Sales (Inflow / Credit)
       const fSales = filterRecordsByTimeframe(salesRecords, 'date').map(s => ({
         date: s.date, type: "Sale", ref: s.invoice || s.id || "-", detail: `Customer: ${s.customer || "Walk-in"}`, debit: 0, credit: Number(s.total || s.grandTotal || 0)
       }))
 
-      // Map Purchases (Outflow / Debit)
       const fPurchases = filterRecordsByTimeframe(purchaseRecords, 'date').map(p => ({
         date: p.date, type: "Purchase", ref: p.invoice || p.id || "-", detail: `Supplier: ${p.supplier || "-"}`, debit: Number(p.total || 0), credit: 0
       }))
 
-      // Map Expenses (Outflow / Debit)
       const fRent = filterRecordsByTimeframe(rentHistory, 'paymentDate').map(r => ({
         date: r.paymentDate, type: "Expense (Rent)", ref: "Rent", detail: `Prop: ${r.propertyName || "-"}`, debit: Number(r.amount || 0), credit: 0
       }))
@@ -1334,7 +1288,7 @@ export default function Layout() {
       const ledger = [...fSales, ...fPurchases, ...fRent, ...fElec, ...fSalary, ...fMisc].sort((a, b) => {
         const da = parseRecordDate(a.date) || new Date(0)
         const db = parseRecordDate(b.date) || new Date(0)
-        return db - da // newest first
+        return db - da
       })
 
       const totalCredit = ledger.reduce((sum, item) => sum + item.credit, 0)
@@ -1416,22 +1370,18 @@ export default function Layout() {
     return { title, headers, rows, summaryCards, dateRangeStr }
   }
 
-  // Download Excel Handler (CSV format)
   const handleDownloadExcel = () => {
     const { title, headers, rows, dateRangeStr } = getFilteredData()
     const filename = `${title.toLowerCase().replace(/\s+/g, '_')}_${dateRangeStr.toLowerCase().replace(/\s+/g, '_')}.csv`
 
-    let csvContent = "\uFEFF" // UTF-8 BOM for Rupee symbol support in Excel
+    let csvContent = "\uFEFF"
 
-    // Title & Meta Info header
     csvContent += `"${title.toUpperCase()}"\n`
     csvContent += `"Period:","${dateRangeStr}"\n`
     csvContent += `"Generated on:","${new Date().toLocaleString()}"\n\n`
 
-    // Headers
     csvContent += headers.map(h => `"${h.replace(/"/g, '""')}"`).join(",") + "\n"
 
-    // Rows
     rows.forEach(row => {
       csvContent += row.map(cell => {
         const val = cell === null || cell === undefined ? "" : String(cell)
@@ -1451,7 +1401,6 @@ export default function Layout() {
     setExportMenuOpen(false)
   }
 
-  // Download PDF Handler (Styled HTML Print Window)
   const handleDownloadPDF = () => {
     const { title, headers, rows, summaryCards, dateRangeStr } = getFilteredData()
     const printWindow = window.open("", "_blank")
@@ -1602,7 +1551,7 @@ export default function Layout() {
   <table>
     <thead>
       <tr>
-        ${headers.map((h, i) => {
+        ${headers.map((h) => {
       let alignClass = '';
       const lowerH = h.toLowerCase();
       if (lowerH.includes('total') || lowerH.includes('amount') || lowerH.includes('price') || lowerH.includes('balance') || lowerH.includes('debit') || lowerH.includes('credit') || lowerH.includes('flow') || lowerH.includes('subtotal') || lowerH.includes('gst')) {
@@ -1707,7 +1656,6 @@ export default function Layout() {
     return true
   })
 
-  // Clean up dividers so we don't have consecutive dividers or empty dividers at the start/end
   const cleanNavItems = []
   filteredNavItems.forEach((item, index) => {
     if (item.type === 'divider') {
@@ -1744,7 +1692,7 @@ export default function Layout() {
     sessionStorage.removeItem('isLoggedIn')
     navigate('/login')
   }
-  
+
   const [pendingSyncCount, setPendingSyncCount] = useState(0)
 
   useEffect(() => {
@@ -1794,7 +1742,6 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex">
-
       {/* ─── Mobile Overlay ────────────────────────────────── */}
       {mobileSidebarOpen && (
         <div
@@ -1865,31 +1812,26 @@ export default function Layout() {
               >
                 {({ isActive }) => (
                   <>
-                    {/* Active indicator bar */}
                     {isActive && (
                       <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-emerald-400" />
                     )}
 
-                    {/* Icon */}
                     <span className={`flex-shrink-0 transition-colors ${isActive ? 'text-emerald-400' : ''}`}>
                       {item.icon}
                     </span>
 
-                    {/* Label */}
                     {sidebarOpen && (
                       <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
                         {item.label}
                       </span>
                     )}
 
-                    {/* POS badge */}
                     {item.highlight && sidebarOpen && (
                       <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">
                         POS
                       </span>
                     )}
 
-                    {/* Tooltip for collapsed sidebar */}
                     {!sidebarOpen && (
                       <div className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-xs font-medium whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl border border-slate-700/60 z-[60] pointer-events-none">
                         {item.label}
@@ -1917,10 +1859,8 @@ export default function Layout() {
 
       {/* ─── Main Content Area ────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
-
         {/* ── Top Bar ────────────────────────────────────── */}
         <header className="sticky top-0 z-30 h-16 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Mobile Search Overlay */}
           {mobileSearchOpen && (
             <div className="absolute inset-0 bg-slate-950 flex items-center px-4 gap-2 z-50 animate-fadeIn">
               <button
@@ -1936,7 +1876,6 @@ export default function Layout() {
             </div>
           )}
 
-          {/* Mobile menu button */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
             className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all"
@@ -1944,7 +1883,6 @@ export default function Layout() {
             <MenuIcon />
           </button>
 
-          {/* Mobile Search Trigger Button */}
           <button
             onClick={() => setMobileSearchOpen(true)}
             className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer"
@@ -1955,231 +1893,162 @@ export default function Layout() {
             </svg>
           </button>
 
-          {/* Search Bar with Live Suggestions */}
           <HeaderSearch navigate={navigate} />
 
-          {/* Right side */}
+          {/* Right side actions */}
           <div className="flex items-center gap-3">
-            {/* Theme Toggle */}
+            {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer"
               title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
               {theme === 'dark' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m0 13.5V21m8.966-8.966h-2.25m-13.5 0H3m15.364 6.364l-1.591-1.591M6.75 6.75L5.159 5.159m12.728 0l-1.591 1.591M6.75 17.25l-1.591 1.591M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z" />
                 </svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998z" />
                 </svg>
               )}
             </button>
 
-            {/* Export Filter Dropdown */}
-            <div className="relative" ref={exportMenuRef}>
+            {/* Offline Sync Queue Indicator */}
+            {pendingSyncCount > 0 && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-lg text-xs font-semibold animate-pulse">
+                <span>⚡</span>
+                <span>{pendingSyncCount} Syncing</span>
+              </div>
+            )}
+
+            {/* Global Export Menu */}
+            <div ref={exportMenuRef} className="relative">
               <button
                 onClick={() => setExportMenuOpen(!exportMenuOpen)}
-                className={`p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer ${exportMenuOpen ? 'bg-slate-800/60 text-slate-200' : ''}`}
-                title="Export ERP History"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 text-xs font-semibold transition-all cursor-pointer"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                </svg>
+                <FaDownload className="text-xs" />
+                <span className="hidden sm:inline">Export Reports</span>
               </button>
 
               {exportMenuOpen && (
-                <div className="absolute right-0 mt-2.5 w-72 rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-slate-800/80 p-4 shadow-2xl z-50 animate-scaleIn text-slate-200">
-                  <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-800/60">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                    </svg>
-                    <p className="text-sm font-semibold text-slate-100">Export ERP History</p>
+                <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 animate-fadeIn text-left">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Export ERP Records</h3>
+                    <button onClick={() => setExportMenuOpen(false)} className="text-slate-500 hover:text-slate-300 text-xs">✕</button>
                   </div>
 
-                  <div className="space-y-4">
-                    {/* Report Type Selection */}
+                  <div className="space-y-3 my-3 text-xs">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                        History Type
-                      </label>
+                      <label className="block text-slate-400 font-medium mb-1">Select Report Module</label>
                       <select
                         value={historyType}
-                        onChange={(e) => setHistoryType(e.target.value)}
-                        className="w-full rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2.5 text-xs text-slate-200 outline-none transition focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 cursor-pointer"
+                        onChange={e => setHistoryType(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500/50"
                       >
-                        <option className="bg-slate-900 text-slate-200" value="sales">Sales History</option>
-                        <option className="bg-slate-900 text-slate-200" value="purchase">Purchase History</option>
-                        <option className="bg-slate-900 text-slate-200" value="expenses">Expenses History</option>
-                        <option className="bg-slate-900 text-slate-200" value="stock">Stock / Inventory Status</option>
-                        <option className="bg-slate-900 text-slate-200" value="combined">Combined ERP Ledger</option>
-                        <option className="bg-slate-900 text-slate-200" value="customers">Customers Directory</option>
-                        <option className="bg-slate-900 text-slate-200" value="suppliers">Suppliers Directory</option>
+                        <option value="sales">Sales Invoices</option>
+                        <option value="purchase">Purchase Orders</option>
+                        <option value="expenses">Expenses Ledger</option>
+                        <option value="stock">Current Inventory / Stock</option>
+                        <option value="customers">Customers Directory</option>
+                        <option value="suppliers">Suppliers Directory</option>
+                        <option value="combined">Combined ERP Financial Ledger</option>
                       </select>
                     </div>
 
-                    {/* Timeframe Selection */}
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                        Timeframe
-                      </label>
+                      <label className="block text-slate-400 font-medium mb-1">Timeframe Filter</label>
                       <select
                         value={timeframe}
-                        onChange={(e) => setTimeframe(e.target.value)}
-                        className="w-full rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2.5 text-xs text-slate-200 outline-none transition focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 cursor-pointer"
+                        onChange={e => setTimeframe(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500/50"
                       >
-                        <option className="bg-slate-900 text-slate-200" value="weekly">Weekly (Last 7 Days)</option>
-                        <option className="bg-slate-900 text-slate-200" value="monthly">Monthly (Last 30 Days)</option>
-                        <option className="bg-slate-900 text-slate-200" value="yearly">Yearly (Last 365 Days)</option>
-                        <option className="bg-slate-900 text-slate-200" value="all">All-Time History</option>
-                        <option className="bg-slate-900 text-slate-200" value="custom">Custom Date Range</option>
+                        <option value="weekly">Last 7 Days</option>
+                        <option value="monthly">Last 30 Days</option>
+                        <option value="yearly">Last 1 Year</option>
+                        <option value="all">All Records Timeframe</option>
+                        <option value="custom">Custom Date Range</option>
                       </select>
                     </div>
 
-                    {/* Custom Date Pickers */}
                     {timeframe === 'custom' && (
-                      <div className="grid grid-cols-2 gap-2.5 animate-fadeIn">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">Start Date</label>
+                          <label className="block text-[10px] text-slate-500 mb-0.5">Start Date</label>
                           <input
                             type="date"
                             value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full rounded-lg border border-slate-800/60 bg-slate-950/40 px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-emerald-500/40"
+                            onChange={e => setStartDate(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-slate-300 text-xs"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">End Date</label>
+                          <label className="block text-[10px] text-slate-500 mb-0.5">End Date</label>
                           <input
                             type="date"
                             value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full rounded-lg border border-slate-800/60 bg-slate-950/40 px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-emerald-500/40"
+                            onChange={e => setEndDate(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-slate-300 text-xs"
                           />
                         </div>
                       </div>
                     )}
+                  </div>
 
-                    {/* Export Actions */}
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/60">
-                      <button
-                        onClick={handleDownloadPDF}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-rose-500/10 to-pink-500/10 hover:from-rose-500/20 hover:to-pink-500/20 border border-rose-500/20 text-rose-400 py-2.5 text-xs font-semibold transition-all cursor-pointer"
-                        title="Download as PDF Report"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                        </svg>
-                        PDF Doc
-                      </button>
-
-                      <button
-                        onClick={handleDownloadExcel}
-                        className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 border border-emerald-500/20 text-emerald-400 py-2.5 text-xs font-semibold transition-all cursor-pointer"
-                        title="Download as Excel CSV"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 19.5h18" />
-                        </svg>
-                        Excel CSV
-                      </button>
-                    </div>
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+                    <button
+                      onClick={handleDownloadExcel}
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 font-semibold text-xs transition-colors cursor-pointer border border-emerald-500/20"
+                    >
+                      <FaFileExcel />
+                      <span>Excel (CSV)</span>
+                    </button>
+                    <button
+                      onClick={handleDownloadPDF}
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 font-semibold text-xs transition-colors cursor-pointer border border-rose-500/20"
+                    >
+                      <FaFilePdf />
+                      <span>PDF Report</span>
+                    </button>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Notification bell */}
-            <button className="relative p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-              </svg>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-slate-950 animate-pulse" />
-            </button>
-
-            {/* Database Sync Status */}
-            <div 
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold select-none transition-all cursor-default
-                ${pendingSyncCount > 0
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-sm shadow-amber-500/5'
-                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5'
-                }`}
-              title={pendingSyncCount > 0 
-                ? `${pendingSyncCount} pending updates waiting to sync to Supabase. Ensure email confirmation is disabled in Supabase console if stuck.` 
-                : 'All data is fully synchronized with Supabase'
-              }
-            >
-              <div className={`w-2 h-2 rounded-full relative ${pendingSyncCount > 0 ? 'bg-amber-400' : 'bg-emerald-400'}`}>
-                {pendingSyncCount > 0 && (
-                  <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-75" />
-                )}
-                {pendingSyncCount === 0 && (
-                  <span className="absolute inset-0 rounded-full bg-emerald-400 animate-pulse opacity-75" />
-                )}
-              </div>
-              <span className="hidden sm:inline">
-                {pendingSyncCount > 0 ? `Syncing (${pendingSyncCount})` : 'Cloud Synced'}
-              </span>
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-8 bg-slate-800/80" />
-
-            {/* User avatar with Dropdown Menu */}
-            <div className="relative" ref={userMenuRef}>
+            {/* Profile Menu */}
+            <div ref={userMenuRef} className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 sm:gap-3 p-1 sm:p-1.5 rounded-xl hover:bg-slate-800/40 transition-all cursor-pointer border border-transparent hover:border-slate-800/50"
+                className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-800/50 transition-all cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-white font-semibold text-sm shadow-lg shadow-emerald-500/10 shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-xs">
                   {initials}
                 </div>
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-medium text-slate-200 leading-tight truncate max-w-[100px]">{userName}</p>
-                  <p className="text-[11px] text-slate-500">{userTitle}</p>
+                  <p className="text-xs font-semibold text-slate-200 leading-tight">{userName}</p>
+                  <p className="text-[10px] text-slate-500 font-medium">{userTitle} ({userRole})</p>
                 </div>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${userMenuOpen ? 'rotate-180' : ''}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                </svg>
               </button>
 
               {userMenuOpen && (
-                <div className="absolute right-0 mt-2.5 w-48 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-slate-800/80 p-1.5 shadow-2xl z-50 animate-scaleIn">
-                  <div className="px-3 py-2 border-b border-slate-800/40 md:hidden">
-                    <p className="text-sm font-semibold text-slate-200 truncate">{userName}</p>
-                    <p className="text-xs text-slate-500">{userTitle}</p>
+                <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl py-2 z-50 animate-fadeIn">
+                  <div className="px-4 py-2 border-b border-slate-800/60 md:hidden">
+                    <p className="text-xs font-semibold text-slate-200">{userName}</p>
+                    <p className="text-[10px] text-slate-500">{userTitle} ({userRole})</p>
                   </div>
-                  <button
-                    onClick={() => {
-                      setUserMenuOpen(false)
-                      navigate('/settings')
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs font-semibold text-slate-300 hover:text-slate-100 hover:bg-slate-800/50 rounded-lg transition-colors cursor-pointer"
+                  <NavLink
+                    to="/settings"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="block px-4 py-2 text-xs text-slate-300 hover:bg-slate-800/50 hover:text-slate-100 transition-colors"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                    </svg>
-                    <span>Settings</span>
-                  </button>
+                    Account Settings
+                  </NavLink>
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                    className="w-full text-left px-4 py-2 text-xs text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
-                    </svg>
-                    <span>Sign Out</span>
+                    Sign Out
                   </button>
                 </div>
               )}
@@ -2187,13 +2056,13 @@ export default function Layout() {
           </div>
         </header>
 
-        {/* ── Page Content (Outlet) ──────────────────────── */}
-        <main className="flex-1 overflow-y-auto flex flex-col justify-between">
-          <div className="flex-1">
-            <Outlet />
-          </div>
-          <Footer />
+        {/* ── Main Outlet Content ────────────────────────── */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+          <Outlet />
         </main>
+
+        {/* ── Footer ─────────────────────────────────────── */}
+        <Footer />
       </div>
     </div>
   )

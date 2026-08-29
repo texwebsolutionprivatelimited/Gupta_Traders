@@ -711,7 +711,7 @@ function SummaryRow({ label, value, currency = true }) {
   return (
     <div className="flex justify-between text-sm">
       <span className="text-slate-600 dark:text-slate-400">{label}</span>
-      <span className="font-medium text-slate-900 dark:text-white">
+      <span className="font-medium text-slate-900 dark:text-slate-300">
         {currency ? `₹${value.toFixed(2)}` : value}
       </span>
     </div>

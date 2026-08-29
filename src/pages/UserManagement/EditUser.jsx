@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, UserRound, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Save, UserRound, ShieldCheck, Lock, AlertCircle } from "lucide-react";
 
 const roles = [
   "Admin / Owner",
@@ -18,17 +18,18 @@ export default function EditUser() {
     mobile: "",
     role: "Cashier / Accountant",
     status: "Active",
-    password: "",
+    currentPassword: "",
+    newPassword: "",
     confirmPassword: "",
   });
 
+  const [savedUserPassword, setSavedUserPassword] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     try {
       const users = JSON.parse(localStorage.getItem("users")) || [];
-
       const user = users.find((item) => String(item.id) === String(id));
 
       if (!user) {
@@ -37,14 +38,17 @@ export default function EditUser() {
         return;
       }
 
+      setSavedUserPassword(user.password || "");
+
       setFormData({
         name: user.name || "",
         email: user.email || "",
         mobile: user.mobile || "",
         role: user.role || "Cashier / Accountant",
         status: user.status || "Active",
-        password: user.password || "",
-        confirmPassword: user.password || "",
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
       });
 
       setLoading(false);
@@ -57,12 +61,10 @@ export default function EditUser() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
-
     setError("");
   };
 
@@ -75,7 +77,7 @@ export default function EditUser() {
     }
 
     if (!formData.email.trim()) {
-      setError("Please enter email.");
+      setError("Please enter email address.");
       return;
     }
 
@@ -84,14 +86,32 @@ export default function EditUser() {
       return;
     }
 
-    if (formData.password && formData.password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    // Mandatory Security Check: Current Password MUST be provided
+    if (!formData.currentPassword) {
+      setError("Please enter Current Password to save any changes.");
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match.");
+    if (formData.currentPassword !== savedUserPassword) {
+      setError("Incorrect Current Password. Access denied.");
       return;
+    }
+
+    // Optional New Password Logic
+    let updatedPassword = savedUserPassword;
+
+    if (formData.newPassword || formData.confirmPassword) {
+      if (formData.newPassword.length < 6) {
+        setError("New password must be at least 6 characters.");
+        return;
+      }
+
+      if (formData.newPassword !== formData.confirmPassword) {
+        setError("New Password and Confirm Password do not match.");
+        return;
+      }
+
+      updatedPassword = formData.newPassword;
     }
 
     try {
@@ -130,14 +150,12 @@ export default function EditUser() {
           mobile: formData.mobile,
           role: formData.role,
           status: formData.status,
-          password: formData.password,
+          password: updatedPassword,
         };
       });
 
       localStorage.setItem("users", JSON.stringify(updatedUsers));
-
       alert("User updated successfully!");
-
       navigate("/users");
     } catch (err) {
       console.error(err);
@@ -145,11 +163,15 @@ export default function EditUser() {
     }
   };
 
+  const inputClassName =
+    "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/20";
+
   if (loading) {
     return (
-      <div className="min-h-full bg-slate-50 p-8 dark:bg-slate-950">
-        <div className="mx-auto max-w-4xl rounded-2xl bg-white p-8 text-center text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-300">
-          Loading user...
+      <div className="flex min-h-[60vh] items-center justify-center p-8">
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent dark:border-emerald-500"></div>
+          <span className="font-medium">Loading user details...</span>
         </div>
       </div>
     );
@@ -157,19 +179,20 @@ export default function EditUser() {
 
   if (error === "User not found.") {
     return (
-      <div className="min-h-full bg-slate-50 p-8 dark:bg-slate-950">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-rose-200 bg-white p-8 text-center shadow-sm dark:border-rose-500/20 dark:bg-slate-900">
+      <div className="p-4 sm:p-6 lg:p-8">
+        <div className="mx-auto max-w-md rounded-2xl border border-rose-200 bg-white p-8 text-center shadow-sm dark:border-rose-900/30 dark:bg-slate-900">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
+            <AlertCircle size={24} />
+          </div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
             User Not Found
           </h1>
-
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            The requested user does not exist.
+            The user you are trying to edit does not exist or was removed.
           </p>
-
           <Link
             to="/users"
-            className="mt-5 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+            className="mt-6 inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
           >
             Back to Users
           </Link>
@@ -179,54 +202,63 @@ export default function EditUser() {
   }
 
   return (
-    <div className="min-h-full bg-slate-50 p-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:p-6 lg:p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-4xl">
+        {/* Navigation back */}
         <Link
           to="/users"
-          className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-emerald-600 transition-colors hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition-colors hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
         >
-          <ArrowLeft size={17} />
-          Back to Users
+          <ArrowLeft size={16} />
+          <span>Back to Users</span>
         </Link>
 
-        <div className="mb-6 flex items-center gap-3">
-          <div className="rounded-xl bg-blue-100 p-3 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
-            <UserRound size={24} />
-          </div>
-
+        {/* Header */}
+        <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 sm:text-3xl">
-              Edit User
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+              Edit User Profile
             </h1>
-
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Update user information and permissions.
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Manage personal information, role-based access, and login security.
             </p>
           </div>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7"
-        >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Error Banner */}
           {error && (
-            <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400">
-              {error}
+            <div className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700 dark:border-rose-900/40 dark:bg-rose-500/10 dark:text-rose-400">
+              <AlertCircle size={18} className="shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
-          <div className="mb-8">
-            <h2 className="mb-5 text-lg font-semibold text-slate-900 dark:text-slate-100">
-              User Information
-            </h2>
+          {/* Section 1: User Details */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+            <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                <UserRound size={20} />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  User Details
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Basic contact details and current status
+                </p>
+              </div>
+            </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid gap-6 md:grid-cols-2">
               <FormField label="Full Name" required>
                 <input
+                  type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className="input-field"
+                  className={inputClassName}
+                  placeholder="e.g. John Doe"
                 />
               </FormField>
 
@@ -236,7 +268,8 @@ export default function EditUser() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="input-field"
+                  className={inputClassName}
+                  placeholder="john@example.com"
                 />
               </FormField>
 
@@ -246,59 +279,57 @@ export default function EditUser() {
                   name="mobile"
                   value={formData.mobile}
                   onChange={(e) => {
-                    const value = e.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 10);
-
-                    setFormData((prev) => ({
-                      ...prev,
-                      mobile: value,
-                    }));
+                    const value = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    setFormData((prev) => ({ ...prev, mobile: value }));
                   }}
-                  className="input-field"
+                  className={inputClassName}
+                  placeholder="10-digit number"
                 />
               </FormField>
 
-              <FormField label="Status">
+              <FormField label="Account Status">
                 <select
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
-                  className="input-field"
+                  className={inputClassName}
                 >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
+                  <option value="Active" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
+                    Active
+                  </option>
+                  <option value="Inactive" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
+                    Inactive
+                  </option>
                 </select>
               </FormField>
             </div>
           </div>
 
-          <div className="mb-8">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="rounded-xl bg-violet-100 p-3 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400">
+          {/* Section 2: Role & Access */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+            <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
                 <ShieldCheck size={20} />
               </div>
-
               <div>
-                <h2 className="font-semibold text-slate-900 dark:text-slate-100">
-                  Role & Access
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  Role & Permissions
                 </h2>
-
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Change the user's system role.
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Assign user roles to regulate system permissions
                 </p>
               </div>
             </div>
 
-            <FormField label="User Role" required>
+            <FormField label="System Role" required>
               <select
                 name="role"
                 value={formData.role}
                 onChange={handleChange}
-                className="input-field"
+                className={inputClassName}
               >
                 {roles.map((role) => (
-                  <option key={role} value={role}>
+                  <option key={role} value={role} className="bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                     {role}
                   </option>
                 ))}
@@ -306,92 +337,77 @@ export default function EditUser() {
             </FormField>
           </div>
 
-          <div className="mb-8">
-            <h2 className="mb-5 text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Login Security
-            </h2>
+          {/* Section 3: Password Security */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+            <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
+                <Lock size={20} />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  Security Settings
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Current password is required to confirm profile updates
+                </p>
+              </div>
+            </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <FormField label="Password">
+            <div className="grid gap-6 md:grid-cols-3">
+              <FormField label="Current Password" required>
                 <input
                   type="password"
-                  name="password"
-                  value={formData.password}
+                  name="currentPassword"
+                  value={formData.currentPassword}
                   onChange={handleChange}
-                  placeholder="Minimum 6 characters"
-                  className="input-field"
+                  placeholder="Enter current password"
+                  className={inputClassName}
                 />
               </FormField>
 
-              <FormField label="Confirm Password">
+              <FormField label="New Password">
+                <input
+                  type="password"
+                  name="newPassword"
+                  value={formData.newPassword}
+                  onChange={handleChange}
+                  placeholder="Leave blank to keep same"
+                  className={inputClassName}
+                />
+              </FormField>
+
+              <FormField label="Confirm New Password">
                 <input
                   type="password"
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  placeholder="Re-enter password"
-                  className="input-field"
+                  placeholder="Re-enter new password"
+                  className={inputClassName}
                 />
               </FormField>
             </div>
           </div>
 
-          <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 dark:border-slate-800 sm:flex-row sm:justify-end">
+          {/* Footer Action Buttons */}
+          <div className="flex flex-col-reverse items-center justify-end gap-3 pt-2 sm:flex-row">
             <Link
               to="/users"
-              className="rounded-xl border border-slate-300 px-6 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="w-full rounded-xl border border-slate-300 px-6 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 sm:w-auto"
             >
               Cancel
             </Link>
 
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-95 dark:bg-emerald-600 dark:hover:bg-emerald-500 sm:w-auto"
             >
               <Save size={18} />
-              Update User
+              <span>Save Changes</span>
             </button>
           </div>
         </form>
       </div>
-
-      <style>{`
-        .input-field {
-          width: 100%;
-          border-radius: 0.75rem;
-          border: 1px solid #cbd5e1;
-          background: #ffffff;
-          padding: 0.7rem 0.9rem;
-          font-size: 0.875rem;
-          color: #0f172a;
-          outline: none;
-          transition: border-color 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        .input-field::placeholder {
-          color: #94a3b8;
-        }
-
-        .input-field:focus {
-          border-color: #059669;
-          box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
-        }
-
-        .dark .input-field {
-          border-color: #334155;
-          background: #0f172a;
-          color: #f8fafc;
-        }
-
-        .dark .input-field::placeholder {
-          color: #64748b;
-        }
-
-        .dark .input-field:focus {
-          border-color: #10b981;
-          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
-        }
-      `}</style>
     </div>
   );
 }
@@ -399,11 +415,10 @@ export default function EditUser() {
 function FormField({ label, required, children }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
         {label}
         {required && <span className="ml-1 text-rose-500">*</span>}
       </label>
-
       {children}
     </div>
   );

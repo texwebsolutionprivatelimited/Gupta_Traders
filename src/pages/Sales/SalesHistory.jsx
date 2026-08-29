@@ -609,7 +609,7 @@ export default function SalesHistory() {
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   Sale ID
                 </p>
-                <h2 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                <h2 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-400">
                   {selectedSale.id || "-"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -633,7 +633,7 @@ export default function SalesHistory() {
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Customer
                 </p>
-                <p className="mt-1 font-semibold text-slate-900 dark:text-white">
+                <p className="mt-1 font-semibold text-slate-900 dark:text-slate-400">
                   {selectedSale.customer || "Walk-in Customer"}
                 </p>
               </div>
@@ -642,7 +642,7 @@ export default function SalesHistory() {
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Invoice Number
                 </p>
-                <p className="mt-1 font-semibold text-slate-900 dark:text-white">
+                <p className="mt-1 font-semibold text-slate-900 dark:text-slate-400">
                   {selectedSale.invoice || "-"}
                 </p>
               </div>
@@ -651,7 +651,7 @@ export default function SalesHistory() {
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Sale Date
                 </p>
-                <p className="mt-1 font-semibold text-slate-900 dark:text-white">
+                <p className="mt-1 font-semibold text-slate-900 dark:text-slate-400">
                   {selectedSale.date || "-"}
                 </p>
               </div>
@@ -670,7 +670,7 @@ export default function SalesHistory() {
             <div className="mt-6">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-blue-400">
                     Products
                   </h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -706,7 +706,7 @@ export default function SalesHistory() {
                       >
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 dark:text-white">
+                            <p className="font-semibold text-slate-900 dark:text-slate-400">
                               {item?.product || item?.name || "Product"}
                             </p>
                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -719,7 +719,7 @@ export default function SalesHistory() {
                               <p className="text-xs text-slate-500 dark:text-slate-400">
                                 Qty
                               </p>
-                              <p className="mt-1 font-semibold text-slate-900 dark:text-white">
+                              <p className="mt-1 font-semibold text-slate-900 dark:text-slate-400">
                                 {quantity}
                               </p>
                             </div>
@@ -728,7 +728,7 @@ export default function SalesHistory() {
                               <p className="text-xs text-slate-500 dark:text-slate-400">
                                 GST
                               </p>
-                              <p className="mt-1 font-semibold text-slate-900 dark:text-white">
+                              <p className="mt-1 font-semibold text-slate-900 dark:text-red-400">
                                 {gst}%
                               </p>
                             </div>
@@ -758,7 +758,7 @@ export default function SalesHistory() {
 
             {/* SUMMARY */}
             <div className="mt-6 rounded-2xl bg-slate-50 p-5 dark:bg-slate-800/70">
-              <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
+              <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-blue-400">
                 Sale Summary
               </h3>
 
@@ -767,7 +767,7 @@ export default function SalesHistory() {
                   <span className="text-slate-500 dark:text-slate-400">
                     Subtotal
                   </span>
-                  <span className="font-medium text-slate-900 dark:text-white">
+                  <span className="font-medium text-slate-900 dark:text-slate-400">
                     {formatCurrency(selectedSale.subtotal)}
                   </span>
                 </div>
@@ -776,13 +776,13 @@ export default function SalesHistory() {
                   <span className="text-slate-500 dark:text-slate-400">
                     GST
                   </span>
-                  <span className="font-medium text-slate-900 dark:text-white">
+                  <span className="font-medium text-slate-900 dark:text-slate-400">
                     {formatCurrency(selectedSale.gst)}
                   </span>
                 </div>
 
                 <div className="border-t border-slate-200 pt-3 dark:border-slate-700">
-                  <div className="flex items-center justify-between font-bold text-slate-900 dark:text-white">
+                  <div className="flex items-center justify-between font-bold text-slate-900 dark:text-slate-400">
                     <span>Grand Total</span>
                     <span className="text-lg text-emerald-600 dark:text-emerald-400">
                       {formatCurrency(selectedSale.total)}

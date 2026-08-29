@@ -995,7 +995,7 @@ const handleDownload = (purchase) => {
                         className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                       >
                         <div>
-                          <p className="font-medium text-slate-900 dark:text-white">
+                          <p className="font-medium text-slate-900 dark:text-slate-400">
                             {item.product}
                           </p>
 

@@ -1,102 +1,16 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-
-const ExpenseContext = createContext();
-
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { deleteExpense, listExpenses, saveExpense, subscribeToTable } from '../services/erpService'
+const ExpenseContext = createContext()
+const types = { rentHistory:'rent', electricityRecords:'electricity', staffSalaryRecords:'staff_salary', miscExpenses:'miscellaneous' }
+function fromRow(row) { return { id:row.id, amount:Number(row.amount), date:row.expense_date, paymentDate:row.expense_date, description:row.description, paymentMode:row.payment_method, category:row.category, ...(row.metadata || {}) } }
+function toRow(type, value) { const known=['id','amount','date','paymentDate','description','paymentMode','category']; const metadata=Object.fromEntries(Object.entries(value).filter(([k])=>!known.includes(k))); return { expense_type:type, expense_date:value.paymentDate||value.date||new Date().toISOString().slice(0,10), amount:Number(value.amount||value.rentAmount||value.salary||0), description:value.description||value.propertyName||value.employeeName||type.replace('_',' '), category:value.category||null, payment_method:value.paymentMode||'Cash', payee:value.ownerName||value.employeeName||value.payee||null, bill_number:value.billNumber||null, metadata } }
 export function ExpenseProvider({ children }) {
-  const [rentHistory, setRentHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('rentHistory');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to load rentHistory:', e);
-      return [];
-    }
-  });
-
-  const [electricityRecords, setElectricityRecords] = useState(() => {
-    try {
-      const saved = localStorage.getItem('electricityRecords');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to load electricityRecords:', e);
-      return [];
-    }
-  });
-
-  const [staffSalaryRecords, setStaffSalaryRecords] = useState(() => {
-    try {
-      const saved = localStorage.getItem('staffSalaryRecords');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to load staffSalaryRecords:', e);
-      return [];
-    }
-  });
-
-  const [miscExpenses, setMiscExpenses] = useState(() => {
-    try {
-      const saved = localStorage.getItem('miscExpenses');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to load miscExpenses:', e);
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('rentHistory', JSON.stringify(rentHistory));
-    } catch (e) {
-      console.error('Failed to save rentHistory:', e);
-    }
-  }, [rentHistory]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('electricityRecords', JSON.stringify(electricityRecords));
-    } catch (e) {
-      console.error('Failed to save electricityRecords:', e);
-    }
-  }, [electricityRecords]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('staffSalaryRecords', JSON.stringify(staffSalaryRecords));
-    } catch (e) {
-      console.error('Failed to save staffSalaryRecords:', e);
-    }
-  }, [staffSalaryRecords]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('miscExpenses', JSON.stringify(miscExpenses));
-    } catch (e) {
-      console.error('Failed to save miscExpenses:', e);
-    }
-  }, [miscExpenses]);
-
-  return (
-    <ExpenseContext.Provider
-      value={{
-        rentHistory,
-        setRentHistory,
-        electricityRecords,
-        setElectricityRecords,
-        staffSalaryRecords,
-        setStaffSalaryRecords,
-        miscExpenses,
-        setMiscExpenses,
-      }}
-    >
-      {children}
-    </ExpenseContext.Provider>
-  );
+  const [rows,setRows]=useState([]), [loading,setLoading]=useState(true), [error,setError]=useState('')
+  const refresh=useCallback(async()=>{ try{setRows(await listExpenses());setError('')}catch(e){setError(e.message)}finally{setLoading(false)} },[])
+  useEffect(()=>{refresh();return subscribeToTable('expenses',refresh)},[refresh])
+  function setter(type){ return async update=>{ const current=rows.filter(r=>r.expense_type===type).map(fromRow); const next=typeof update==='function'?update(current):update; try{ const removed=current.filter(x=>!next.some(n=>n.id===x.id)); const changed=next.filter(n=>!n.id||JSON.stringify(n)!==JSON.stringify(current.find(c=>c.id===n.id))); await Promise.all(removed.map(x=>deleteExpense(x.id))); await Promise.all(changed.map(x=>saveExpense(toRow(type,x),x.id))); await refresh() }catch(e){setError(e.message);throw e} } }
+  const value={ loading,error,refresh }
+  for(const [name,type] of Object.entries(types)){ value[name]=rows.filter(r=>r.expense_type===type).map(fromRow); value[`set${name[0].toUpperCase()}${name.slice(1)}`]=setter(type) }
+  return <ExpenseContext.Provider value={value}>{children}</ExpenseContext.Provider>
 }
-
-export function useExpense() {
-  const context = useContext(ExpenseContext);
-  if (!context) {
-    throw new Error('useExpense must be used within an ExpenseProvider');
-  }
-  return context;
-}
+export function useExpense(){const value=useContext(ExpenseContext);if(!value)throw new Error('useExpense must be inside ExpenseProvider');return value}

@@ -1,45 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { listUICustomers, listUISales } from '../../services/erpService'
 
 export default function CustomerReport() {
-    const customers = [
-        {
-            id: 1,
-            name: "Rahul Sharma",
-            phone: "9876543210",
-            city: "Lucknow",
-            totalOrders: 12,
-            totalPurchase: 48500,
-            pendingAmount: 2500,
-        },
-        {
-            id: 2,
-            name: "Amit Verma",
-            phone: "9123456780",
-            city: "Kanpur",
-            totalOrders: 8,
-            totalPurchase: 32200,
-            pendingAmount: 0,
-        },
-        {
-            id: 3,
-            name: "Priya Gupta",
-            phone: "9988776655",
-            city: "Varanasi",
-            totalOrders: 15,
-            totalPurchase: 68400,
-            pendingAmount: 5200,
-        },
-        {
-            id: 4,
-            name: "Neha Singh",
-            phone: "9012345678",
-            city: "Ayodhya",
-            totalOrders: 6,
-            totalPurchase: 21400,
-            pendingAmount: 0,
-        },
-    ];
+    const [customers,setCustomers]=useState([])
+    useEffect(()=>{Promise.all([listUICustomers(),listUISales()]).then(([parties,sales])=>setCustomers(parties.map(c=>{const orders=sales.filter(s=>s.customer===c.name);return{id:c.id,name:c.name,phone:c.phone,city:c.city,totalOrders:orders.length,totalPurchase:orders.reduce((n,s)=>n+s.total,0),pendingAmount:c.outstandingBalance}}))).catch(error=>alert(error.message))},[])
 
     const stats = useMemo(() => {
         return {

@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import guptaTradersShowcase from '../../assets/Gupta traders.png'
 import guptaTradersLogo from '../../assets/gupta traders logo.png'
-import { supabase } from '../../supabase/supabase'
+import { useAuth } from '../../context/AuthContext'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { user, profile, signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
@@ -33,18 +34,9 @@ export default function LoginPage() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  // Redirect logged-in users away from login page
   useEffect(() => {
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true' || sessionStorage.getItem('isLoggedIn') === 'true'
-    if (isLoggedIn) {
-      navigate('/', { replace: true })
-    }
-  }, [navigate])
-
-  // Pre-fill default credentials on mount
-  useEffect(() => {
-    handleTabChange('Admin')
-  }, [])
+    if (user && profile) navigate(profile.role === 'cashier' ? '/pos' : '/', { replace: true })
+  }, [user, profile, navigate])
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark')
@@ -53,16 +45,6 @@ export default function LoginPage() {
   const handleTabChange = (role) => {
     setActiveTab(role)
     setError('')
-    if (role === 'Admin') {
-      setEmail('admin@guptatraders.com')
-      setPassword('admin123')
-    } else if (role === 'Manager') {
-      setEmail('manager@guptatraders.com')
-      setPassword('manager123')
-    } else if (role === 'Cashier') {
-      setEmail('cashier@guptatraders.com')
-      setPassword('cashier123')
-    }
   }
 
   const handleSubmit = async (e) => {
@@ -75,115 +57,14 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    // Try Supabase Auth first
     try {
-      const { data, error: authErr } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password
-      })
-
-      if (!authErr && data.user) {
-        setLoading(false)
-        setSuccess(true)
-
-        const matchedUser = {
-          email: data.user.email,
-          name: data.user.user_metadata?.name || data.user.email.split('@')[0],
-          role: data.user.user_metadata?.role || 'Admin',
-          title: data.user.user_metadata?.title || 'Owner'
-        }
-
-        const storage = rememberMe ? localStorage : sessionStorage
-        storage.setItem('isLoggedIn', 'true')
-        storage.setItem('userRole', matchedUser.role)
-        storage.setItem('userName', matchedUser.name)
-        storage.setItem('userTitle', matchedUser.title)
-        storage.setItem('userEmail', matchedUser.email)
-
-        localStorage.setItem('userRole', matchedUser.role)
-        localStorage.setItem('userName', matchedUser.name)
-        localStorage.setItem('userTitle', matchedUser.title)
-        localStorage.setItem('userEmail', matchedUser.email)
-
-        setTimeout(() => {
-          if (matchedUser.role === 'Cashier') {
-            navigate('/pos')
-          } else {
-            navigate('/')
-          }
-        }, 800)
-        return
-      }
-    } catch (err) {
-      console.warn('[Supabase Auth] Login failed, falling back to local credentials...', err)
-    }
-
-    // Local Fallback validation
-    setTimeout(() => {
-      // Defined credentials according to requirements
-      const credentials = [
-        {
-          email: 'admin@guptatraders.com',
-          username: 'admin',
-          password: 'admin123',
-          name: 'Gupta Admin',
-          role: 'Admin',
-          title: 'Owner'
-        },
-        {
-          email: 'manager@guptatraders.com',
-          username: 'manager',
-          password: 'manager123',
-          name: 'Rajesh Manager',
-          role: 'Manager',
-          title: 'Store Manager'
-        },
-        {
-          email: 'cashier@guptatraders.com',
-          username: 'cashier',
-          password: 'cashier123',
-          name: 'Ramesh Cashier',
-          role: 'Cashier',
-          title: 'Cashier / Accountant'
-        }
-      ]
-
-      const matchedUser = credentials.find(
-        u => (u.email.toLowerCase() === email.trim().toLowerCase() || u.username.toLowerCase() === email.trim().toLowerCase()) && u.password === password
-      )
-
-      setLoading(false)
-
-      if (!matchedUser) {
-        setError('Invalid credentials. Please verify username and password.')
-        return
-      }
-
+      await signIn(email.trim(), password)
       setSuccess(true)
-
-      // Save authenticated session state
-      const storage = rememberMe ? localStorage : sessionStorage
-      storage.setItem('isLoggedIn', 'true')
-      storage.setItem('userRole', matchedUser.role)
-      storage.setItem('userName', matchedUser.name)
-      storage.setItem('userTitle', matchedUser.title)
-      storage.setItem('userEmail', matchedUser.email)
-
-      // Save to localStorage too for Layout component state
-      localStorage.setItem('userRole', matchedUser.role)
-      localStorage.setItem('userName', matchedUser.name)
-      localStorage.setItem('userTitle', matchedUser.title)
-      localStorage.setItem('userEmail', matchedUser.email)
-
-      setTimeout(() => {
-        // Redirect Cashiers to POS directly, and Admins/Managers to dashboard
-        if (matchedUser.role === 'Cashier') {
-          navigate('/pos')
-        } else {
-          navigate('/')
-        }
-      }, 800)
-    }, 1200)
+    } catch (err) {
+      setError(err.message || 'Unable to sign in')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

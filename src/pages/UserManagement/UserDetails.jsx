@@ -1,4 +1,6 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from 'react'
+import { adminUsers } from '../../services/erpService'
 import {
   ArrowLeft,
   Pencil,
@@ -51,17 +53,11 @@ export default function UserDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  let users = [];
+  const [users,setUsers]=useState([]),[loading,setLoading]=useState(true)
+  useEffect(()=>{adminUsers('list').then(rows=>setUsers(rows.map(u=>({...u,role:u.role==='admin'?'Admin / Owner':u.role==='manager'?'Manager':'Cashier / Accountant',status:u.status==='active'?'Active':'Inactive'})))).catch(error=>alert(error.message)).finally(()=>setLoading(false))},[id])
+  const user = users.find((item) => String(item.id) === String(id));
 
-  try {
-    users = JSON.parse(localStorage.getItem("users")) || [];
-  } catch {
-    users = [];
-  }
-
-  const user = users.find(
-    (item) => String(item.id) === String(id)
-  );
+  if(loading)return <div className="p-8 text-slate-400">Loading user…</div>
 
   if (!user) {
     return (
@@ -101,7 +97,7 @@ export default function UserDetails() {
     .join("")
     .toUpperCase();
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (user.role === "Admin / Owner") {
       const adminCount = users.filter(
         (item) => item.role === "Admin / Owner"
@@ -117,15 +113,7 @@ export default function UserDetails() {
 
     if (!confirmed) return;
 
-    const updatedUsers = users.filter(
-      (item) => String(item.id) !== String(id)
-    );
-
-    localStorage.setItem("users", JSON.stringify(updatedUsers));
-
-    alert("User deleted successfully!");
-
-    navigate("/users");
+    try{await adminUsers('delete',{id});alert('User deleted successfully!');navigate('/users')}catch(error){alert(error.message)}
   };
 
   return (

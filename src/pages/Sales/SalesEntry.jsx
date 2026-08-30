@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, Edit3, Trash2 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
+import { completeSale, listUICustomers, listUIProducts } from '../../services/erpService'
 
 const initialItems = [
   {
@@ -37,6 +38,8 @@ export default function SalesEntry() {
   const [utrNo, setUtrNo] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState(initialItems);
+  const [remoteProducts,setRemoteProducts]=useState([]),[remoteCustomers,setRemoteCustomers]=useState([])
+  useEffect(()=>{Promise.all([listUIProducts(),listUICustomers()]).then(([p,c])=>{setRemoteProducts(p);setRemoteCustomers(c)}).catch(e=>alert(e.message))},[])
 
   // Selected item state for view/edit modals
   const [selectedItem, setSelectedItem] = useState(null);
@@ -127,7 +130,7 @@ export default function SalesEntry() {
     { subtotal: 0, gst: 0, total: 0 }
   );
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!customer) {
@@ -144,50 +147,7 @@ export default function SalesEntry() {
       return;
     }
 
-    const saleData = {
-      id: `SAL-${Date.now()}`,
-      date: invoiceDate,
-      customer,
-      invoice: invoiceNo || `INV-${Date.now()}`,
-      utr: utrNo,
-      items: [...items],
-      itemCount: items.length,
-      subtotal: totals.subtotal,
-      gst: totals.gst,
-      total: totals.total,
-      status: "Completed",
-      payment: paymentMode === "Credit" ? "Pending" : "Paid",
-      paymentMode,
-      notes,
-    };
-
-    const existingSales =
-      JSON.parse(localStorage.getItem("salesHistory")) || [];
-
-    localStorage.setItem(
-      "salesHistory",
-      JSON.stringify([saleData, ...existingSales])
-    );
-
-    const transactions =
-      JSON.parse(localStorage.getItem("transactions")) || [];
-
-    transactions.unshift({
-      id: `TXN-${Date.now()}`,
-      type: "Sale",
-      invoice: saleData.invoice,
-      customer,
-      utr: utrNo,
-      amount: totals.total,
-      paymentMode,
-      status: paymentMode === "Credit" ? "Pending" : "Success",
-      date: invoiceDate,
-    });
-
-    localStorage.setItem("transactions", JSON.stringify(transactions));
-
-    alert("Sale saved successfully!");
-    navigate("/sales/history");
+    try{const customerRow=remoteCustomers.find(c=>c.name===customer||c.id===customer);const rpcItems=items.map(item=>{const p=remoteProducts.find(x=>x.name===item.product||x.id===item.product);if(!p)throw new Error(`Product not found: ${item.product}`);return{product_id:p.id,quantity:Number(item.quantity),unit_price:Number(item.salesPrice),tax_rate:Number(item.gst)}});await completeSale({invoice_number:invoiceNo||undefined,sale_date:invoiceDate,customer_id:customerRow?.id||null,amount_paid:paymentMode==='Credit'?0:totals.total,payment_method:paymentMode,payment_reference:utrNo,notes},rpcItems);alert('Sale saved successfully!');navigate('/sales/history')}catch(error){alert(error.message)}
   };
 
   return (

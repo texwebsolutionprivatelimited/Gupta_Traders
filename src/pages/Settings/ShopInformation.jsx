@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Store, Save, ArrowLeft } from "lucide-react";
+import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 
 const defaultData = {
   shopName: "Gupta Traders",
@@ -14,14 +14,7 @@ const defaultData = {
 };
 
 export default function ShopInformation() {
-  const [form, setForm] = useState(() => {
-    try {
-      const saved = localStorage.getItem("shopInformation");
-      return saved ? { ...defaultData, ...JSON.parse(saved) } : defaultData;
-    } catch {
-      return defaultData;
-    }
-  });
+  const {form,setForm,save}=useBusinessSettings('shop',defaultData)
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -30,10 +23,9 @@ export default function ShopInformation() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    localStorage.setItem("shopInformation", JSON.stringify(form));
-    alert("Shop information saved successfully!");
+    try{await save();alert("Shop information saved successfully!")}catch(error){alert(error.message)}
   };
 
   return (

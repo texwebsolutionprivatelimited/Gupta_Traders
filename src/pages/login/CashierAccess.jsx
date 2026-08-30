@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { listUISales } from '../../services/erpService'
 import {
   FaReceipt,
   FaUsers,
   FaChartLine
 } from 'react-icons/fa'
 
-// Static Sample Shift Data removed. Sourced dynamically from localStorage.
+// Shift data is loaded from Supabase.
 
 export default function CashierAccess() {
   const navigate = useNavigate()
@@ -30,7 +31,7 @@ export default function CashierAccess() {
   const [shiftSales, setShiftSales] = useState([])
 
   useEffect(() => {
-    const sales = JSON.parse(localStorage.getItem('salesHistory') || '[]')
+    listUISales().then(sales => {
     const todayStr = new Date().toISOString().split('T')[0]
     const todaySales = sales.filter(s => s.date === todayStr)
 
@@ -68,6 +69,7 @@ export default function CashierAccess() {
       }
     })
     setShiftSales(recent)
+    }).catch(error => console.error('Unable to load cashier dashboard', error))
   }, [])
 
 

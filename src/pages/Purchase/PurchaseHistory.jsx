@@ -1,6 +1,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { listUIPurchases, subscribeToTable } from '../../services/erpService'
 
 // const purchaseData = [
 //   {
@@ -229,12 +230,7 @@ export default function PurchaseHistory() {
   const [purchaseData, setPurchaseData] = useState([]);
 
   useEffect(() => {
-    const savedPurchases =
-      JSON.parse(
-        localStorage.getItem("purchaseHistory")
-      ) || [];
-
-    setPurchaseData(savedPurchases);
+    const load=()=>listUIPurchases().then(setPurchaseData).catch(error=>alert(error.message));load();return subscribeToTable('purchases',load)
   }, []);
 
   const filteredPurchases = useMemo(() => {

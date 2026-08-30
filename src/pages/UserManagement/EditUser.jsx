@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { adminUsers } from '../../services/erpService'
 import { ArrowLeft, Save, UserRound, ShieldCheck, Lock, AlertCircle } from "lucide-react";
 
 const roles = [
@@ -23,14 +24,11 @@ export default function EditUser() {
     confirmPassword: "",
   });
 
-  const [savedUserPassword, setSavedUserPassword] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    try {
-      const users = JSON.parse(localStorage.getItem("users")) || [];
-      const user = users.find((item) => String(item.id) === String(id));
+    adminUsers('list').then(users=>{const user=users.find(item=>String(item.id)===String(id))
 
       if (!user) {
         setError("User not found.");
@@ -38,25 +36,23 @@ export default function EditUser() {
         return;
       }
 
-      setSavedUserPassword(user.password || "");
-
       setFormData({
         name: user.name || "",
         email: user.email || "",
         mobile: user.mobile || "",
-        role: user.role || "Cashier / Accountant",
-        status: user.status || "Active",
+        role: user.role==='admin'?"Admin / Owner":user.role==='manager'?"Manager":"Cashier / Accountant",
+        status: user.status==='active'?"Active":"Inactive",
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       });
 
       setLoading(false);
-    } catch (err) {
+    }).catch(err=>{
       console.error(err);
       setError("Failed to load user.");
       setLoading(false);
-    }
+    })
   }, [id]);
 
   const handleChange = (e) => {
@@ -68,7 +64,7 @@ export default function EditUser() {
     setError("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!formData.name.trim()) {
@@ -86,20 +82,6 @@ export default function EditUser() {
       return;
     }
 
-    // Mandatory Security Check: Current Password MUST be provided
-    if (!formData.currentPassword) {
-      setError("Please enter Current Password to save any changes.");
-      return;
-    }
-
-    if (formData.currentPassword !== savedUserPassword) {
-      setError("Incorrect Current Password. Access denied.");
-      return;
-    }
-
-    // Optional New Password Logic
-    let updatedPassword = savedUserPassword;
-
     if (formData.newPassword || formData.confirmPassword) {
       if (formData.newPassword.length < 6) {
         setError("New password must be at least 6 characters.");
@@ -111,50 +93,10 @@ export default function EditUser() {
         return;
       }
 
-      updatedPassword = formData.newPassword;
     }
 
     try {
-      const users = JSON.parse(localStorage.getItem("users")) || [];
-
-      const emailExists = users.some(
-        (user) =>
-          String(user.id) !== String(id) &&
-          user.email?.toLowerCase() === formData.email.toLowerCase()
-      );
-
-      if (emailExists) {
-        setError("Another user already uses this email.");
-        return;
-      }
-
-      const mobileExists = users.some(
-        (user) =>
-          String(user.id) !== String(id) && user.mobile === formData.mobile
-      );
-
-      if (mobileExists) {
-        setError("Another user already uses this mobile number.");
-        return;
-      }
-
-      const updatedUsers = users.map((user) => {
-        if (String(user.id) !== String(id)) {
-          return user;
-        }
-
-        return {
-          ...user,
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          mobile: formData.mobile,
-          role: formData.role,
-          status: formData.status,
-          password: updatedPassword,
-        };
-      });
-
-      localStorage.setItem("users", JSON.stringify(updatedUsers));
+      await adminUsers('update',{id,name:formData.name.trim(),email:formData.email.trim(),mobile:formData.mobile,role:formData.role==='Admin / Owner'?'admin':formData.role==='Manager'?'manager':'cashier',status:formData.status==='Active'?'active':'inactive',password:formData.newPassword||undefined})
       alert("User updated successfully!");
       navigate("/users");
     } catch (err) {

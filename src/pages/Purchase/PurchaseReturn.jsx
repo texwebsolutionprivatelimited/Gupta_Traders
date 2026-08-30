@@ -1,9 +1,7 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { findInventoryProduct } from "../../hooks/inventoryStorage";
-import { getSuppliers } from "../../hooks/supplierData";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import SearchableSelect from "../../components/SearchableSelect";
-import { queueSync } from "../../supabase/syncManager";
+import { completePurchaseReturn, listPurchases, listUISuppliers } from '../../services/erpService'
 
 const initialItems = [
   {
@@ -64,8 +62,8 @@ const productGST = {
 const productOptions = Object.keys(productPrices);
 
 export default function PurchaseReturn() {
-  const navigate = useNavigate();
-  const suppliersList = getSuppliers();
+  const [suppliersList,setSuppliersList]=useState([]),[sourcePurchases,setSourcePurchases]=useState([])
+  useEffect(()=>{Promise.all([listUISuppliers(),listPurchases()]).then(([s,p])=>{setSuppliersList(s);setSourcePurchases(p)}).catch(error=>alert(error.message))},[])
 
   const [supplier, setSupplier] = useState("");
   const [returnNo, setReturnNo] = useState("");
@@ -146,48 +144,7 @@ export default function PurchaseReturn() {
     { subtotal: 0, gst: 0, total: 0 }
   );
 
-  const reduceInventoryStock = (productName, quantity) => {
-    const inventoryProducts =
-      JSON.parse(localStorage.getItem("inventoryProducts")) || [];
-
-    const productIndex = inventoryProducts.findIndex(
-      (product) => product.name === productName
-    );
-
-    if (productIndex === -1) {
-      return {
-        success: false,
-        message: `${productName} inventory me nahi mila.`,
-      };
-    }
-
-    const existingProduct = inventoryProducts[productIndex];
-    const currentStock = Number(existingProduct.stock || 0);
-    const returnQuantity = Number(quantity || 0);
-
-    if (returnQuantity > currentStock) {
-      return {
-        success: false,
-        message:
-          `${productName} ka available stock ${currentStock} hai, ` +
-          `lekin aap ${returnQuantity} return kar rahe ho.`,
-      };
-    }
-
-    inventoryProducts[productIndex] = {
-      ...existingProduct,
-      stock: currentStock - returnQuantity,
-    };
-
-    localStorage.setItem(
-      "inventoryProducts",
-      JSON.stringify(inventoryProducts)
-    );
-
-    return { success: true };
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!supplier) {
@@ -217,163 +174,13 @@ export default function PurchaseReturn() {
       return;
     }
 
-    for (const item of items) {
-      const inventoryProduct = findInventoryProduct(item.product);
-
-      if (!inventoryProduct) {
-        alert(
-          `${item.product} inventory me nahi mila.\n\nPlease add this product from Product Management first.`
-        );
-        return;
-      }
-
-      const availableStock = Number(inventoryProduct.stock || 0);
-
-      if (Number(item.quantity) > availableStock) {
-        alert(
-          `${item.product} ka available stock ${availableStock} hai.\n\nAap sirf ${availableStock} quantity tak return kar sakte ho.`
-        );
-        return;
-      }
-    }
-
-    const timestamp = Date.now();
-    const generatedReturnNo = returnNo.trim() || `PR-${timestamp}`;
-    const transactionId = `PR-TXN-${timestamp}`;
-
-    const returnData = {
-      id: `PR-${timestamp}`,
-      returnNo: generatedReturnNo,
-      date: returnDate,
-      supplier,
-      invoice: invoiceNo.trim(),
-      reason,
-      notes,
-      items: [...items],
-      itemCount: items.length,
-      subtotal: totals.subtotal,
-      gst: totals.gst,
-      total: totals.total,
-      transactionId,
-      status: "Completed",
-      payment: "Refund Pending",
-    };
-
-    const existingReturns =
-      JSON.parse(localStorage.getItem("purchaseReturns")) || [];
-    localStorage.setItem(
-      "purchaseReturns",
-      JSON.stringify([returnData, ...existingReturns])
-    );
-
-    const purchases =
-      JSON.parse(localStorage.getItem("purchaseHistory")) || [];
-    const updatedPurchases = purchases.map((purchase) => {
-      if (purchase.invoice !== invoiceNo.trim()) {
-        return purchase;
-      }
-
-      return {
-        ...purchase,
-        status: "Returned",
-        payment: purchase.payment === "Paid" ? "Refunded" : "Refund Pending",
-        returnStatus: "Completed",
-        returnId: `PR-${timestamp}`,
-        returnedAmount: totals.total,
-        returnDate,
-      };
-    });
-
-    localStorage.setItem("purchaseHistory", JSON.stringify(updatedPurchases));
-
-    // Sync updated purchase to Supabase
-    const targetPurchase = updatedPurchases.find((p) => invoiceNo && p.invoice === invoiceNo.trim());
-    if (targetPurchase) {
-      queueSync("purchases", "update", targetPurchase);
-    }
-
-    for (const purchaseItem of items) {
-      const result = reduceInventoryStock(
-        purchaseItem.product,
-        purchaseItem.quantity
-      );
-
-      if (!result.success) {
-        alert(result.message);
-        return;
-      }
-    }
-
-    const supplierTransactions =
-      JSON.parse(localStorage.getItem("supplierTransactions")) || {};
-    if (!supplierTransactions[supplier]) {
-      supplierTransactions[supplier] = [];
-    }
-
-    supplierTransactions[supplier].push({
-      id: transactionId,
-      date: returnDate,
-      invoice: invoiceNo.trim(),
-      supplier,
-      type: "Purchase Return",
-      amount: totals.total,
-      paymentMethod: "Refund",
-      paymentStatus: "Refund Pending",
-      transactionStatus: "Completed",
-      reason,
-    });
-
-    localStorage.setItem(
-      "supplierTransactions",
-      JSON.stringify(supplierTransactions)
-    );
-
-    const supplierBalances =
-      JSON.parse(localStorage.getItem("supplierBalances")) || {};
-    const currentBalance = Number(supplierBalances[supplier] || 0);
-    supplierBalances[supplier] = Math.max(0, currentBalance - totals.total);
-
-    localStorage.setItem("supplierBalances", JSON.stringify(supplierBalances));
-
-    const financeTransactions =
-      JSON.parse(localStorage.getItem("financeTransactions")) || [];
-    financeTransactions.unshift({
-      id: transactionId,
-      date: returnDate,
-      type: "Income",
-      category: "Purchase Return",
-      supplier,
-      amount: totals.total,
-      paymentMethod: "Refund",
-      status: "Pending",
-      reference: invoiceNo.trim(),
-      reason,
-    });
-
-    localStorage.setItem(
-      "financeTransactions",
-      JSON.stringify(financeTransactions)
-    );
-
-    alert("Purchase return created successfully!\n\nInventory stock has been updated.");
-
-    setSupplier("");
-    setReturnNo("");
-    setInvoiceNo("");
-    setReason("");
-    setNotes("");
-    setReturnDate(new Date().toISOString().split("T")[0]);
-    setItems([
-      {
-        id: Date.now(),
-        product: "",
-        quantity: 1,
-        purchasePrice: 0,
-        gst: 5,
-      },
-    ]);
-
-    navigate("/purchase/history");
+    try {
+      const source=sourcePurchases.find(p=>p.purchase_number===invoiceNo.trim()||p.supplier_invoice_number===invoiceNo.trim()||p.id===invoiceNo.trim())
+      if(!source) throw new Error('Original purchase invoice was not found in Supabase.')
+      const rpcItems=items.map(item=>{const line=source.items?.find(x=>x.product_name===item.product||x.id===item.product);if(!line)throw new Error(`${item.product} is not on the selected purchase.`);return{purchase_item_id:line.id,quantity:Number(item.quantity)}})
+      await completePurchaseReturn({purchase_id:source.id,return_date:returnDate,reason,notes,refund_method:'Refund'},rpcItems)
+      alert('Purchase return created successfully! Inventory was updated atomically.');setSupplier('');setReturnNo('');setInvoiceNo('');setReason('');setNotes('');setReturnDate(new Date().toISOString().split('T')[0]);setItems(initialItems);return
+    } catch(error){alert(error.message)}
   };
 
   const inputStyle =

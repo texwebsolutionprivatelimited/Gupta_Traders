@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { searchProducts, lookupBarcode, categories } from '../../hooks/posData'
+import { listCategories, listUIProducts, subscribeToTable } from '../../services/erpService'
 import {
   FaSearch as MagnifyingGlassIcon,
   FaBalanceScale as ScaleIcon,
@@ -64,7 +64,8 @@ export default function ProductSearch({ onAddToCart }) {
   const [showLooseForm, setShowLooseForm] = useState(false)
   const [addedId, setAddedId] = useState(null)
   const [barcodeMode, setBarcodeMode] = useState(false)
-  const [productsVersion, setProductsVersion] = useState(0)
+  const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([{id:'all',name:'All'}])
   const searchRef = useRef(null)
   const barcodeRef = useRef(null)
   const barcodeBuffer = useRef('')
@@ -99,20 +100,13 @@ export default function ProductSearch({ onAddToCart }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Listen to product database updates
   useEffect(() => {
-    const handleUpdate = () => {
-      setProductsVersion(v => v + 1)
-    }
-    window.addEventListener('gt_products_updated', handleUpdate)
-    window.addEventListener('storage', handleUpdate)
-    return () => {
-      window.removeEventListener('gt_products_updated', handleUpdate)
-      window.removeEventListener('storage', handleUpdate)
-    }
+    const load=async()=>{try{const [items,cats]=await Promise.all([listUIProducts(),listCategories()]);setProducts(items.map(p=>({...p,price:p.sellingPrice,mrp:p.sellingPrice,isLoose:p.type==='loose'})));setCategories([{id:'all',name:'All'},...cats.filter(c=>c.status==='active').map(c=>({id:c.slug,name:c.name}))])}catch(error){console.error(error)}}
+    load();const offProducts=subscribeToTable('products',load),offInventory=subscribeToTable('inventory',load),offCategories=subscribeToTable('categories',load);return()=>{offProducts();offInventory();offCategories()}
   }, [])
 
-  const filteredProducts = searchProducts(query, activeCategory, productsVersion)
+  const q=query.toLowerCase().trim();const filteredProducts=products.filter(p=>(activeCategory==='all'||p.category===activeCategory)&&(!q||p.name.toLowerCase().includes(q)||p.barcode?.toLowerCase().includes(q)||p.sku?.toLowerCase().includes(q)))
+  const lookupBarcode = code => products.find(p=>p.barcode===code)||null
 
   // Handle barcode scanner input (rapid keystrokes ending with Enter)
   const handleBarcodeKeyDown = (e) => {

@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
-import { formatINR, getSavedBills } from '../../hooks/posData'
+import { useEffect, useRef, useState } from 'react'
+import { formatINR } from '../../utils/erp'
+import { listUISales, subscribeToTable } from '../../services/erpService'
 import { FaReceipt as ReceiptIcon, FaPrint as PrinterIcon, FaCheckCircle as CheckCircleIcon } from 'react-icons/fa'
 
 // ─── Bill Receipt Component (Print & Reprint) ───────────────────
@@ -268,7 +269,8 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
 
 // ─── Reprint Bills List ──────────────────────────────────────────
 export function ReprintDrawer({ onClose, onSelectBill }) {
-  const [bills] = useState(() => getSavedBills())
+  const [bills,setBills] = useState([])
+  useEffect(()=>{const load=()=>listUISales().then(rows=>setBills(rows.map(s=>({...s,billNumber:s.invoice,customerName:s.customer,timestamp:s.date,summary:{subtotal:s.subtotal,totalGST:s.gst,grandTotal:s.total},items:s.items.map(i=>({...i,name:i.product,price:i.salesPrice}))})))).catch(console.error);load();return subscribeToTable('sales',load)},[])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/60 backdrop-blur-sm transition-colors" onClick={onClose}>

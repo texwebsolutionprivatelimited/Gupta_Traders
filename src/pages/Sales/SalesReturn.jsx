@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SearchableSelect from "../../components/SearchableSelect";
-import { queueSync } from "../../supabase/syncManager";
+import { completeSalesReturn, listSales } from '../../services/erpService'
 
 const productPrices = {
   "Aashirvaad Atta": 420,
@@ -60,6 +60,8 @@ export default function SalesReturn() {
   const [notes, setNotes] = useState("");
 
   const [items, setItems] = useState([createInitialItem()]);
+  const [sourceSales,setSourceSales]=useState([])
+  useEffect(()=>{listSales().then(setSourceSales).catch(error=>alert(error.message))},[])
 
   const addItem = () => {
     setItems((prev) => [
@@ -134,7 +136,7 @@ export default function SalesReturn() {
     { subtotal: 0, gst: 0, total: 0 }
   );
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!customer) {
@@ -159,62 +161,13 @@ export default function SalesReturn() {
       return;
     }
 
-    const returnData = {
-      returnNo,
-      invoiceNo,
-      customer,
-      returnDate,
-      reason,
-      notes,
-      items,
-      totals,
-      status: "Pending",
-      payment: "Refunded",
-      createdAt: new Date().toISOString(),
-    };
-
-    // Update Sales History
-    const sales = JSON.parse(localStorage.getItem("salesHistory")) || [];
-    const updatedSales = sales.map((sale) => {
-      if (invoiceNo && sale.invoice === invoiceNo) {
-        return {
-          ...sale,
-          status: "Returned",
-          payment: "Refunded",
-        };
-      }
-      return sale;
-    });
-
-    localStorage.setItem("salesHistory", JSON.stringify(updatedSales));
-
-    // Sync updated sale to Supabase
-    const targetSale = updatedSales.find((s) => invoiceNo && s.invoice === invoiceNo);
-    if (targetSale) {
-      queueSync("sales", "update", targetSale);
-    }
-
-    // Save Sales Return History
-    const salesReturns =
-      JSON.parse(localStorage.getItem("salesReturns")) || [];
-    const newReturn = {
-      id: returnNo || `SR-${Date.now()}`,
-      ...returnData,
-    };
-
-    salesReturns.unshift(newReturn);
-    localStorage.setItem("salesReturns", JSON.stringify(salesReturns));
-
-    alert("Sales return created successfully!");
-
-    // Reset Form
-    setCustomer("");
-    setReturnNo("");
-    setInvoiceNo("");
-    setReturnDate(new Date().toISOString().split("T")[0]);
-    setReason("");
-    setNotes("");
-    setItems([createInitialItem()]);
+    try {
+      const source=sourceSales.find(s=>s.invoice_number===invoiceNo||s.id===invoiceNo)
+      if(!source) throw new Error('Original sale invoice was not found in Supabase.')
+      const rpcItems=items.map(item=>{const line=source.items?.find(x=>x.product_name===item.product||x.id===item.product);if(!line)throw new Error(`${item.product} is not on the selected invoice.`);return{sale_item_id:line.id,quantity:Number(item.quantity)}})
+      await completeSalesReturn({sale_id:source.id,return_date:returnDate,reason,notes,refund_method:'Refund'},rpcItems)
+      alert('Sales return created successfully!');setCustomer('');setReturnNo('');setInvoiceNo('');setReturnDate(new Date().toISOString().split('T')[0]);setReason('');setNotes('');setItems([createInitialItem()]);return
+    } catch(error){alert(error.message)}
   };
 
   return (

@@ -1,80 +1,10 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-
-const ReportContext = createContext();
-
-export function ReportProvider({ children }) {
-  const [salesRecords, setSalesRecords] = useState(() => {
-    try {
-      const saved = localStorage.getItem('salesHistory');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to load salesHistory:', e);
-      return [];
-    }
-  });
-
-  const [purchaseRecords, setPurchaseRecords] = useState(() => {
-    try {
-      const saved = localStorage.getItem('purchaseHistory');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to load purchaseHistory:', e);
-      return [];
-    }
-  });
-
-  const [stockItems, setStockItems] = useState(() => {
-    try {
-      const saved = localStorage.getItem('inventoryProducts');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to load inventoryProducts:', e);
-      return [];
-    }
-  });
-
-  // Sync state if storage changes elsewhere
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      try {
-        if (e.key === 'salesHistory') {
-          setSalesRecords(e.newValue ? JSON.parse(e.newValue) : []);
-        } else if (e.key === 'purchaseHistory') {
-          setPurchaseRecords(e.newValue ? JSON.parse(e.newValue) : []);
-        } else if (e.key === 'inventoryProducts') {
-          setStockItems(e.newValue ? JSON.parse(e.newValue) : []);
-        }
-      } catch (err) {
-        console.error('Failed to parse storage update:', err);
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
-
-  return (
-    <ReportContext.Provider
-      value={{
-        salesRecords,
-        setSalesRecords,
-        purchaseRecords,
-        setPurchaseRecords,
-        stockItems,
-        setStockItems,
-      }}
-    >
-      {children}
-    </ReportContext.Provider>
-  );
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { listExpenses, listProducts, listPurchases, listSales, subscribeToTable } from '../services/erpService'
+const ReportContext=createContext()
+export function ReportProvider({children}){
+ const [salesRecords,setSalesRecords]=useState([]),[purchaseRecords,setPurchaseRecords]=useState([]),[stockItems,setStockItems]=useState([]),[expenseRecords,setExpenseRecords]=useState([]),[error,setError]=useState(''),[loading,setLoading]=useState(true)
+ const refresh=useCallback(async()=>{try{const [s,p,i,e]=await Promise.all([listSales(),listPurchases(),listProducts({status:null}),listExpenses()]);setSalesRecords(s);setPurchaseRecords(p);setStockItems(i.map(x=>({...x,stock:Number(x.inventory?.quantity||0),currentStock:Number(x.inventory?.quantity||0),minStock:Number(x.minimum_stock||0),purchasePrice:Number(x.purchase_price),sellingPrice:Number(x.selling_price)})));setExpenseRecords(e);setError('')}catch(err){setError(err.message)}finally{setLoading(false)}},[])
+ useEffect(()=>{refresh();const off=['sales','purchases','inventory','expenses'].map(t=>subscribeToTable(t,refresh));return()=>off.forEach(x=>x())},[refresh])
+ return <ReportContext.Provider value={{salesRecords,purchaseRecords,stockItems,expenseRecords,loading,error,refresh,setSalesRecords,setPurchaseRecords,setStockItems}}>{children}</ReportContext.Provider>
 }
-
-export function useReport() {
-  const context = useContext(ReportContext);
-  if (!context) {
-    throw new Error('useReport must be used within a ReportProvider');
-  }
-  return context;
-}
+export function useReport(){const value=useContext(ReportContext);if(!value)throw new Error('useReport must be inside ReportProvider');return value}

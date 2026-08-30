@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react'
-import {
-  getTrashItems,
-  restoreFromTrash,
-  permanentlyDeleteFromTrash,
-  emptyTrash
-} from '../../hooks/trashData'
+import { emptyDatabaseTrash, listTrash, permanentlyDeleteTrashItem, restoreTrashItem } from '../../services/erpService'
 
 // ─── SVG Icons ──────────────────────────────────────────────────
 
@@ -167,8 +162,8 @@ export default function TrashPage() {
   const [restoreModalOpen, setRestoreModalOpen] = useState(false)
   const [itemToRestore, setItemToRestore] = useState(null)
 
-  const loadTrash = () => {
-    setTrashItems(getTrashItems())
+  const loadTrash = async () => {
+    try { const rows=await listTrash();setTrashItems(rows.map(row=>({trashId:row.id,originalId:row.id,type:row.entity_type,data:row.data,deletedAt:row.deleted_at}))) } catch(error){triggerToast(error.message,'error')}
   }
 
   useEffect(() => {
@@ -180,14 +175,12 @@ export default function TrashPage() {
     setTimeout(() => setToast(null), 4000)
   }
 
-  const handleRestoreConfirm = (trashId) => {
-    const res = restoreFromTrash(trashId)
+  const handleRestoreConfirm = async (trashId) => {
+    const item=trashItems.find(x=>x.trashId===trashId)
     setRestoreModalOpen(false)
     setItemToRestore(null)
-    if (res.error) {
-      triggerToast(res.error, 'error')
-    } else {
-      const restored = res.restoredItem
+    try { await restoreTrashItem(item.type,trashId)
+      const restored = item.data
       const name =
         restored.type === 'product' ? restored.name :
         restored.type === 'category' ? restored.name :
@@ -195,27 +188,25 @@ export default function TrashPage() {
         restored.name
 
       let restoredMessage = `Restored "${name}" successfully`
-      if (restored.id !== restored.originalId) {
-        restoredMessage += ` (Assigned new ID: ${restored.id} due to collision)`
-      }
       triggerToast(restoredMessage, 'success')
-      loadTrash()
-    }
+      await loadTrash()
+    } catch(error){triggerToast(error.message,'error')}
   }
 
-  const handlePermanentDeleteConfirm = (trashId) => {
-    permanentlyDeleteFromTrash(trashId)
+  const handlePermanentDeleteConfirm = async (trashId) => {
+    const item=trashItems.find(x=>x.trashId===trashId)
+    try { await permanentlyDeleteTrashItem(item.type,trashId) } catch(error){triggerToast(error.message,'error');return}
     setDeleteModalOpen(false)
     setItemToDelete(null)
     triggerToast('Item permanently deleted from trash', 'success')
-    loadTrash()
+    await loadTrash()
   }
 
-  const handleEmptyTrashConfirm = () => {
-    emptyTrash()
+  const handleEmptyTrashConfirm = async () => {
+    try { await emptyDatabaseTrash() } catch(error){triggerToast(error.message,'error');return}
     setEmptyModalOpen(false)
     triggerToast('Trash bin emptied successfully', 'success')
-    loadTrash()
+    await loadTrash()
   }
 
   // Filtered trash items

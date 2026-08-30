@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { CloseIcon, CustomersIcon } from './Icons'
-import { addCustomer, updateCustomer } from '../../hooks/customerData'
+import { saveCustomer } from '../../services/erpService'
 
 export default function CustomerFormModal({ customer, onSave, onCancel }) {
   const isEditing = !!customer
@@ -36,7 +36,7 @@ export default function CustomerFormModal({ customer, onSave, onCancel }) {
     }
   }, [])
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!name.trim()) {
       setError('Customer Name is required')
@@ -60,16 +60,7 @@ export default function CustomerFormModal({ customer, onSave, onCancel }) {
       payload.openingBalance = Number(openingBalance) || 0
     }
 
-    const result = isEditing
-      ? updateCustomer(customer.id, payload)
-      : addCustomer(payload)
-
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-
-    onSave(result.data, isEditing ? 'updated' : 'added')
+    try{const result=await saveCustomer(payload,isEditing?customer.id:null);onSave(result,isEditing?'updated':'added')}catch(error){setError(error.message)}
   }
 
   return (

@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ReceiptText, Save } from "lucide-react";
+import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 
 const defaultGST = {
   enabled: true,
@@ -12,14 +12,7 @@ const defaultGST = {
 };
 
 export default function GSTSettings() {
-  const [form, setForm] = useState(() => {
-    try {
-      const saved = localStorage.getItem("gstSettings");
-      return saved ? { ...defaultGST, ...JSON.parse(saved) } : defaultGST;
-    } catch {
-      return defaultGST;
-    }
-  });
+  const {form,setForm,save}=useBusinessSettings('gst',defaultGST)
 
   const update = (name, value) => {
     setForm((prev) => ({
@@ -28,10 +21,9 @@ export default function GSTSettings() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    localStorage.setItem("gstSettings", JSON.stringify(form));
-    alert("GST settings saved successfully!");
+    try{await save();alert("GST settings saved successfully!")}catch(error){alert(error.message)}
   };
 
   return (

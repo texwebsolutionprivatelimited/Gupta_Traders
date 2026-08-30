@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { WarningIcon } from './Icons'
-import { formatINR } from '../../hooks/productData'
+import { formatINR } from '../../utils/erp'
 
 export default function DeleteConfirmModal({ customer, onConfirm, onCancel }) {
   const hasBalance = customer.outstandingBalance !== 0

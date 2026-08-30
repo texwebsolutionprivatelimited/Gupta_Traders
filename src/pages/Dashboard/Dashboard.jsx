@@ -1,15 +1,16 @@
 import AdminAccess from '../login/AdminAccess'
 import ManagerAccess from '../login/ManagerAccess'
 import CashierAccess from '../login/CashierAccess'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Dashboard() {
-  const role = localStorage.getItem('userRole') || sessionStorage.getItem('userRole') || 'Admin'
+  const { role } = useAuth()
 
-  if (role === 'Manager') {
+  if (role === 'manager') {
     return <ManagerAccess />
   }
-  if (role === 'Cashier') {
+  if (role === 'cashier') {
     return <CashierAccess />
   }
-  return <AdminAccess />
+  return role === 'admin' ? <AdminAccess /> : null
 }

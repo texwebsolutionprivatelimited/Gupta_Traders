@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { adminUsers } from '../../services/erpService'
 import {
   Search,
   Plus,
@@ -11,33 +12,6 @@ import {
   Users,
   CheckCircle2,
 } from "lucide-react";
-
-const initialUsers = [
-  {
-    id: 1,
-    name: "Sanjana Yadav",
-    email: "admin@guptatraders.com",
-    mobile: "9876543210",
-    role: "Admin / Owner",
-    status: "Active",
-  },
-  {
-    id: 2,
-    name: "Amit Kumar",
-    email: "manager@guptatraders.com",
-    mobile: "9123456780",
-    role: "Manager",
-    status: "Active",
-  },
-  {
-    id: 3,
-    name: "Rahul Singh",
-    email: "cashier@guptatraders.com",
-    mobile: "9988776655",
-    role: "Cashier / Accountant",
-    status: "Active",
-  },
-];
 
 const rolePermissions = {
   "Admin / Owner": [
@@ -77,24 +51,8 @@ const rolePermissions = {
 export default function UserManagement() {
   const navigate = useNavigate();
 
-  const [users, setUsers] = useState(() => {
-    try {
-      const saved = localStorage.getItem("users");
-
-      if (saved) {
-        const parsed = JSON.parse(saved);
-
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load users:", error);
-    }
-
-    localStorage.setItem("users", JSON.stringify(initialUsers));
-    return initialUsers;
-  });
+  const [users, setUsers] = useState([]);
+  useEffect(()=>{adminUsers('list').then(rows=>setUsers(rows.map(u=>({...u,role:u.role==='admin'?'Admin / Owner':u.role==='manager'?'Manager':'Cashier / Accountant',status:u.status==='active'?'Active':'Inactive'})))).catch(error=>alert(error.message))},[])
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
@@ -136,11 +94,11 @@ export default function UserManagement() {
     (user) => user.role === "Cashier / Accountant"
   ).length;
 
-  const adminUsers = users.filter(
+  const adminUserCount = users.filter(
     (user) => user.role === "Admin / Owner"
   ).length;
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const user = users.find((item) => item.id === id);
 
     if (!user) return;
@@ -162,15 +120,7 @@ export default function UserManagement() {
 
     if (!confirmed) return;
 
-    const updatedUsers = users.filter(
-      (item) => item.id !== id
-    );
-
-    setUsers(updatedUsers);
-    localStorage.setItem(
-      "users",
-      JSON.stringify(updatedUsers)
-    );
+    try{await adminUsers('delete',{id});setUsers(prev=>prev.filter(item=>item.id!==id))}catch(error){alert(error.message)}
   };
 
   return (
@@ -188,7 +138,7 @@ export default function UserManagement() {
               </span>
             </div>
 
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
 
               User Management
             </h1>
@@ -258,7 +208,7 @@ export default function UserManagement() {
         <div className="mb-6 grid gap-4 md:grid-cols-3">
           <RoleCard
             role="Admin / Owner"
-            count={adminUsers}
+            count={adminUserCount}
             description="Full system access"
             permissions={rolePermissions["Admin / Owner"]}
             icon={<ShieldCheck size={20} />}
@@ -563,10 +513,9 @@ function RoleBadge({ role }) {
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-        classes[role] ||
+      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${classes[role] ||
         "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-      }`}
+        }`}
     >
       {role}
     </span>
@@ -578,16 +527,14 @@ function StatusBadge({ status }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-        active
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${active
           ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
           : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-      }`}
+        }`}
     >
       <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          active ? "bg-emerald-500" : "bg-slate-400 dark:bg-slate-500"
-        }`}
+        className={`h-1.5 w-1.5 rounded-full ${active ? "bg-emerald-500" : "bg-slate-400 dark:bg-slate-500"
+          }`}
       />
 
       {status}

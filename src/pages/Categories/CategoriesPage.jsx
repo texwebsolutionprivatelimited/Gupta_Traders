@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  getCategoriesV2, addCategory, updateCategory, deleteCategory,
-  getProductCountByCategory, iconPresets, colorPresets,
-} from '../../hooks/categoryData'
+  iconPresets, colorPresets,
+} from '../../utils/erp'
+import { createCategory, listCategories, listUIProducts, removeCategory, subscribeToTable, updateCategory } from '../../services/erpService'
 
 // ─── SVG Icons ──────────────────────────────────────────────────
 
@@ -253,23 +253,14 @@ function CategoryFormModal({ category, onSave, onCancel }) {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!name.trim()) {
       setError('Category name is required')
       return
     }
 
-    const result = isEditing
-      ? updateCategory(category.id, { name: name.trim(), description: description.trim(), icon, color, status, image })
-      : addCategory({ name: name.trim(), description: description.trim(), icon, color, status, image })
-
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-
-    onSave(result.data, isEditing ? 'updated' : 'added')
+    try { const result=isEditing ? await updateCategory(category.uuid||category.id,{name:name.trim(),description:description.trim(),icon,color,status,image}) : await createCategory({name:name.trim(),description:description.trim(),icon,color,status,image}); onSave(result,isEditing?'updated':'added') } catch(error){setError(error.message)}
   }
 
   return (
@@ -783,14 +774,14 @@ export default function CategoriesPage() {
   const [toast, setToast] = useState(null)
 
   // Load data
-  function loadData() {
-    const cats = getCategoriesV2()
-    setCategories(cats.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)))
-    setProductCounts(getProductCountByCategory())
+  async function loadData() {
+    try { const [cats,products]=await Promise.all([listCategories(),listUIProducts({status:null})]);setCategories(cats.map(c=>({...c,uuid:c.id,id:c.slug,image:c.image_url,sortOrder:c.sort_order})));const counts={};products.forEach(p=>{counts[p.category]=(counts[p.category]||0)+1});setProductCounts(counts) } catch(error){setToast({message:error.message,type:'error'})}
   }
 
   useEffect(() => {
     loadData()
+    const offCategories=subscribeToTable('categories',loadData),offProducts=subscribeToTable('products',loadData)
+    return()=>{offCategories();offProducts()}
   }, [])
 
   // Filter categories
@@ -822,11 +813,9 @@ export default function CategoriesPage() {
     setDeleteTarget(cat)
   }
 
-  function confirmDelete(id) {
-    deleteCategory(id)
-    setDeleteTarget(null)
-    loadData()
-    setToast({ message: 'Category deleted successfully', type: 'success' })
+  async function confirmDelete(id) {
+    const category=categories.find(c=>c.id===id||c.uuid===id)
+    try{await removeCategory(category?.uuid||id);setDeleteTarget(null);await loadData();setToast({ message: 'Category deleted successfully', type: 'success' })}catch(error){setToast({message:error.message,type:'error'})}
   }
 
   function handleSave(data, action) {

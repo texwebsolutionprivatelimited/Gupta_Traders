@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { adminUsers } from '../../services/erpService'
 import {
     ArrowLeft,
     Save,
@@ -7,7 +8,6 @@ import {
     AlertCircle,
     UserRound,
     Lock,
-    KeyRound
 } from "lucide-react";
 
 const roles = [
@@ -27,7 +27,6 @@ export default function AddUser() {
         status: "Active",
         password: "",
         confirmPassword: "",
-        adminPasscode: "", // Security verification field
     });
 
     const [error, setError] = useState("");
@@ -43,7 +42,7 @@ export default function AddUser() {
         setError("");
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         const {
@@ -54,7 +53,6 @@ export default function AddUser() {
             status,
             password,
             confirmPassword,
-            adminPasscode,
         } = formData;
 
         // Basic Validations
@@ -83,63 +81,7 @@ export default function AddUser() {
             return;
         }
 
-        // Security Validation: Mandatory Admin Security Code
-        if (!adminPasscode.trim()) {
-            setError("Please enter Admin Passcode to authorize adding a new user.");
-            return;
-        }
-
-        // Default Security PIN/Passcode Check (Aap isse apne requirement ke hisab se change kar sakte hain)
-        const DEFAULT_ADMIN_PASSCODE = "123456"; 
-
-        if (adminPasscode !== DEFAULT_ADMIN_PASSCODE) {
-            setError("Invalid Admin Passcode! Authorization failed.");
-            return;
-        }
-
-        let users = [];
-
-        try {
-            users = JSON.parse(localStorage.getItem("users")) || [];
-        } catch {
-            users = [];
-        }
-
-        const emailExists = users.some(
-            (user) => user.email?.toLowerCase() === email.toLowerCase()
-        );
-
-        if (emailExists) {
-            setError("A user with this email already exists.");
-            return;
-        }
-
-        const mobileExists = users.some(
-            (user) => user.mobile === mobile
-        );
-
-        if (mobileExists) {
-            setError("A user with this mobile number already exists.");
-            return;
-        }
-
-        const newUser = {
-            id: Date.now(),
-            name: name.trim(),
-            email: email.trim(),
-            mobile: mobile.trim(),
-            role,
-            status,
-            password,
-            createdAt: new Date().toISOString(),
-        };
-
-        const updatedUsers = [...users, newUser];
-
-        localStorage.setItem("users", JSON.stringify(updatedUsers));
-
-        alert("User added successfully!");
-        navigate("/users");
+        try{await adminUsers('create',{name:name.trim(),email:email.trim(),mobile:mobile.trim(),role:role==='Admin / Owner'?'admin':role==='Manager'?'manager':'cashier',status:status==='Active'?'active':'inactive',password});alert('User added successfully!');navigate('/users')}catch(error){setError(error.message)}
     };
 
     const inputClassName =
@@ -337,19 +279,6 @@ export default function AddUser() {
                                 />
                             </FormField>
 
-                            {/* Admin Authorization Security Field */}
-                            <FormField label="Admin Passcode" required>
-                                <div className="relative">
-                                    <input
-                                        type="password"
-                                        name="adminPasscode"
-                                        value={formData.adminPasscode}
-                                        onChange={handleChange}
-                                        placeholder="Enter Admin PIN"
-                                        className={inputClassName}
-                                    />
-                                </div>
-                            </FormField>
                         </div>
                     </div>
 

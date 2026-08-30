@@ -8,11 +8,13 @@ import {
   LedgerIcon,
   PrintIcon
 } from './Icons'
-import { recordCustomerTransaction } from '../../hooks/customerData'
-import { formatINR } from '../../hooks/productData'
+import { recordPartyTransaction } from '../../services/erpService'
+import { useAuth } from '../../context/AuthContext'
+import { formatINR } from '../../utils/erp'
 
 export default function CustomerLedgerModal({ customer, onTransactionRecorded, onClose }) {
-  const userRole = localStorage.getItem('userRole') || sessionStorage.getItem('userRole') || 'Admin'
+  const { role } = useAuth()
+  const userRole = role === 'cashier' ? 'Cashier' : role === 'manager' ? 'Manager' : 'Admin'
   const [txnAmount, setTxnAmount] = useState('')
   const [txnType, setTxnType] = useState('payment') // 'payment', 'invoice', or 'adjustment'
   const [paymentMode, setPaymentMode] = useState('UPI')
@@ -34,7 +36,7 @@ export default function CustomerLedgerModal({ customer, onTransactionRecorded, o
     }
   }, [])
 
-  function handleRecordTxn(e) {
+  async function handleRecordTxn(e) {
     e.preventDefault()
     setError('')
 
@@ -60,17 +62,7 @@ export default function CustomerLedgerModal({ customer, onTransactionRecorded, o
       description: finalDesc,
     }
 
-    const result = recordCustomerTransaction(customer.id, payload)
-    if (result.error) {
-      setError(result.error)
-      return
-    }
-
-    // Clear form
-    setTxnAmount('')
-    setTxnDescription('')
-    setRefNo('')
-    onTransactionRecorded(result.data, `Transaction recorded successfully`)
+    try{const balance=await recordPartyTransaction('customer',customer.id,payload);setTxnAmount('');setTxnDescription('');setRefNo('');onTransactionRecorded({...customer,outstandingBalance:Number(balance)},'Transaction recorded successfully')}catch(error){setError(error.message)}
   }
 
   function handleTypeChange(type) {

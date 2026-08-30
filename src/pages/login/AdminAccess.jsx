@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { listUICustomers, listUIPurchases, listUIProducts, listUISales } from '../../services/erpService'
 import {
   FaChartPie,
   FaReceipt,
@@ -20,7 +21,7 @@ import {
   FaChartBar
 } from 'react-icons/fa'
 
-// Static Sample Data removed. Sourced dynamically from localStorage.
+// Dashboard data is loaded from Supabase.
 
 // ─── Icons ─────────────────────────────────────────
 
@@ -125,10 +126,7 @@ export default function AdminAccess() {
   const [salesOverview, setSalesOverview] = useState([])
 
   useEffect(() => {
-    const products = JSON.parse(localStorage.getItem('gt_products') || '[]')
-    const customers = JSON.parse(localStorage.getItem('gt_customers') || '[]')
-    const sales = JSON.parse(localStorage.getItem('salesHistory') || '[]')
-    const purchases = JSON.parse(localStorage.getItem('purchaseHistory') || '[]')
+    Promise.all([listUIProducts(), listUICustomers(), listUISales(), listUIPurchases()]).then(([products, customers, sales, purchases]) => {
 
     const todayStr = new Date().toISOString().split('T')[0]
 
@@ -183,6 +181,7 @@ export default function AdminAccess() {
       }
     })
     setSalesOverview(last7Days)
+    }).catch(error => console.error('Unable to load dashboard', error))
   }, [])
 
   // List of all modules allowed for Admin/Owner

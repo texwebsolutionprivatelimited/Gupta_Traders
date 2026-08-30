@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Printer, Save } from "lucide-react";
+import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 
 const defaultPrinter = {
   printerType: "Thermal Printer",
@@ -12,17 +12,7 @@ const defaultPrinter = {
 };
 
 export default function PrinterSettings() {
-  const [form, setForm] = useState(() => {
-    try {
-      const saved = localStorage.getItem("printerSettings");
-
-      return saved
-        ? { ...defaultPrinter, ...JSON.parse(saved) }
-        : defaultPrinter;
-    } catch {
-      return defaultPrinter;
-    }
-  });
+  const {form,setForm,save}=useBusinessSettings('printer',defaultPrinter)
 
   const update = (name, value) => {
     setForm((prev) => ({
@@ -31,15 +21,9 @@ export default function PrinterSettings() {
     }));
   };
 
-  const saveSettings = (e) => {
+  const saveSettings = async (e) => {
     e.preventDefault();
-
-    localStorage.setItem(
-      "printerSettings",
-      JSON.stringify(form)
-    );
-
-    alert("Printer settings saved successfully!");
+    try{await save();alert("Printer settings saved successfully!")}catch(error){alert(error.message)}
   };
 
   const testPrint = () => {

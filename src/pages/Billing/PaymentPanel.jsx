@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatINR, calculateBillSummary } from '../../hooks/posData'
+import { formatINR, calculateBillSummary } from '../../utils/erp'
 import {
   FaTag as TagIcon,
   FaChartBar as ChartIcon,

@@ -1,14 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import {
-  getSuppliers,
-  addSupplier,
-  updateSupplier,
-  deleteSupplier,
-  recordSupplierTransaction,
-  getSupplierStats
-} from '../../hooks/supplierData'
-import { formatINR } from '../../hooks/productData'
+import { deleteSupplier, listUISuppliers, recordPartyTransaction, saveSupplier, subscribeToTable } from '../../services/erpService'
+import { formatINR } from '../../utils/erp'
 
 // ─── SVG Icons ──────────────────────────────────────────────────
 
@@ -221,7 +214,7 @@ function SupplierFormModal({ supplier, onSave, onCancel }) {
     nameRef.current?.focus()
   }, [])
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!companyName.trim()) {
       setError('Company Name is required')
@@ -249,16 +242,12 @@ function SupplierFormModal({ supplier, onSave, onCancel }) {
       payload.openingBalance = Number(openingBalance) || 0
     }
 
-    const result = isEditing
-      ? updateSupplier(supplier.id, payload)
-      : addSupplier(payload)
-
-    if (result.error) {
-      setError(result.error)
-      return
+    try {
+      const result = await saveSupplier(payload, isEditing ? supplier.id : null)
+      onSave(result, isEditing ? 'updated' : 'added')
+    } catch (error) {
+      setError(error.message)
     }
-
-    onSave(result.data, isEditing ? 'updated' : 'added')
   }
 
   return (
@@ -461,7 +450,7 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
   const [txnDescription, setTxnDescription] = useState('')
   const [error, setError] = useState('')
 
-  function handleRecordTxn(e) {
+  async function handleRecordTxn(e) {
     e.preventDefault()
     setError('')
 
@@ -482,16 +471,14 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
       description: txnDescription.trim(),
     }
 
-    const result = recordSupplierTransaction(supplier.id, payload)
-    if (result.error) {
-      setError(result.error)
-      return
+    try {
+      const balance = await recordPartyTransaction('supplier', supplier.id, payload)
+      setTxnAmount('')
+      setTxnDescription('')
+      onTransactionRecorded({ ...supplier, outstandingBalance: Number(balance) }, 'Transaction recorded successfully')
+    } catch (error) {
+      setError(error.message)
     }
-
-    // Clear form
-    setTxnAmount('')
-    setTxnDescription('')
-    onTransactionRecorded(result.data, `Transaction recorded successfully`)
   }
 
   // Pre-fill description based on type for quick entry
@@ -798,13 +785,19 @@ export default function SuppliersPage() {
   }, [search, filterBalance, filterStatus])
 
   // Load and refresh stats
-  const refreshData = () => {
-    setSuppliers(getSuppliers())
-    setStats(getSupplierStats())
+  const refreshData = async () => {
+    try {
+      const list = await listUISuppliers()
+      setSuppliers(list)
+      setStats({ totalSuppliers: list.length, activeSuppliers: list.filter(s => s.status === 'active').length, totalPayables: list.reduce((n, s) => n + Math.max(0, s.outstandingBalance), 0), totalAdvances: list.reduce((n, s) => n + Math.max(0, -s.outstandingBalance), 0) })
+    } catch (error) {
+      showToast(error.message, 'error')
+    }
   }
 
   useEffect(() => {
     refreshData()
+    return subscribeToTable('suppliers', refreshData)
   }, [])
 
   function showToast(message, type = 'success') {
@@ -818,15 +811,15 @@ export default function SuppliersPage() {
     showToast(`Supplier "${savedData.companyName}" successfully ${actionType}!`, 'success')
   }
 
-  function handleDeleteConfirm(id) {
-    const result = deleteSupplier(id)
-    setDeleteModalOpen(false)
-    setSupplierToDelete(null)
-    if (result.error) {
-      showToast(result.error, 'error')
-    } else {
-      refreshData()
+  async function handleDeleteConfirm(id) {
+    try {
+      await deleteSupplier(id)
+      setDeleteModalOpen(false)
+      setSupplierToDelete(null)
+      await refreshData()
       showToast('Supplier deleted successfully', 'success')
+    } catch (error) {
+      showToast(error.message, 'error')
     }
   }
 

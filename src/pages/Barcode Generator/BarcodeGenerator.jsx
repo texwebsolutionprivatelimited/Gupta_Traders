@@ -1,20 +1,17 @@
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import ProductSelector from './ProductSelector'
 import BarcodeForm from './BarcodeForm'
 import PrintSettings, { LABEL_SIZES } from './PrintSettings'
 import BarcodePreview from './BarcodePreview'
 import PrinterStatus from './PrinterStatus'
 import {
-  getAllProducts,
-  updateProduct,
-  addProduct,
   generateNextSKU,
   generateNextProductCode,
   generateNextBarcode,
-} from '../../hooks/productData'
+} from '../../utils/erp'
+import { createProduct, listUIProducts, saveBarcodePrintJob, updateProduct } from '../../services/erpService'
 
-function generateUniqueBarcode() {
-  const products = getAllProducts()
+function generateUniqueBarcode(products) {
   const existing = new Set(
     products.filter((p) => p.barcode).map((p) => p.barcode.trim().toLowerCase())
   )
@@ -67,25 +64,6 @@ function parsePackSize(packSize) {
 }
 
 // ─── Print History ──────────────────────────────────────────────
-function savePrintHistory(productName, barcode, count) {
-  try {
-    const history = JSON.parse(localStorage.getItem('gt_barcode_print_history') || '[]')
-    const user = localStorage.getItem('userName') || localStorage.getItem('userRole') || 'Admin'
-    history.unshift({
-      id: `bp-${Date.now()}`,
-      productName,
-      barcode,
-      quantityPrinted: count,
-      printedAt: new Date().toISOString(),
-      printedBy: user,
-    })
-    if (history.length > 100) history.length = 100
-    localStorage.setItem('gt_barcode_print_history', JSON.stringify(history))
-  } catch (e) {
-    console.error('Failed to save print history:', e)
-  }
-}
-
 // ─── Initial Form Data ─────────────────────────────────────────
 const INITIAL_FORM = {
   name: '',
@@ -170,6 +148,8 @@ function Toast({ toast, onClose }) {
 // ─── MAIN: Barcode Generator Page ───────────────────────────────
 // ═══════════════════════════════════════════════════════════════
 export default function BarcodeGenerator() {
+  const [databaseProducts,setDatabaseProducts]=useState([])
+  useEffect(()=>{listUIProducts().then(setDatabaseProducts).catch(console.error)},[])
   // ─── State ──────────────────────────────────────────────────
   const [formData, setFormData] = useState(INITIAL_FORM)
   const [selectedProduct, setSelectedProduct] = useState(null)
@@ -299,7 +279,7 @@ export default function BarcodeGenerator() {
       // If no product selected, look up if a product with the same name + unit exists
       if (!productToUse) {
         const normalizedInputUnit = normalizeUnit(formData.unit)
-        const found = getAllProducts().find(p => 
+        const found = databaseProducts.find(p =>
           p.name.trim().toLowerCase() === formData.name.trim().toLowerCase() &&
           normalizeUnit(p.unit).toLowerCase() === normalizedInputUnit.toLowerCase()
         )
@@ -312,7 +292,7 @@ export default function BarcodeGenerator() {
       // Check if manual barcode was entered and if a product with that barcode already exists
       const manualBarcodeTrimmed = formData.manualBarcode?.trim()
       if (!productToUse && manualBarcodeTrimmed) {
-        const foundByBarcode = getAllProducts().find(p => p.barcode?.trim() === manualBarcodeTrimmed)
+        const foundByBarcode = databaseProducts.find(p => p.barcode?.trim() === manualBarcodeTrimmed)
         if (foundByBarcode) {
           productToUse = foundByBarcode
           setSelectedProduct(foundByBarcode)
@@ -321,7 +301,7 @@ export default function BarcodeGenerator() {
 
       if (productToUse) {
         // ── Existing Product ──
-        barcode = manualBarcodeTrimmed || productToUse.barcode || generateUniqueBarcode()
+        barcode = manualBarcodeTrimmed || productToUse.barcode || generateUniqueBarcode(databaseProducts)
         
         const updates = {}
         if (barcode !== productToUse.barcode) {
@@ -348,14 +328,14 @@ export default function BarcodeGenerator() {
         }
         
         if (Object.keys(updates).length > 0) {
-          updateProduct(productToUse.id, updates)
+          await updateProduct(productToUse.id, updates)
         }
       } else {
         // ── New Manual Product — Create & Associate ──
         const isLoose = formData.productType === 'loose'
-        barcode = manualBarcodeTrimmed || (isLoose ? (generateNextBarcode('loose') || generateUniqueBarcode()) : generateUniqueBarcode())
+        barcode = manualBarcodeTrimmed || (isLoose ? (generateNextBarcode('loose') || generateUniqueBarcode(databaseProducts)) : generateUniqueBarcode(databaseProducts))
         
-        const newProduct = addProduct({
+        const newProduct = await createProduct({
           type: formData.productType || 'packaged',
           name: formData.name.trim(),
           nameHi: formData.nameHi.trim(),
@@ -410,7 +390,7 @@ export default function BarcodeGenerator() {
     setIsPrinting(true)
 
     // Save print history
-    savePrintHistory(formData.name, generatedBarcode, generatedLabels.length)
+    saveBarcodePrintJob({product_id:selectedProduct?.id||null,product_name:formData.name,barcode:generatedBarcode,quantity_printed:generatedLabels.length}).catch(error=>console.error(error))
 
     // Allow print area to fully render, then trigger print dialog
     setTimeout(() => {

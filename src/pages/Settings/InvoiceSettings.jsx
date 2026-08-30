@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, FileText, Save } from "lucide-react";
+import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 
 const defaultInvoice = {
   prefix: "INV-",
@@ -13,16 +13,7 @@ const defaultInvoice = {
 };
 
 export default function InvoiceSettings() {
-  const [form, setForm] = useState(() => {
-    try {
-      const saved = localStorage.getItem("invoiceSettings");
-      return saved
-        ? { ...defaultInvoice, ...JSON.parse(saved) }
-        : defaultInvoice;
-    } catch {
-      return defaultInvoice;
-    }
-  });
+  const {form,setForm,save}=useBusinessSettings('invoice',defaultInvoice)
 
   const update = (name, value) => {
     setForm((prev) => ({
@@ -31,10 +22,9 @@ export default function InvoiceSettings() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    localStorage.setItem("invoiceSettings", JSON.stringify(form));
-    alert("Invoice settings saved successfully!");
+    try{await save();alert("Invoice settings saved successfully!")}catch(error){alert(error.message)}
   };
 
   return (

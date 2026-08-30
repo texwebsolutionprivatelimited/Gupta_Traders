@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, Edit3, Trash2 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
+import { completePurchase, listUISuppliers, listUIProducts } from '../../services/erpService'
 
 const initialItems = [
   {
@@ -37,6 +38,8 @@ export default function PurchaseEntry() {
   const [utrNo, setUtrNo] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState(initialItems);
+  const [remoteProducts,setRemoteProducts]=useState([]),[remoteSuppliers,setRemoteSuppliers]=useState([])
+  useEffect(()=>{Promise.all([listUIProducts(),listUISuppliers()]).then(([p,s])=>{setRemoteProducts(p);setRemoteSuppliers(s)}).catch(e=>alert(e.message))},[])
 
   // Selected item state for view/edit modals
   const [selectedItem, setSelectedItem] = useState(null);
@@ -127,7 +130,7 @@ export default function PurchaseEntry() {
     { subtotal: 0, gst: 0, total: 0 }
   );
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!supplier) {
@@ -144,50 +147,7 @@ export default function PurchaseEntry() {
       return;
     }
 
-    const purchaseData = {
-      id: `PUR-${Date.now()}`,
-      date: purchaseDate,
-      supplier,
-      billNo: billNo || `BILL-${Date.now()}`,
-      items: [...items],
-      itemCount: items.length,
-      subtotal: totals.subtotal,
-      gst: totals.gst,
-      total: totals.total,
-      status: "Completed",
-      payment: paymentMode === "Credit" ? "Pending" : "Paid",
-      paymentMode,
-      utrNo: ["UPI", "Bank Transfer", "Cheque"].includes(paymentMode) ? utrNo : "",
-      notes,
-    };
-
-    const existingPurchases =
-      JSON.parse(localStorage.getItem("purchaseHistory")) || [];
-
-    localStorage.setItem(
-      "purchaseHistory",
-      JSON.stringify([purchaseData, ...existingPurchases])
-    );
-
-    const transactions =
-      JSON.parse(localStorage.getItem("transactions")) || [];
-
-    transactions.unshift({
-      id: `TXN-${Date.now()}`,
-      type: "Purchase",
-      billNo: purchaseData.billNo,
-      supplier,
-      amount: totals.total,
-      paymentMode,
-      utrNo: purchaseData.utrNo,
-      status: paymentMode === "Credit" ? "Pending" : "Success",
-      date: purchaseDate,
-    });
-
-    localStorage.setItem("transactions", JSON.stringify(transactions));
-
-    alert("Purchase saved successfully!");
-    navigate("/purchase/history");
+    try{const supplierRow=remoteSuppliers.find(s=>s.companyName===supplier||s.id===supplier);if(!supplierRow)throw new Error('Select a valid supplier');const rpcItems=items.map(item=>{const p=remoteProducts.find(x=>x.name===item.product||x.id===item.product);if(!p)throw new Error(`Product not found: ${item.product}`);return{product_id:p.id,quantity:Number(item.quantity),unit_price:Number(item.purchasePrice),tax_rate:Number(item.gst)}});await completePurchase({supplier_id:supplierRow.id,supplier_invoice_number:billNo||null,purchase_date:purchaseDate,amount_paid:paymentMode==='Credit'?0:totals.total,payment_method:paymentMode,payment_reference:utrNo,notes},rpcItems);alert('Purchase saved successfully!');navigate('/purchase/history')}catch(error){alert(error.message)}
   };
 
   return (

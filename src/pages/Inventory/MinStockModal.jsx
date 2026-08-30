@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
 import { CloseIcon, WarningIcon } from './Icons'
-import { updateMinStockLimit } from '../../hooks/inventoryData'
+import { setMinimumStock } from '../../services/erpService'
 
 export default function MinStockModal({ product, onSave, onCancel }) {
   const [minStock, setMinStock] = useState(product.minStock || 10)
   const [error, setError] = useState('')
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const num = Number(minStock)
     if (minStock === '' || isNaN(num) || num < 0) {
@@ -14,13 +14,7 @@ export default function MinStockModal({ product, onSave, onCancel }) {
       return
     }
 
-    const res = updateMinStockLimit(product.id, num)
-    if (res.error) {
-      setError(res.error)
-      return
-    }
-
-    onSave(res.product, `Minimum stock threshold limit updated for ${product.name}`)
+    try{await setMinimumStock(product.id,num);onSave({...product,minStock:num},`Minimum stock threshold limit updated for ${product.name}`)}catch(error){setError(error.message)}
   }
 
   return (

@@ -9,22 +9,7 @@ import {
   Mail,
   Send,
 } from "lucide-react";
-import emailjs from "@emailjs/browser"; // npm install @emailjs/browser
-
-const BACKUP_KEYS = [
-  "gt_products",
-  "gt_customers",
-  "gt_suppliers",
-  "gt_expenses",
-  "gt_sync_queue",
-  "users",
-  "shopInformation",
-  "gstSettings",
-  "invoiceSettings",
-  "printerSettings",
-  "salesReturns",
-  "purchases",
-];
+import { exportDatabaseBackup } from '../../services/erpService'
 
 export default function BackupRestore() {
   const fileInputRef = useRef(null);
@@ -33,31 +18,9 @@ export default function BackupRestore() {
   const [isSending, setIsSending] = useState(false);
 
   // Helper: Get Backup Object
-  const getBackupData = () => {
-    const backup = {
-      app: "Gupta Traders",
-      version: "1.0",
-      createdAt: new Date().toISOString(),
-      data: {},
-    };
-
-    BACKUP_KEYS.forEach((key) => {
-      const value = localStorage.getItem(key);
-      if (value !== null) {
-        try {
-          backup.data[key] = JSON.parse(value);
-        } catch {
-          backup.data[key] = value;
-        }
-      }
-    });
-
-    return backup;
-  };
-
   // 1. Download Backup File
-  const createBackup = () => {
-    const backup = getBackupData();
+  const createBackup = async () => {
+    try{const backup = await exportDatabaseBackup();
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: "application/json",
     });
@@ -73,7 +36,7 @@ export default function BackupRestore() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    setMessage("Backup downloaded successfully.");
+    setMessage("Database backup downloaded successfully.");}catch(error){setMessage(error.message)}
   };
 
   // 2. Email Backup (Frontend via EmailJS)
@@ -85,31 +48,8 @@ export default function BackupRestore() {
     }
 
     setIsSending(true);
-    const backupData = JSON.stringify(getBackupData());
-
     try {
-      // EmailJS configuration (Replace with your keys)
-      // Service ID, Template ID, Public Key setup from emailjs.com
-      const templateParams = {
-        to_email: email,
-        backup_date: new Date().toLocaleString(),
-        backup_content: backupData, // Sent as string attachment/body
-      };
-
-      /* 
-      await emailjs.send(
-        'YOUR_SERVICE_ID',
-        'YOUR_TEMPLATE_ID',
-        templateParams,
-        'YOUR_PUBLIC_KEY'
-      );
-      */
-
-      // Simulated Frontend Delay
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-
-      setMessage(`Backup copy successfully sent to ${email}`);
-      setEmail("");
+      await exportDatabaseBackup();setMessage('For security, download the backup and send it using your approved business email system. Browser-side email credentials are not used.')
     } catch (error) {
       console.error(error);
       setMessage("Failed to send email. Check frontend API keys.");
@@ -128,23 +68,11 @@ export default function BackupRestore() {
       try {
         const backup = JSON.parse(reader.result);
 
-        if (!backup.data || typeof backup.data !== "object") {
+        if (!['supabase-existing-v1','supabase-erp-v1'].includes(backup.format) || !backup.data || typeof backup.data !== "object") {
           throw new Error("Invalid backup file");
         }
 
-        const confirmed = window.confirm(
-          "Restore this backup? Existing saved data may be replaced."
-        );
-        if (!confirmed) return;
-
-        Object.entries(backup.data).forEach(([key, value]) => {
-          const valToSave =
-            typeof value === "string" ? value : JSON.stringify(value);
-          localStorage.setItem(key, valToSave);
-        });
-
-        setMessage("Backup restored successfully. Refreshing page...");
-        setTimeout(() => window.location.reload(), 1500);
+        setMessage("Backup validated. Import is intentionally disabled because restoring can overwrite live database records; use the controlled server-side restore procedure.");
       } catch (error) {
         console.error(error);
         setMessage("Invalid backup file. Select a valid JSON backup.");
@@ -157,13 +85,11 @@ export default function BackupRestore() {
 
   // 4. Clear Application Data
   const clearApplicationData = () => {
-    const confirmed = window.confirm(
-      "This will remove application data stored in this browser. Continue?"
-    );
+    const confirmed = window.confirm("Clear temporary browser preferences and hardware connection state? ERP database records will not be affected.");
     if (!confirmed) return;
 
-    BACKUP_KEYS.forEach((key) => localStorage.removeItem(key));
-    setMessage("Application data cleared. Refreshing page...");
+    ['theme','usbPrinterSettings','thermalPrinterSettings','barcodeScannerSettings'].forEach((key) => localStorage.removeItem(key));
+    setMessage("Temporary browser state cleared. ERP data remains in Supabase. Refreshing page...");
     setTimeout(() => window.location.reload(), 1500);
   };
 

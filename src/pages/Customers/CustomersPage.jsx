@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import {
-  getCustomers,
-  deleteCustomer,
-  getCustomerStats
-} from '../../hooks/customerData'
-import { formatINR } from '../../hooks/productData'
+import { deleteCustomer, listUICustomers, subscribeToTable } from '../../services/erpService'
+import { useAuth } from '../../context/AuthContext'
+import { formatINR } from '../../utils/erp'
 
 // Components
 import Toast from './Toast'
@@ -28,7 +25,8 @@ import {
 export default function CustomersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const userRole = localStorage.getItem('userRole') || sessionStorage.getItem('userRole') || 'Admin'
+  const { role } = useAuth()
+  const userRole = role === 'cashier' ? 'Cashier' : role === 'manager' ? 'Manager' : 'Admin'
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
@@ -74,10 +72,10 @@ export default function CustomersPage() {
   }, [searchParams])
 
   // Load Data
-  const loadData = () => {
-    const list = getCustomers()
+  const loadData = async () => {
+    try { const list = await listUICustomers()
     setCustomers(list)
-    setStats(getCustomerStats())
+    const active=list.filter(c=>c.status==='active');setStats({totalCustomers:list.length,activeCustomers:active.length,totalReceivables:active.reduce((n,c)=>n+Math.max(0,c.outstandingBalance),0),totalAdvances:active.reduce((n,c)=>n+Math.max(0,-c.outstandingBalance),0),totalCreditLimit:active.reduce((n,c)=>n+c.creditLimit,0),utilisedCredit:active.reduce((n,c)=>n+Math.min(Math.max(0,c.outstandingBalance),c.creditLimit),0),overdueCount:active.filter(c=>c.outstandingBalance>c.creditLimit).length})
 
     // If ledger modal is open, update selected customer details to match updated stats
     if (showLedgerModal && selectedCustomer) {
@@ -86,10 +84,12 @@ export default function CustomersPage() {
         setSelectedCustomer(updatedCust)
       }
     }
+    }catch(error){triggerToast(error.message,'error')}
   }
 
   useEffect(() => {
     loadData()
+    return subscribeToTable('customers',loadData)
   }, [showLedgerModal])
 
   const triggerToast = (message, type = 'success') => {
@@ -110,20 +110,14 @@ export default function CustomersPage() {
     )
   }
 
-  const handleDeleteConfirm = (id) => {
+  const handleDeleteConfirm = async (id) => {
     if (userRole === 'Cashier') {
       triggerToast('Permission Denied: Cashier cannot delete customers', 'error')
       return
     }
-    const res = deleteCustomer(id)
-    setShowDeleteModal(false)
-    setSelectedCustomer(null)
-    if (res.error) {
-      triggerToast(res.error, 'error')
-    } else {
-      loadData()
+    try {await deleteCustomer(id);setShowDeleteModal(false);setSelectedCustomer(null);await loadData()
       triggerToast('Customer deleted successfully', 'success')
-    }
+    }catch(error){triggerToast(error.message,'error')}
   }
 
   const handleTransactionRecorded = (updatedCust, message) => {

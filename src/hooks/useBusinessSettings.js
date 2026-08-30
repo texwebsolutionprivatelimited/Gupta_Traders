@@ -1,0 +1,3 @@
+import { useEffect, useState } from 'react'
+import { getBusinessSettings, saveBusinessSettings } from '../services/erpService'
+export function useBusinessSettings(section,defaults){const [form,setForm]=useState(defaults),[loading,setLoading]=useState(true),[error,setError]=useState('');useEffect(()=>{getBusinessSettings().then(row=>setForm({...defaults,...(row[section]||{})})).catch(e=>setError(e.message)).finally(()=>setLoading(false))},[section]);async function save(){try{await saveBusinessSettings({[section]:form});setError('')}catch(e){setError(e.message);throw e}}return{form,setForm,loading,error,save}}

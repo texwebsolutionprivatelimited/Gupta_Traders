@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { listRoles, updateRolePermissions } from '../../services/erpService'
 import {
     ArrowLeft,
     ShieldCheck,
@@ -57,22 +58,7 @@ export default function RolePermissions() {
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
-        try {
-            const stored = localStorage.getItem("rolePermissions");
-
-            if (stored) {
-                const parsed = JSON.parse(stored);
-
-                if (parsed && typeof parsed === "object") {
-                    setPermissions((prev) => ({
-                        ...prev,
-                        ...parsed,
-                    }));
-                }
-            }
-        } catch (error) {
-            console.error("Failed to load role permissions:", error);
-        }
+        listRoles().then(rows=>{const mapped={};rows.forEach(r=>{const label=r.role==='admin'?'Admin / Owner':r.role==='manager'?'Manager':'Cashier / Accountant';mapped[label]=r.permissions?.modules||DEFAULT_PERMISSIONS[label]||[]});setPermissions(mapped)}).catch(error=>alert(error.message))
     }, []);
 
     const currentPermissions = permissions[selectedRole] || [];
@@ -125,12 +111,9 @@ export default function RolePermissions() {
         }));
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         try {
-            localStorage.setItem(
-                "rolePermissions",
-                JSON.stringify(permissions)
-            );
+            const role=selectedRole==='Admin / Owner'?'admin':selectedRole==='Manager'?'manager':'cashier';await updateRolePermissions(role,{modules:permissions[selectedRole]||[]})
 
             setSaved(true);
 

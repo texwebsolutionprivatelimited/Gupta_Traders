@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import JsBarcode from 'jsbarcode'
-import { unitOptions } from '../../hooks/productData'
+import { unitOptions } from '../../utils/erp'
 
 export default function BarcodeForm({
   formData,

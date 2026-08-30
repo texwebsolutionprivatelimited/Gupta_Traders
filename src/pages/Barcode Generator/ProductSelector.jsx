@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { getAllProducts } from '../../hooks/productData'
+import { listUIProducts, subscribeToTable } from '../../services/erpService'
 
 // ─── Product Selector Component ─────────────────────────────────
 export default function ProductSelector({ onSelect, selectedProduct, onClear }) {
@@ -11,7 +11,7 @@ export default function ProductSelector({ onSelect, selectedProduct, onClear }) 
 
   // Load all products on mount
   useEffect(() => {
-    setProducts(getAllProducts())
+    const load=()=>listUIProducts().then(setProducts).catch(console.error);load();return subscribeToTable('products',load)
   }, [])
 
   // Close dropdown on outside click
@@ -23,17 +23,6 @@ export default function ProductSelector({ onSelect, selectedProduct, onClear }) 
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  // Refresh products when localStorage changes
-  useEffect(() => {
-    const handleStorage = () => setProducts(getAllProducts())
-    window.addEventListener('storage', handleStorage)
-    window.addEventListener('gt_products_updated', handleStorage)
-    return () => {
-      window.removeEventListener('storage', handleStorage)
-      window.removeEventListener('gt_products_updated', handleStorage)
-    }
   }, [])
 
   const filtered = query.trim()

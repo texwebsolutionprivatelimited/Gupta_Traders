@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
-import { initSyncManager, pullSupabaseData } from './supabase/syncManager'
+import { useAuth } from './context/AuthContext'
 import Home from './pages/Dashboard/Dashboard'
 import POSBilling from './pages/Billing/POSBilling'
 import ProductsPage from './pages/Products/ProductsPage'
@@ -11,7 +11,6 @@ import SuppliersPage from './pages/Suppliers'
 import CustomersPage from './pages/Customers'
 import LoginPage from './pages/login'
 import TrashPage from './pages/Trash'
-import guptaTradersLogo from './assets/gupta traders logo.png'
 
 // Context Providers
 import { ExpenseProvider } from './context/ExpenseContext'
@@ -69,22 +68,21 @@ import USBPrinter from './pages/Hardware/USBPrinter'
 import BarcodeGenerator from './pages/Barcode Generator/BarcodeGenerator'
 
 function ProtectedRoute() {
-  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true' || sessionStorage.getItem('isLoggedIn') === 'true'
-  const userRole = localStorage.getItem('userRole') || sessionStorage.getItem('userRole') || 'Admin'
+  const { user, role, loading, error } = useAuth()
   const location = useLocation()
-
-  if (!isLoggedIn) {
+  if (loading) return <div className="min-h-screen bg-slate-950 text-slate-200 grid place-items-center">Verifying secure session…</div>
+  if (!user || error || !role) {
     return <Navigate to="/login" replace />
   }
 
   const path = location.pathname
 
-  if (userRole === 'Cashier') {
+  if (role === 'cashier') {
     const allowed = ['/', '/pos', '/customers', '/sales']
     if (!allowed.includes(path)) {
       return <Navigate to="/pos" replace />
     }
-  } else if (userRole === 'Manager') {
+  } else if (role === 'manager') {
     const forbidden = ['/categories', '/expenses', '/users', '/settings', '/hardware']
     if (forbidden.includes(path)) {
       return <Navigate to="/" replace />
@@ -95,8 +93,6 @@ function ProtectedRoute() {
 }
 
 function App() {
-  const [syncing, setSyncing] = useState(true)
-
   // Global Hardware Connectivity manager
   useEffect(() => {
     if (typeof navigator === "undefined") return;
@@ -266,68 +262,6 @@ function App() {
       }
     };
   }, []);
-
-  useEffect(() => {
-    async function initSync() {
-      try {
-        if (!localStorage.getItem('gt_dummy_cleared_v1')) {
-          localStorage.removeItem('gt_products')
-          localStorage.removeItem('gt_customers')
-          localStorage.removeItem('gt_suppliers')
-          localStorage.removeItem('salesHistory')
-          localStorage.removeItem('purchaseHistory')
-          localStorage.removeItem('gt_sync_queue')
-          localStorage.removeItem('gt_inventory_logs')
-          localStorage.removeItem('gt_sync_initialized')
-          localStorage.setItem('gt_dummy_cleared_v1', 'true')
-        }
-        console.log('[Supabase Sync] Preloading database from Supabase...')
-        await pullSupabaseData()
-      } catch (err) {
-        console.warn('[Supabase Sync] Preload failed, running in local fallback:', err)
-      } finally {
-        initSyncManager()
-        setSyncing(false)
-      }
-    }
-    initSync()
-  }, [])
-
-  if (syncing) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-100 relative overflow-hidden">
-        {/* Ambient glow backgrounds */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-emerald-500/10 blur-[130px] pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-teal-500/5 blur-[90px] pointer-events-none" />
-
-        <div className="flex items-center gap-6 relative z-10 bg-slate-900/40 border border-slate-800/60 p-8 rounded-3xl backdrop-blur-xl">
-          {/* Logo container with outer rotating border */}
-          <div className="relative flex items-center justify-center w-28 h-28 flex-shrink-0">
-            {/* Outer spinning ring */}
-            <div className="absolute inset-0 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
-            {/* Logo image */}
-            <img
-              src={guptaTradersLogo}
-              alt="Gupta Traders Logo"
-              className="w-18 h-18 object-contain rounded-2xl p-1.5 bg-slate-900/60 border border-slate-800/80 shadow-2xl shadow-emerald-500/10"
-            />
-          </div>
-
-          <div className="text-left space-y-1.5">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-50 leading-none font-gupta">
-              Gupta Traders
-            </h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-              ERP Management System
-            </p>
-            <p className="text-xs text-emerald-500 tracking-widest uppercase font-bold animate-pulse pt-2">
-              Loading Workspace...
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <ReportProvider>

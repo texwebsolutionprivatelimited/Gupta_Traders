@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatINR } from '../../hooks/posData'
+import { formatINR } from '../../utils/erp'
 import { FaShoppingCart as CartIcon, FaBalanceScale as ScaleIcon, FaTag } from 'react-icons/fa'
 
 // ─── Cart Component ──────────────────────────────────────────────

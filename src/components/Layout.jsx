@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { searchProductsByQuery, getAllProducts, formatINR } from '../hooks/productData'
-import { getSuppliers } from '../hooks/supplierData'
-import { getCustomers } from '../hooks/customerData'
-import { getCategoriesV2 } from '../hooks/categoryData'
-import { getSavedBills } from '../hooks/posData'
+import { formatINR } from '../utils/erp'
+import { listCategories, listUICustomers, listUIProducts, listUISales, listUISuppliers } from '../services/erpService'
 import Footer from './footer'
 import guptaTradersLogo from '../assets/gupta traders logo.png'
 import { useReport } from '../context/ReportContext'
 import { useExpense } from '../context/ExpenseContext'
+import { useAuth } from '../context/AuthContext'
 import {
   FaUsers,
   FaCoins,
@@ -198,19 +196,9 @@ function CloseIcon() {
 }
 
 // ─── ERP Natural Language Query Assistant ───────────────────────
-function getAIAnswer(query) {
+function getAIAnswer(query, {products=[],suppliers=[],customers=[],bills=[]}={}) {
   const q = (query || '').toLowerCase().trim()
   if (!q) return null
-
-  let products = []
-  let suppliers = []
-  let customers = []
-  let bills = []
-
-  try { products = getAllProducts() } catch (e) { console.error(e) }
-  try { suppliers = getSuppliers() } catch (e) { console.error(e) }
-  try { customers = getCustomers() } catch (e) { console.error(e) }
-  try { bills = getSavedBills() } catch (e) { console.error(e) }
 
   const getTodaySalesStats = () => {
     const todayStr = new Date().toDateString()
@@ -497,6 +485,8 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
   const [custResults, setCustResults] = useState([])
   const [catResults, setCatResults] = useState([])
   const [billResults, setBillResults] = useState([])
+  const [searchData,setSearchData]=useState({products:[],suppliers:[],customers:[],categories:[],bills:[]})
+  useEffect(()=>{Promise.all([listUIProducts(),listUISuppliers(),listUICustomers(),listCategories(),listUISales()]).then(([products,suppliers,customers,categories,bills])=>setSearchData({products,suppliers,customers,categories,bills})).catch(console.error)},[])
   const [actionResults, setActionResults] = useState([])
   const [aiAnswer, setAiAnswer] = useState(null)
   const [selectableItems, setSelectableItems] = useState([])
@@ -520,12 +510,12 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
     if (val.trim().length > 0) {
       const valLower = val.toLowerCase().trim()
 
-      const prods = searchProductsByQuery(val, 'all')
+      const prods = searchData.products.filter(p=>p.name.toLowerCase().includes(valLower)||p.sku?.toLowerCase().includes(valLower)||p.barcode?.toLowerCase().includes(valLower))
       setProdResults(prods)
 
       let sups = []
       try {
-        const allSups = getSuppliers()
+        const allSups = searchData.suppliers
         sups = allSups.filter(s =>
           s.companyName.toLowerCase().includes(valLower) ||
           (s.contactPerson && s.contactPerson.toLowerCase().includes(valLower)) ||
@@ -541,7 +531,7 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
 
       let custs = []
       try {
-        const allCusts = getCustomers()
+        const allCusts = searchData.customers
         custs = allCusts.filter(c =>
           c.name.toLowerCase().includes(valLower) ||
           (c.phone && c.phone.includes(valLower)) ||
@@ -556,7 +546,7 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
 
       let cats = []
       try {
-        const allCats = getCategoriesV2()
+        const allCats = searchData.categories
         cats = allCats.filter(c =>
           c.name.toLowerCase().includes(valLower) ||
           (c.description && c.description.toLowerCase().includes(valLower))
@@ -568,7 +558,7 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
 
       let bills = []
       try {
-        const allBills = getSavedBills()
+        const allBills = searchData.bills.map(b=>({...b,billNumber:b.invoice,customerName:b.customer,grandTotal:b.total}))
         bills = allBills.filter(b =>
           b.billNumber.toLowerCase().includes(valLower) ||
           (b.customerName && b.customerName.toLowerCase().includes(valLower)) ||
@@ -598,7 +588,7 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       )
       setActionResults(matchedActions)
 
-      const answer = getAIAnswer(val)
+      const answer = getAIAnswer(val,searchData)
       setAiAnswer(answer)
 
       const selectables = []
@@ -1047,6 +1037,8 @@ export default function Layout() {
 
   const { salesRecords = [], purchaseRecords = [], stockItems = [] } = useReport()
   const { rentHistory = [], electricityRecords = [], staffSalaryRecords = [], miscExpenses = [] } = useExpense()
+  const [layoutCustomers,setLayoutCustomers]=useState([]),[layoutSuppliers,setLayoutSuppliers]=useState([])
+  useEffect(()=>{Promise.all([listUICustomers(),listUISuppliers()]).then(([customers,suppliers])=>{setLayoutCustomers(customers);setLayoutSuppliers(suppliers)}).catch(console.error)},[])
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const exportMenuRef = useRef(null)
@@ -1234,7 +1226,7 @@ export default function Layout() {
       title = "Stock Status Report"
       headers = ["Product Name", "SKU / Code", "Category", "Current Stock", "Min Stock", "Unit", "Purchase Price", "Selling Price", "GST Rate"]
 
-      const productsList = stockItems.length > 0 ? stockItems : getAllProducts()
+      const productsList = stockItems
 
       const totalStockVal = productsList.reduce((sum, item) => sum + (Number(item.currentStock || item.stock || 0) * Number(item.purchasePrice || item.price || 0)), 0)
       const lowStockCount = productsList.filter(item => Number(item.currentStock || item.stock || 0) <= Number(item.minStock || 0)).length
@@ -1317,7 +1309,7 @@ export default function Layout() {
       title = "Customers Directory Report"
       headers = ["Customer ID", "Name", "Phone", "Email", "Address", "City", "GSTIN", "Type", "Credit Limit", "Outstanding Balance", "Status", "Created At"]
 
-      const filteredCustomers = filterRecordsByTimeframe(getCustomers(), 'createdAt')
+      const filteredCustomers = filterRecordsByTimeframe(layoutCustomers, 'createdAt')
       const totalOutstanding = filteredCustomers.reduce((sum, c) => sum + Number(c.outstandingBalance || 0), 0)
       summaryCards = [
         { title: "Total Customers", value: filteredCustomers.length, color: "#2563eb" },
@@ -1344,7 +1336,7 @@ export default function Layout() {
       title = "Suppliers Directory Report"
       headers = ["Supplier ID", "Company Name", "Contact Person", "Phone", "Email", "Address", "City", "GSTIN", "Outstanding Payables", "Status", "Created At"]
 
-      const filteredSuppliers = filterRecordsByTimeframe(getSuppliers(), 'createdAt')
+      const filteredSuppliers = filterRecordsByTimeframe(layoutSuppliers, 'createdAt')
       const totalPayables = filteredSuppliers.reduce((sum, s) => sum + Number(s.outstandingBalance || 0), 0)
       summaryCards = [
         { title: "Total Suppliers", value: filteredSuppliers.length, color: "#2563eb" },
@@ -1600,18 +1592,10 @@ export default function Layout() {
     setExportMenuOpen(false)
   }
 
-  const [userName, setUserName] = useState('Admin')
-  const [userRole, setUserRole] = useState('Admin')
-  const [userTitle, setUserTitle] = useState('Owner')
-
-  useEffect(() => {
-    const role = localStorage.getItem('userRole') || sessionStorage.getItem('userRole') || 'Admin'
-    const name = localStorage.getItem('userName') || sessionStorage.getItem('userName') || 'Admin'
-    const title = localStorage.getItem('userTitle') || sessionStorage.getItem('userTitle') || 'Owner'
-    setUserRole(role)
-    setUserName(name)
-    setUserTitle(title)
-  }, [])
+  const { profile, signOut } = useAuth()
+  const userName = profile?.name || 'ERP User'
+  const userRole = profile?.role === 'admin' ? 'Admin' : profile?.role === 'manager' ? 'Manager' : 'Cashier'
+  const userTitle = profile?.title || userRole
 
   const initials = userName
     .split(' ')
@@ -1687,35 +1671,10 @@ export default function Layout() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn')
-    sessionStorage.removeItem('isLoggedIn')
-    navigate('/login')
+  const handleLogout = async () => {
+    try { await signOut(); navigate('/login') } catch (error) { window.alert(`Unable to sign out: ${error.message}`) }
   }
-
-  const [pendingSyncCount, setPendingSyncCount] = useState(0)
-
-  useEffect(() => {
-    const updateQueueCount = () => {
-      try {
-        const queue = JSON.parse(localStorage.getItem('gt_sync_queue') || '[]')
-        setPendingSyncCount(queue.length)
-      } catch (_) {
-        setPendingSyncCount(0)
-      }
-    }
-
-    updateQueueCount()
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('gt_sync_queue_changed', updateQueueCount)
-      window.addEventListener('storage', updateQueueCount)
-      return () => {
-        window.removeEventListener('gt_sync_queue_changed', updateQueueCount)
-        window.removeEventListener('storage', updateQueueCount)
-      }
-    }
-  }, [])
+  const pendingSyncCount = 0
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)

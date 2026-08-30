@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getCategories, formatINR, getAllProducts } from '../../hooks/productData'
-import { getInventorySummary, getInventoryLogs } from '../../hooks/inventoryData'
+import { formatINR } from '../../utils/erp'
+import { listCategories, listInventoryMovements, listUIProducts, subscribeToTable } from '../../services/erpService'
 
 // Components
 import Toast from './Toast'
@@ -29,6 +29,7 @@ export default function InventoryPage() {
   const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'low' | 'out'
 
   const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
   const [logs, setLogs] = useState([])
   const [summary, setSummary] = useState({
     totalCostValue: 0,
@@ -53,17 +54,18 @@ export default function InventoryPage() {
   const [toast, setToast] = useState(null)
 
   // Load datasets on mount & update
-  const reloadData = () => {
-    // Read directly from productData
-    const all = getAllProducts()
+  const reloadData = async () => {
+    try { const [all,movements,cats]=await Promise.all([listUIProducts({status:null}),listInventoryMovements(),listCategories()])
     const sorted = [...all].sort((a, b) => {
       const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
       return timeB - timeA
     })
     setProducts(sorted)
-    setLogs(getInventoryLogs())
-    setSummary(getInventorySummary())
+    setLogs(movements.map(x=>({id:x.id,productId:x.product_id,productName:x.product?.name,type:x.movement_type,adjustment:x.quantity_delta,newStock:x.quantity_after,reason:x.reason,operator:'Authenticated user',timestamp:x.created_at})))
+    setCategories(cats.map(c=>({id:c.slug,name:c.name})))
+    setSummary({totalCostValue:all.reduce((n,p)=>n+p.currentStock*p.purchasePrice,0),totalRetailValue:all.reduce((n,p)=>n+p.currentStock*p.sellingPrice,0),totalItems:all.reduce((n,p)=>n+p.currentStock,0),lowStockCount:all.filter(p=>p.currentStock>0&&p.currentStock<=p.minStock).length,outOfStockCount:all.filter(p=>p.currentStock<=0).length})
+    } catch(error){setToast({message:error.message,type:'error'})}
   }
 
   useEffect(() => {
@@ -71,12 +73,8 @@ export default function InventoryPage() {
   }, [])
 
   useEffect(() => {
-    window.addEventListener('gt_products_updated', reloadData)
-    window.addEventListener('storage', reloadData)
-    return () => {
-      window.removeEventListener('gt_products_updated', reloadData)
-      window.removeEventListener('storage', reloadData)
-    }
+    const offInventory=subscribeToTable('inventory',reloadData),offProducts=subscribeToTable('products',reloadData),offMovements=subscribeToTable('stock_movements',reloadData)
+    return () => {offInventory();offProducts();offMovements()}
   }, [])
 
   // Handle updates from modals
@@ -125,7 +123,7 @@ export default function InventoryPage() {
   const paginatedLogs = logs.slice((ledgerPage - 1) * ITEMS_PER_PAGE, ledgerPage * ITEMS_PER_PAGE)
 
   // Categories helper list
-  const categoriesList = getCategories()
+  const categoriesList = categories
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">

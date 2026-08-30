@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  getPackagedProducts, getLooseProducts, addProduct, updateProduct,
-  deleteProduct, searchProductsByQuery, getCategories, formatINR,
-  unitOptions, gstOptions, generateNextSKU, generateNextProductCode,
+  formatINR, unitOptions, gstOptions, generateNextSKU, generateNextProductCode,
   generateNextBarcode,
-} from '../../hooks/productData'
+} from '../../utils/erp'
+import { createProduct, listCategories, listUIProducts, removeProduct, subscribeToTable, updateProduct as updateRemoteProduct } from '../../services/erpService'
 
 const FormContext = createContext(null)
 
@@ -236,9 +235,8 @@ const Field = ({ label, field, type: inputType = 'text', placeholder, required, 
 }
 
 // PRODUCT FORM MODAL (shared for Packaged & Loose)
-function ProductFormModal({ product, type, onSave, onClose }) {
+function ProductFormModal({ product, type, categories, onSave, onClose }) {
   const isEditing = !!product
-  const categories = getCategories()
   const formRef = useRef(null)
 
   // Build default form values
@@ -748,6 +746,7 @@ export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState(urlSearch)
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
@@ -791,8 +790,6 @@ export default function ProductsPage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const categories = getCategories()
-
   // ─── Pagination calculations ──────────────────────────
   const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE))
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
@@ -800,25 +797,13 @@ export default function ProductsPage() {
   const paginatedProducts = products.slice(startIndex, endIndex)
 
   // ─── Load products on tab/filter change ───────────────
-  const loadProducts = (query, tab, catFilter) => {
-    let results
-    if (query && query.trim()) {
-      results = searchProductsByQuery(query, tab)
-      // Also apply category filter on search results
-      if (catFilter !== 'all') {
-        results = results.filter(p => p.category === catFilter)
-      }
-    } else {
-      const all = tab === 'packaged' ? getPackagedProducts() : getLooseProducts()
-      if (catFilter === 'all') {
-        results = all
-      } else {
-        results = all.filter(p => p.category === catFilter)
-      }
-    }
-    // Sort by latest added first
-    results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    setProducts(results)
+  const loadProducts = async (query, tab, catFilter) => {
+    try {
+      let results=await listUIProducts({search:query||''})
+      results=results.filter(p=>p.type===tab && (catFilter==='all'||p.category===catFilter))
+      results.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));setProducts(results)
+      setCategories((await listCategories()).map(c=>({...c,id:c.slug,name:c.name})))
+    } catch(error){setToast({message:error.message,type:'error'})}
   }
 
   // Called from event handlers (after add/edit/delete)
@@ -835,11 +820,10 @@ export default function ProductsPage() {
     const handleUpdate = () => {
       loadProducts(searchQuery, activeTab, categoryFilter)
     }
-    window.addEventListener('gt_products_updated', handleUpdate)
-    window.addEventListener('storage', handleUpdate)
+    const unsubscribeProducts=subscribeToTable('products',handleUpdate)
+    const unsubscribeInventory=subscribeToTable('inventory',handleUpdate)
     return () => {
-      window.removeEventListener('gt_products_updated', handleUpdate)
-      window.removeEventListener('storage', handleUpdate)
+      unsubscribeProducts();unsubscribeInventory()
     }
   }, [searchQuery, activeTab, categoryFilter])
 
@@ -861,29 +845,26 @@ export default function ProductsPage() {
     setDeleteTarget(product)
   }
 
-  const confirmDelete = (id) => {
-    deleteProduct(id)
-    setDeleteTarget(null)
-    refreshProducts()
-    setToast({ message: 'Product deleted successfully', type: 'success' })
+  const confirmDelete = async (id) => {
+    try{await removeProduct(id);setDeleteTarget(null);await refreshProducts();setToast({ message: 'Product deleted successfully', type: 'success' })}catch(error){setToast({message:error.message,type:'error'})}
   }
 
-  const handleSave = (formData) => {
-    if (editingProduct) {
-      updateProduct(editingProduct.id, formData)
+  const handleSave = async (formData) => {
+    try{if (editingProduct) {
+      await updateRemoteProduct(editingProduct.id, formData)
       setToast({ message: 'Product updated successfully!', type: 'success' })
     } else {
-      addProduct(formData)
+      await createProduct(formData)
       setToast({ message: 'New product added successfully!', type: 'success' })
     }
     setShowForm(false)
     setEditingProduct(null)
-    refreshProducts()
+    await refreshProducts()}catch(error){setToast({message:error.message,type:'error'})}
   }
 
   // ─── Stats ────────────────────────────────────────────
-  const allPackaged = getPackagedProducts()
-  const allLoose = getLooseProducts()
+  const allPackaged = products.filter(p=>p.type==='packaged')
+  const allLoose = products.filter(p=>p.type==='loose')
   const totalProducts = allPackaged.length + allLoose.length
   const lowStockCount = [...allPackaged, ...allLoose].filter(p => p.currentStock <= (p.minStock || 10)).length
 
@@ -1180,6 +1161,7 @@ export default function ProductsPage() {
         <ProductFormModal
           product={editingProduct}
           type={formType}
+          categories={categories}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditingProduct(null) }}
         />

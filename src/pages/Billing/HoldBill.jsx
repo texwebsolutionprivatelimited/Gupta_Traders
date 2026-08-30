@@ -1,4 +1,4 @@
-import { formatINR } from '../../hooks/posData'
+import { formatINR } from '../../utils/erp'
 import { FaClipboard as ClipboardIcon, FaPause as PauseIcon, FaInbox as InboxIcon, FaTrash as TrashIcon } from 'react-icons/fa'
 
 // ─── Hold Bill Drawer ────────────────────────────────────────────

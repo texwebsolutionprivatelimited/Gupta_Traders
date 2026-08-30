@@ -1,6 +1,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { listUISales, subscribeToTable } from '../../services/erpService'
 
 /* =========================================================
    HELPERS
@@ -290,45 +291,11 @@ export default function InvoiceReprint() {
     const [dateFilter, setDateFilter] = useState("");
     const [selectedSale, setSelectedSale] = useState(null);
 
-    /* =======================================================
-       LOAD SALES FROM LOCAL STORAGE
-       ======================================================= */
-
     useEffect(() => {
-        const loadSales = () => {
-            try {
-                const savedSales =
-                    JSON.parse(
-                        localStorage.getItem("salesHistory")
-                    ) || [];
-
-                if (Array.isArray(savedSales)) {
-                    setSalesData(savedSales);
-                } else {
-                    setSalesData([]);
-                }
-            } catch (error) {
-                console.error(
-                    "Failed to load sales history:",
-                    error
-                );
-
-                setSalesData([]);
-            }
-        };
-
-        loadSales();
-
-        window.addEventListener(
-            "storage",
-            loadSales
-        );
+        const loadSales=()=>listUISales().then(setSalesData).catch(error=>alert(error.message));loadSales();const off=subscribeToTable('sales',loadSales)
 
         return () => {
-            window.removeEventListener(
-                "storage",
-                loadSales
-            );
+            off();
         };
     }, []);
 

@@ -1,41 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { listUIPurchases, listUISuppliers } from '../../services/erpService'
 
 export default function SupplierReport() {
-    const suppliers = [
-        {
-            id: 1,
-            name: "ABC Cement Suppliers",
-            phone: "9876500011",
-            category: "Cement",
-            totalPurchase: 95000,
-            dueAmount: 12000,
-        },
-        {
-            id: 2,
-            name: "Shree Traders",
-            phone: "9876500022",
-            category: "Steel",
-            totalPurchase: 125000,
-            dueAmount: 5000,
-        },
-        {
-            id: 3,
-            name: "Raj Hardware",
-            phone: "9876500033",
-            category: "Hardware",
-            totalPurchase: 72000,
-            dueAmount: 0,
-        },
-        {
-            id: 4,
-            name: "Gupta Building Materials",
-            phone: "9876500044",
-            category: "Tiles",
-            totalPurchase: 88000,
-            dueAmount: 8000,
-        },
-    ];
+    const [suppliers,setSuppliers]=useState([])
+    useEffect(()=>{Promise.all([listUISuppliers(),listUIPurchases()]).then(([parties,purchases])=>setSuppliers(parties.map(s=>({id:s.id,name:s.companyName,phone:s.phone,category:(s.productsSupplied||[]).join(', '),totalPurchase:purchases.filter(p=>p.supplier===s.companyName).reduce((n,p)=>n+p.total,0),dueAmount:s.outstandingBalance})))).catch(error=>alert(error.message))},[])
 
     const stats = useMemo(() => {
         return {

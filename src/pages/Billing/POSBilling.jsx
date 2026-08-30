@@ -7,15 +7,10 @@ import HoldBill from './HoldBill'
 import AddCustomItemModal from './AddCustomItemModal'
 import { ReceiptPreview, ReprintDrawer, SaleSuccessOverlay } from './BillReceipt'
 import {
-  generateBillNumber,
   calculateBillSummary,
-  saveBill,
-  getHeldBills,
-  saveHeldBills,
   formatINR,
-  lookupBarcode,
-  adjustInventoryStock,
-} from '../../hooks/posData'
+} from '../../utils/erp'
+import { completeSale as persistSale, deleteHeldBill as removeHeldBill, listHeldBills, listUICustomers, listUIProducts, saveHeldBill, subscribeToTable } from '../../services/erpService'
 import { FaShoppingCart as CartIcon, FaPlus } from 'react-icons/fa'
 import guptaTradersLogo from '../../assets/gupta traders logo.png'
 
@@ -23,6 +18,10 @@ import guptaTradersLogo from '../../assets/gupta traders logo.png'
 export default function POSBilling() {
   const [searchParams] = useSearchParams()
   const [cart, setCart] = useState([])
+  const [productIndex,setProductIndex]=useState([])
+  const [customerIndex,setCustomerIndex]=useState([])
+  useEffect(()=>{const load=()=>listUIProducts().then(rows=>setProductIndex(rows.map(p=>({...p,price:p.sellingPrice,mrp:p.sellingPrice,stock:p.currentStock,isLoose:p.type==='loose'})))).catch(console.error);load();return subscribeToTable('products',load)},[])
+  useEffect(()=>{listUICustomers().then(setCustomerIndex).catch(console.error)},[])
   const [billDiscount, setBillDiscount] = useState(0)
   const [isGSTInclusive, setIsGSTInclusive] = useState(true)
   const [customerName, setCustomerName] = useState(
@@ -36,7 +35,8 @@ export default function POSBilling() {
     }
   }, [searchParams])
 
-  const [heldBills, setHeldBills] = useState(() => getHeldBills())
+  const [heldBills, setHeldBills] = useState([])
+  useEffect(() => { listHeldBills().then(rows => setHeldBills(rows.map(row => ({...row, id:row.id, items:row.cart, ...(row.totals||{}), timestamp:row.held_at})))).catch(e => window.alert(e.message)) }, [])
 
   // Modals
   const [showHeldBills, setShowHeldBills] = useState(false)
@@ -97,11 +97,10 @@ export default function POSBilling() {
   }, [cart.length])
 
   // ─── Hold Bill ──────────────────────────────────────────────
-  const holdCurrentBill = useCallback(() => {
+  const holdCurrentBill = useCallback(async () => {
     if (cart.length === 0) return
     const summary = calculateBillSummary(cart, billDiscount, isGSTInclusive)
     const heldBill = {
-      id: `hold-${Date.now()}`,
       items: cart,
       billDiscount,
       isGSTInclusive,
@@ -109,15 +108,10 @@ export default function POSBilling() {
       total: summary.grandTotal,
       timestamp: new Date().toISOString(),
     }
-    const updated = [...heldBills, heldBill]
-    setHeldBills(updated)
-    saveHeldBills(updated)
-    setCart([])
-    setBillDiscount(0)
-    setCustomerName('')
+    try { const saved=await saveHeldBill({label:customerName||'Walk-in',cart,totals:{billDiscount,isGSTInclusive,customerName,total:summary.grandTotal}}); setHeldBills(prev=>[...prev,{...heldBill,id:saved.id}]); setCart([]);setBillDiscount(0);setCustomerName('') } catch(e){window.alert(e.message)}
   }, [cart, billDiscount, isGSTInclusive, customerName, heldBills])
 
-  const recallHeldBill = useCallback((billId) => {
+  const recallHeldBill = useCallback(async (billId) => {
     const bill = heldBills.find(b => b.id === billId)
     if (!bill) return
 
@@ -132,23 +126,15 @@ export default function POSBilling() {
     setIsGSTInclusive(bill.isGSTInclusive !== undefined ? bill.isGSTInclusive : true)
     setCustomerName(bill.customerName || '')
 
-    const updated = heldBills.filter(b => b.id !== billId)
-    setHeldBills(updated)
-    saveHeldBills(updated)
-    setShowHeldBills(false)
+    try { await removeHeldBill(billId); setHeldBills(prev=>prev.filter(b=>b.id!==billId));setShowHeldBills(false) } catch(e){window.alert(e.message)}
   }, [heldBills, cart.length])
 
-  const deleteHeldBill = useCallback((billId) => {
-    const updated = heldBills.filter(b => b.id !== billId)
-    setHeldBills(updated)
-    saveHeldBills(updated)
-  }, [heldBills])
+  const deleteHeldBill = useCallback(async (billId) => { try{await removeHeldBill(billId);setHeldBills(prev=>prev.filter(b=>b.id!==billId))}catch(e){window.alert(e.message)} }, [])
 
   // ─── Complete Sale ──────────────────────────────────────────
-  const completeSale = useCallback((paymentMode, amountPaid) => {
+  const completeSale = useCallback(async (paymentMode, amountPaid) => {
     const summary = calculateBillSummary(cart, billDiscount, isGSTInclusive)
     const bill = {
-      billNumber: generateBillNumber(),
       items: cart,
       summary,
       billDiscount,
@@ -159,17 +145,16 @@ export default function POSBilling() {
       timestamp: new Date().toISOString(),
     }
 
-    // Deduct stock safely (custom/loose items auto-bypass)
-    adjustInventoryStock(cart)
-
-    saveBill(bill)
-    setShowSuccess(bill)
-
-    // Auto-clear after sale
-    setCart([])
-    setBillDiscount(0)
-    setCustomerName('')
-  }, [cart, billDiscount, isGSTInclusive, customerName])
+    try {
+      const items=cart.filter(x=>!x.isCustomItem).map(x=>({product_id:x.supabase_id||x.id,quantity:Number(x.quantity),unit_price:Number(x.price??x.sellingPrice),discount:Number(x.itemDiscount||0),tax_rate:Number(x.gstRate||0)}))
+      if(items.length!==cart.length) throw new Error('Custom items must first be created as service products before checkout.')
+      const matchedCustomer=customerIndex.find(c=>c.id===customerName||c.name.toLowerCase()===customerName.trim().toLowerCase())
+      if(Number(amountPaid||0)<summary.grandTotal&&!matchedCustomer)throw new Error('A registered customer is required for credit or partial-payment sales.')
+      const saved=await persistSale({customer_id:matchedCustomer?.id||null,discount:Number(billDiscount||0),amount_paid:Number(amountPaid||0),payment_method:paymentMode,metadata:{customerName,isGSTInclusive}},items)
+      const completed={...bill,billNumber:saved.invoice_number,id:saved.id,summary:{...summary,grandTotal:Number(saved.total_amount)}}
+      setShowSuccess(completed);setCart([]);setBillDiscount(0);setCustomerName('')
+    } catch(e) { window.alert(e.message) }
+  }, [cart, billDiscount, isGSTInclusive, customerName, customerIndex])
 
   // ─── Barcode Scanner Settings & Toast State ─────────────────
   const [scannerStatus, setScannerStatus] = useState({
@@ -330,7 +315,7 @@ export default function POSBilling() {
         cleanCode = cleanCode.substring(prefixChar.length)
       }
 
-      const prod = lookupBarcode(cleanCode)
+      const prod = productIndex.find(p=>p.barcode===cleanCode)
       if (prod) {
         addToCart(prod)
         triggerToast("success", `Scanned: ${prod.name}`, `Added to cart • ₹${prod.price}`)
@@ -346,7 +331,7 @@ export default function POSBilling() {
       window.removeEventListener("keydown", handleGlobalKeyDown, true)
       clearTimeout(timeoutId)
     }
-  }, [scannerStatus, addToCart, triggerToast])
+  }, [scannerStatus, addToCart, triggerToast, productIndex])
 
   // ─── Keyboard Shortcuts ─────────────────────────────────────
   useEffect(() => {

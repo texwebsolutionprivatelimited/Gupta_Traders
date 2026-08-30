@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { CloseIcon, WarningIcon } from './Icons'
-import { adjustStock } from '../../hooks/inventoryData'
+import { adjustStock } from '../../services/erpService'
 
 const predefinedReasons = {
   inward: [
@@ -29,7 +29,7 @@ export default function StockAdjustmentModal({ product, onSave, onCancel }) {
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     const numericQty = Number(qty)
     if (qty === '' || isNaN(numericQty) || (type !== 'reconcile' && numericQty <= 0)) {
@@ -43,13 +43,9 @@ export default function StockAdjustmentModal({ product, onSave, onCancel }) {
       return
     }
 
-    const res = adjustStock(product.id, numericQty, type, finalReason, 'Manager (Gupta Traders)')
-    if (res.error) {
-      setError(res.error)
-      return
-    }
-
-    onSave(res.product, `Stock adjusted successfully for ${product.name}`)
+    const delta=type==='inward'?numericQty:type==='outward'?-numericQty:numericQty-Number(product.currentStock||0)
+    if(delta===0){setError('Reconciled quantity is already the current stock');return}
+    try{const quantity=await adjustStock(product.id,delta,type==='reconcile'?'reconciliation':'adjustment',finalReason);onSave({...product,currentStock:Number(quantity)},`Stock adjusted successfully for ${product.name}`)}catch(error){setError(error.message)}
   }
 
   // Auto-set default reason when type changes

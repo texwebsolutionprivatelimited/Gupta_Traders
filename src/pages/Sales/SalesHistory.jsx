@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { listUISales, subscribeToTable } from '../../services/erpService'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -202,16 +203,8 @@ export default function SalesHistory() {
   const [selectedSale, setSelectedSale] = useState(null);
   const [salesData, setSalesData] = useState([]);
 
-  // Load sales from local storage
   useEffect(() => {
-    try {
-      const savedSales =
-        JSON.parse(localStorage.getItem("salesHistory")) || [];
-      setSalesData(Array.isArray(savedSales) ? savedSales : []);
-    } catch (error) {
-      console.error("Failed to load sales history:", error);
-      setSalesData([]);
-    }
+    const load=()=>listUISales().then(setSalesData).catch(error=>alert(error.message));load();return subscribeToTable('sales',load)
   }, []);
 
   // Filter sales

@@ -247,7 +247,7 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
     currentStock: '', minStock: 10,
   } : {
     name: '', nameHi: '', productCode: generateNextProductCode(),
-    barcode: generateNextBarcode('loose'),
+    barcode: '',
     category: 'loose', unit: 'kg',
     purchasePrice: '', sellingPrice: '', gstRate: 0,
     currentStock: '', minStock: 20,
@@ -296,7 +296,6 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
   const validate = () => {
     const newErrors = {}
     if (!form.name.trim()) newErrors.name = 'Product name is required'
-    if (!form.barcode.trim()) newErrors.barcode = 'Barcode is required'
     if (type === 'packaged' && !form.brand.trim()) newErrors.brand = 'Brand is required'
     if (!form.purchasePrice || Number(form.purchasePrice) <= 0) newErrors.purchasePrice = 'Enter valid price'
     if (!form.sellingPrice || Number(form.sellingPrice) <= 0) newErrors.sellingPrice = 'Enter valid price'
@@ -412,9 +411,8 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
               <Field
                 label="Barcode"
                 field="barcode"
-                placeholder={type === 'packaged' ? 'Scan or type barcode' : 'Auto-generated'}
-                required
-                helpText={type === 'packaged' ? 'Scan product barcode or type manually' : ''}
+                placeholder="Scan or type barcode (Optional)"
+                helpText="Leave empty to generate via Barcode Generator later"
               />
               {type === 'packaged' ? (
                 <Field
@@ -746,6 +744,7 @@ export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState(urlSearch)
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [products, setProducts] = useState([])
+  const [allProducts, setAllProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
@@ -800,8 +799,11 @@ export default function ProductsPage() {
   const loadProducts = async (query, tab, catFilter) => {
     try {
       let results=await listUIProducts({search:query||''})
-      results=results.filter(p=>p.type===tab && (catFilter==='all'||p.category===catFilter))
-      results.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));setProducts(results)
+      const filtered = results.filter(p => catFilter==='all'||p.category===catFilter)
+      const tabResults = filtered.filter(p=>p.type===tab)
+      tabResults.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))
+      setAllProducts(filtered)
+      setProducts(tabResults)
       setCategories((await listCategories()).map(c=>({...c,id:c.slug,name:c.name})))
     } catch(error){setToast({message:error.message,type:'error'})}
   }
@@ -863,10 +865,10 @@ export default function ProductsPage() {
   }
 
   // ─── Stats ────────────────────────────────────────────
-  const allPackaged = products.filter(p=>p.type==='packaged')
-  const allLoose = products.filter(p=>p.type==='loose')
+  const allPackaged = allProducts.filter(p=>p.type==='packaged')
+  const allLoose = allProducts.filter(p=>p.type==='loose')
   const totalProducts = allPackaged.length + allLoose.length
-  const lowStockCount = [...allPackaged, ...allLoose].filter(p => p.currentStock <= (p.minStock || 10)).length
+  const lowStockCount = allProducts.filter(p => p.currentStock <= (p.minStock || 10)).length
 
   return (
     <div className="px-3 sm:px-6 py-4 sm:py-6 lg:p-8 max-w-[1400px] mx-auto">

@@ -9,7 +9,7 @@ import {
   generateNextProductCode,
   generateNextBarcode,
 } from '../../utils/erp'
-import { createProduct, listUIProducts, saveBarcodePrintJob, updateProduct } from '../../services/erpService'
+import { createProduct, listUIProducts, saveBarcodePrintJob, updateProduct, listCategories, subscribeToTable } from '../../services/erpService'
 
 function generateUniqueBarcode(products) {
   const existing = new Set(
@@ -75,6 +75,8 @@ const INITIAL_FORM = {
   barcodeCount: '10',
   productType: 'packaged',
   manualBarcode: '',
+  categoryId: '',
+  currentStock: '0',
 }
 
 // ─── Empty State Component ──────────────────────────────────────
@@ -149,7 +151,19 @@ function Toast({ toast, onClose }) {
 // ═══════════════════════════════════════════════════════════════
 export default function BarcodeGenerator() {
   const [databaseProducts,setDatabaseProducts]=useState([])
-  useEffect(()=>{listUIProducts().then(setDatabaseProducts).catch(console.error)},[])
+  const [categories, setCategories] = useState([])
+  useEffect(()=>{
+    const loadProducts = () => listUIProducts().then(setDatabaseProducts).catch(console.error)
+    const loadCategories = () => listCategories().then(setCategories).catch(console.error)
+    loadProducts()
+    loadCategories()
+    const unsubProducts = subscribeToTable('products', loadProducts)
+    const unsubCategories = subscribeToTable('categories', loadCategories)
+    return () => {
+      if (unsubProducts) unsubProducts()
+      if (unsubCategories) unsubCategories()
+    }
+  },[])
   // ─── State ──────────────────────────────────────────────────
   const [formData, setFormData] = useState(INITIAL_FORM)
   const [selectedProduct, setSelectedProduct] = useState(null)
@@ -209,6 +223,8 @@ export default function BarcodeGenerator() {
       barcodeCount: '10',
       productType: product.type || 'packaged',
       manualBarcode: product.barcode || '',
+      categoryId: product.categoryId || '',
+      currentStock: String(product.currentStock ?? '0'),
     })
     setGeneratedBarcode(product.barcode || '')
     setErrors({})
@@ -241,6 +257,7 @@ export default function BarcodeGenerator() {
   const validate = () => {
     const e = {}
     if (!formData.name.trim()) e.name = 'Product name is required'
+    if (!formData.categoryId) e.categoryId = 'Category is required'
     if (!formData.price || Number(formData.price) <= 0 || isNaN(Number(formData.price))) {
       e.price = 'Enter a valid price'
     }
@@ -301,7 +318,15 @@ export default function BarcodeGenerator() {
 
       if (productToUse) {
         // ── Existing Product ──
-        barcode = manualBarcodeTrimmed || productToUse.barcode || generateUniqueBarcode(databaseProducts)
+        if (manualBarcodeTrimmed) {
+          barcode = manualBarcodeTrimmed
+        } else {
+          // If the barcode input is blank/cleared, generate a brand new unique barcode
+          const isLoose = formData.productType === 'loose'
+          barcode = isLoose 
+            ? (generateNextBarcode('loose') || generateUniqueBarcode(databaseProducts)) 
+            : generateUniqueBarcode(databaseProducts)
+        }
         
         const updates = {}
         if (barcode !== productToUse.barcode) {
@@ -326,6 +351,12 @@ export default function BarcodeGenerator() {
         if (formData.price && Number(formData.price) !== Number(productToUse.sellingPrice)) {
           updates.sellingPrice = Number(formData.price)
         }
+        if (formData.categoryId && formData.categoryId !== productToUse.categoryId) {
+          updates.categoryId = formData.categoryId
+        }
+        if (formData.currentStock !== undefined && Number(formData.currentStock) !== Number(productToUse.currentStock)) {
+          updates.currentStock = Number(formData.currentStock)
+        }
         
         if (Object.keys(updates).length > 0) {
           await updateProduct(productToUse.id, updates)
@@ -347,8 +378,9 @@ export default function BarcodeGenerator() {
           packSize: `${formData.quantity} ${formData.unit}`,
           purchasePrice: Number(formData.price),
           sellingPrice: Number(formData.price),
+          categoryId: formData.categoryId || undefined,
           category: isLoose ? 'loose' : 'grocery',
-          currentStock: Number(formData.quantity) || 0,
+          currentStock: Number(formData.currentStock) || 0,
           minStock: 10,
           gstRate: 0,
         })
@@ -448,6 +480,7 @@ export default function BarcodeGenerator() {
             existingBarcode={selectedProduct?.barcode || ''}
             onTranslate={translateNameToHindi}
             isTranslating={isTranslating}
+            categories={categories}
           />
           <PrintSettings
             labelSize={labelSize}

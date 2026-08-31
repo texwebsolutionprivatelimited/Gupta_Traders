@@ -49,10 +49,63 @@ export async function createProduct(values) {
   if (stock > 0) { const { error: stockError } = await supabase.rpc('change_stock', { p_product_id: data.id, p_delta: stock, p_type: 'opening', p_reason: 'Opening stock' }); fail(stockError, 'Product created but opening stock failed') }
   return data
 }
-export async function updateProduct(id, values) { const row=mapProduct(values,true); if(!row.category_id&&values.category){const {data:category,error:categoryError}=await supabase.from('categories').select('id').eq('slug',values.category).single();fail(categoryError,'Unable to resolve product category');row.category_id=category.id} const { data, error } = await supabase.from('products').update(row).eq('id', id).select(productSelect).single(); fail(error, 'Unable to update product'); return data }
+export async function updateProduct(id, values) {
+  const row = mapProduct(values, true)
+  if (!row.category_id && values.category) {
+    const { data: category, error: categoryError } = await supabase.from('categories').select('id').eq('slug', values.category).single()
+    fail(categoryError, 'Unable to resolve product category')
+    row.category_id = category.id
+  }
+  const { data, error } = await supabase.from('products').update(row).eq('id', id).select(productSelect).single()
+  fail(error, 'Unable to update product')
+
+  const targetStock = values.currentStock ?? values.stock
+  if (targetStock !== undefined && targetStock !== null) {
+    const targetVal = Number(targetStock)
+    const { data: inv, error: invError } = await supabase.from('inventory').select('quantity').eq('product_id', id).maybeSingle()
+    fail(invError, 'Unable to fetch current inventory')
+    const currentVal = Number(inv?.quantity || 0)
+    const delta = targetVal - currentVal
+    if (delta !== 0) {
+      const { error: stockError } = await supabase.rpc('change_stock', {
+        p_product_id: id,
+        p_delta: delta,
+        p_type: 'adjustment',
+        p_reason: 'Manual stock adjustment from product edit'
+      })
+      fail(stockError, 'Product updated but stock adjustment failed')
+    }
+  }
+
+  const { data: refetched, error: refetchError } = await supabase.from('products').select(productSelect).eq('id', id).single()
+  fail(refetchError, 'Unable to reload updated product details')
+  return refetched
+}
 export async function removeProduct(id) { return softDeleteEntity('product',id) }
 function mapProduct(v, partial = false) {
-  const row = { product_code:v.productCode, sku:v.sku, barcode:v.barcode, name:v.name, hindi_name:v.nameHi, category_id:v.categoryId || v.category_id || null, brand:v.brand, pack_size:v.packSize, unit:v.unit, purchase_price:Number(v.purchasePrice ?? v.purchase_price ?? 0), selling_price:Number(v.sellingPrice ?? v.selling_price ?? 0), gst_rate:Number(v.gstRate ?? v.gst_rate ?? 0), product_type:v.type || v.product_type || 'packaged', minimum_stock:Number(v.minStock ?? v.minimum_stock ?? 0), image_url:v.image || v.image_url, loose_unit:v.looseUnit, loose_conversion_factor:v.looseConversionFactor, hsn_code:v.hsnCode, description:v.description, status:v.status || 'active', metadata:v.metadata || {} }
+  const row = {
+    product_code: v.productCode === undefined ? undefined : (v.productCode ? v.productCode : null),
+    sku: v.sku === undefined ? undefined : (v.sku ? v.sku : null),
+    barcode: v.barcode === undefined ? undefined : (v.barcode ? v.barcode : null),
+    name: v.name,
+    hindi_name: v.nameHi,
+    category_id: v.categoryId === undefined && v.category_id === undefined ? undefined : (v.categoryId || v.category_id || null),
+    brand: v.brand,
+    pack_size: v.packSize,
+    unit: v.unit,
+    purchase_price: v.purchasePrice === undefined && v.purchase_price === undefined ? undefined : Number(v.purchasePrice ?? v.purchase_price ?? 0),
+    selling_price: v.sellingPrice === undefined && v.selling_price === undefined ? undefined : Number(v.sellingPrice ?? v.selling_price ?? 0),
+    gst_rate: v.gstRate === undefined && v.gst_rate === undefined ? undefined : Number(v.gstRate ?? v.gst_rate ?? 0),
+    product_type: v.type === undefined && v.product_type === undefined ? undefined : (v.type || v.product_type || 'packaged'),
+    minimum_stock: v.minStock === undefined && v.minimum_stock === undefined ? undefined : Number(v.minStock ?? v.minimum_stock ?? 0),
+    image_url: v.image === undefined && v.image_url === undefined ? undefined : (v.image || v.image_url),
+    loose_unit: v.looseUnit,
+    loose_conversion_factor: v.looseConversionFactor,
+    hsn_code: v.hsnCode,
+    description: v.description,
+    status: v.status === undefined ? undefined : (v.status || 'active'),
+    metadata: v.metadata === undefined ? undefined : (v.metadata || {})
+  }
   if (partial) Object.keys(row).forEach(k => row[k] === undefined && delete row[k]); return row
 }
 

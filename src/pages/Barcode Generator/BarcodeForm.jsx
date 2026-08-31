@@ -12,6 +12,7 @@ export default function BarcodeForm({
   existingBarcode,
   onTranslate,
   isTranslating,
+  categories = [],
 }) {
   const manualBarcodeSvgRef = useRef(null)
 
@@ -175,17 +176,45 @@ export default function BarcodeForm({
         <p className="text-[10px] text-slate-600 mt-1">Supports Unicode / Devanagari script</p>
       </div>
 
-      {/* Brand */}
-      <div>
-        <label className="block text-xs font-medium text-slate-400 mb-1.5">Brand</label>
-        <input
-          type="text"
-          value={formData.brand}
-          onChange={handleChange('brand')}
-          placeholder="e.g. Tata, Amul, Fortune"
-          className={inputClass('brand')}
-          id="barcode-brand"
-        />
+      {/* Brand & Category — Side by side */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">Brand</label>
+          <input
+            type="text"
+            value={formData.brand || ''}
+            onChange={handleChange('brand')}
+            placeholder="e.g. Tata, Amul, Fortune"
+            className={inputClass('brand')}
+            id="barcode-brand"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            Category <span className="text-rose-400">*</span>
+          </label>
+          <div className="relative">
+            <select
+              value={formData.categoryId || ''}
+              onChange={handleChange('categoryId')}
+              className={`${selectClass('categoryId')} pr-8`}
+              id="barcode-category"
+            >
+              <option value="" className="bg-slate-900 text-slate-400">Select Category</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id} className="bg-slate-900 text-slate-200">
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
+          {errors.categoryId && <p className="text-xs text-rose-400 mt-1">{errors.categoryId}</p>}
+        </div>
       </div>
 
       {/* Unit & Quantity — Side by side */}
@@ -223,8 +252,8 @@ export default function BarcodeForm({
         </div>
       </div>
 
-      {/* Price & Barcode Count — Side by side */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Price, Stock Level & Barcode Count — Side by side */}
+      <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5">
             Price / MRP (₹) <span className="text-rose-400">*</span>
@@ -240,6 +269,21 @@ export default function BarcodeForm({
             id="barcode-price"
           />
           {errors.price && <p className="text-xs text-rose-400 mt-1">{errors.price}</p>}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            Stock Level <span className="text-slate-600">(Optional)</span>
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={formData.currentStock || ''}
+            onChange={handleChange('currentStock')}
+            placeholder="e.g. 100"
+            className={inputClass('currentStock')}
+            id="barcode-current-stock"
+          />
+          {errors.currentStock && <p className="text-xs text-rose-400 mt-1">{errors.currentStock}</p>}
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5">
@@ -260,11 +304,11 @@ export default function BarcodeForm({
       </div>
 
       {/* Existing Barcode Info */}
-      {existingBarcode && (
+      {existingBarcode && formData.manualBarcode === existingBarcode && (
         <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3 text-center animate-fadeIn">
           <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mb-1">Existing Barcode</p>
           <p className="text-sm font-mono font-bold text-emerald-300 tracking-wider">{existingBarcode}</p>
-          <p className="text-[10px] text-slate-500 mt-1.5">This barcode will be reused — no new barcode generated</p>
+          <p className="text-[10px] text-slate-500 mt-1.5">This barcode will be reused — clear the input to auto-generate a new one</p>
         </div>
       )}
 

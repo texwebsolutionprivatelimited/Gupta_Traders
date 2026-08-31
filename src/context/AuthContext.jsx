@@ -1,12 +1,29 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase } from '../supabase/supabase'
 import { getCurrentProfile } from '../services/erpService'
 
 const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [session,setSession]=useState(null), [profile,setProfile]=useState(null), [loading,setLoading]=useState(true), [error,setError]=useState('')
+  const stateRef = useRef({ session: null, profile: null })
+  useEffect(() => {
+    stateRef.current = { session, profile }
+  }, [session, profile])
+
   useEffect(()=>{ let active=true
-    async function apply(next){ if(!active)return; setSession(next); setProfile(null); setError(''); if(next){ try{setProfile(await getCurrentProfile())}catch(e){setError(e.message)} } setLoading(false) }
+    async function apply(next){
+      if(!active)return;
+      const current = stateRef.current
+      const prevUserId = current.session?.user?.id
+      const nextUserId = next?.user?.id
+
+      if (prevUserId === nextUserId && current.profile) {
+        setSession(next)
+        return
+      }
+
+      setSession(next); setProfile(null); setError(''); if(next){ try{setProfile(await getCurrentProfile())}catch(e){setError(e.message)} } setLoading(false)
+    }
     supabase.auth.getSession().then(({data,error:e})=>{ if(e){setError(e.message);setLoading(false)}else apply(data.session) })
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>apply(next)); return()=>{active=false;subscription.unsubscribe()}
   },[])

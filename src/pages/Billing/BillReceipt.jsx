@@ -3,9 +3,26 @@ import { formatINR } from '../../utils/erp'
 import { listUISales, subscribeToTable } from '../../services/erpService'
 import { FaReceipt as ReceiptIcon, FaPrint as PrinterIcon, FaCheckCircle as CheckCircleIcon } from 'react-icons/fa'
 
+const mapUnitToShort = (unit) => {
+  if (!unit) return '';
+  const u = unit.toLowerCase().trim();
+  if (u === 'piece' || u === 'pieces' || u === 'pcs' || u === 'pc') return 'pc';
+  if (u === 'kilogram' || u === 'kilograms' || u === 'kg' || u === 'kgs') return 'kg';
+  if (u === 'litre' || u === 'litres' || u === 'liter' || u === 'ltr' || u === 'ltrs') return 'L';
+  if (u === 'millilitre' || u === 'millilitres' || u === 'ml') return 'Ml';
+  if (u === 'gram' || u === 'grams' || u === 'gm' || u === 'gms' || u === 'g') return 'g';
+  if (u === 'packet' || u === 'packets' || u === 'pkt' || u === 'pkts') return 'pkt';
+  if (u === 'box' || u === 'boxes') return 'box';
+  if (u === 'dozen' || u === 'dozens' || u === 'doz') return 'doz';
+  return unit;
+};
+
 // ─── Bill Receipt Component (Print & Reprint) ───────────────────
 export function ReceiptPreview({ bill, onClose, onPrint }) {
   const receiptRef = useRef(null)
+
+  const itemSavings = bill.items.reduce((sum, item) => sum + (Number(item.itemDiscount) || 0) * Number(item.quantity || 1), 0);
+  const totalSavings = itemSavings + (Number(bill.summary.discountAmount) || 0);
 
   const handlePrint = () => {
     // Thermal receipt window setup
@@ -16,12 +33,17 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
       <head>
         <title>Bill ${bill.billNumber}</title>
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          * { margin: 0; padding: 0; box-sizing: border-box; font-weight: bold; }
           body {
             font-family: 'Courier New', Courier, monospace;
             font-size: 12px;
+            font-weight: bold;
             width: 80mm;
-            padding: 4mm;
+            padding: 4mm 6mm;
             color: #000;
             background: #fff;
           }
@@ -31,8 +53,8 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
           .separator { border-top: 1px dashed #000; margin: 4px 0; }
           .double-separator { border-top: 2px solid #000; margin: 4px 0; }
           .shop-name { font-size: 18px; font-weight: bold; }
-          .item-row { display: flex; justify-content: space-between; padding: 1px 0; }
-          .item-name { flex: 1; }
+          .item-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 1px 0; }
+          .item-name { flex: 1; word-break: break-word; overflow-wrap: break-word; }
           .item-qty { width: 50px; text-align: center; }
           .item-amount { width: 60px; text-align: right; }
           .total-row { display: flex; justify-content: space-between; padding: 2px 0; font-weight: bold; }
@@ -70,7 +92,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
         ${bill.items.map(item => `
           <div class="item-row">
             <span class="item-name">${item.name}</span>
-            <span class="item-qty">${item.quantity}${item.unit !== 'pcs' ? item.unit : ''}</span>
+            <span class="item-qty">${item.quantity}${mapUnitToShort(item.unit)}</span>
             <span class="item-amount">${(item.price * item.quantity).toFixed(2)}</span>
           </div>
           ${item.itemDiscount > 0 ? `<div class="item-row"><span class="item-name" style="padding-left:10px;font-size:10px">Disc: -${item.itemDiscount.toFixed(2)}</span><span></span><span></span></div>` : ''}
@@ -80,16 +102,14 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
           <span>Subtotal:</span>
           <span>${bill.summary.subtotal.toFixed(2)}</span>
         </div>
-        ${bill.summary.totalGST > 0 ? `
-          <div class="item-row">
-            <span>CGST:</span>
-            <span>${bill.summary.totalCGST.toFixed(2)}</span>
-          </div>
-          <div class="item-row">
-            <span>SGST:</span>
-            <span>${bill.summary.totalSGST.toFixed(2)}</span>
-          </div>
-        ` : ''}
+        <div class="item-row">
+          <span>CGST:</span>
+          <span>${(bill.summary.totalCGST ?? ((bill.summary.totalGST || 0) / 2)).toFixed(2)}</span>
+        </div>
+        <div class="item-row">
+          <span>SGST:</span>
+          <span>${(bill.summary.totalSGST ?? ((bill.summary.totalGST || 0) / 2)).toFixed(2)}</span>
+        </div>
         ${bill.summary.discountAmount > 0 ? `
           <div class="item-row">
             <span>Discount:</span>
@@ -102,6 +122,12 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
           <span>Rs. ${bill.summary.grandTotal.toFixed(2)}</span>
         </div>
         <div class="separator"></div>
+        ${totalSavings > 0 ? `
+          <div class="center bold" style="margin: 4px 0; font-size: 11px; border: 1.5px dashed #000; padding: 6px; text-transform: uppercase;">
+            *** YOU SAVED AN AMOUNT OF Rs. ${totalSavings.toFixed(2)} ON THIS PURCHASE ***
+          </div>
+          <div class="separator"></div>
+        ` : ''}
         ${bill.paymentMode === 'cash' && bill.amountPaid ? `
           <div class="item-row">
             <span>Paid:</span>
@@ -123,6 +149,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
     `)
     printWindow.document.close()
     printWindow.print()
+    printWindow.close()
     if (onPrint) onPrint()
   }
 
@@ -146,7 +173,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
         </div>
 
         {/* Receipt Content */}
-        <div ref={receiptRef} className="px-6 py-4 font-mono text-xs space-y-2 max-h-[60vh] overflow-y-auto scrollbar-thin">
+        <div ref={receiptRef} className="px-6 py-4 font-mono text-xs font-bold space-y-2 max-h-[60vh] overflow-y-auto scrollbar-thin">
           {/* Shop Header */}
           <div className="text-center space-y-0.5">
             <p className="text-lg font-bold text-slate-900 dark:text-slate-100">GUPTA TRADERS</p>
@@ -177,8 +204,8 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
             {bill.items.map((item, i) => (
               <div key={i}>
                 <div className="flex justify-between">
-                  <span className="text-slate-800 dark:text-slate-200 flex-1 truncate">{item.name}</span>
-                  <span className="text-slate-500 dark:text-slate-400 w-12 text-center">{item.quantity}</span>
+                  <span className="text-slate-800 dark:text-slate-200 flex-1 break-words whitespace-normal">{item.name}</span>
+                  <span className="text-slate-500 dark:text-slate-400 w-12 text-center">{item.quantity}{mapUnitToShort(item.unit)}</span>
                   <span className="text-slate-900 dark:text-slate-200 w-16 text-right">{formatINR(item.price * item.quantity)}</span>
                 </div>
                 {item.itemDiscount > 0 && (
@@ -196,18 +223,14 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               <span>Subtotal</span>
               <span>{formatINR(bill.summary.subtotal)}</span>
             </div>
-            {bill.summary.totalGST > 0 && (
-              <>
-                <div className="flex justify-between text-slate-500 dark:text-slate-500 text-[10px]">
-                  <span>CGST</span>
-                  <span>{formatINR(bill.summary.totalCGST)}</span>
-                </div>
-                <div className="flex justify-between text-slate-500 dark:text-slate-500 text-[10px]">
-                  <span>SGST</span>
-                  <span>{formatINR(bill.summary.totalSGST)}</span>
-                </div>
-              </>
-            )}
+            <div className="flex justify-between text-slate-500 dark:text-slate-500 text-[10px]">
+              <span>CGST</span>
+              <span>{formatINR(bill.summary.totalCGST ?? ((bill.summary.totalGST || 0) / 2))}</span>
+            </div>
+            <div className="flex justify-between text-slate-500 dark:text-slate-500 text-[10px]">
+              <span>SGST</span>
+              <span>{formatINR(bill.summary.totalSGST ?? ((bill.summary.totalGST || 0) / 2))}</span>
+            </div>
             {bill.summary.discountAmount > 0 && (
               <div className="flex justify-between text-amber-600 dark:text-amber-400">
                 <span>Discount</span>
@@ -219,6 +242,11 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               <span>TOTAL</span>
               <span>{formatINR(bill.summary.grandTotal)}</span>
             </div>
+            {totalSavings > 0 && (
+              <div className="mt-2 text-center py-1.5 px-3 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold rounded-lg border border-dashed border-emerald-500/30 text-xs">
+                🎉 You saved an amount of {formatINR(totalSavings)} on this purchase!
+              </div>
+            )}
           </div>
 
           {bill.paymentMode === 'cash' && bill.amountPaid && (
@@ -269,8 +297,8 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
 
 // ─── Reprint Bills List ──────────────────────────────────────────
 export function ReprintDrawer({ onClose, onSelectBill }) {
-  const [bills,setBills] = useState([])
-  useEffect(()=>{const load=()=>listUISales().then(rows=>setBills(rows.map(s=>({...s,billNumber:s.invoice,customerName:s.customer,timestamp:s.date,summary:{subtotal:s.subtotal,totalGST:s.gst,grandTotal:s.total},items:s.items.map(i=>({...i,name:i.product,price:i.salesPrice}))})))).catch(console.error);load();return subscribeToTable('sales',load)},[])
+  const [bills, setBills] = useState([])
+  useEffect(() => { const load = () => listUISales().then(rows => setBills(rows.map(s => ({ ...s, billNumber: s.invoice, customerName: s.customer, timestamp: s.date, summary: { subtotal: s.subtotal, totalGST: s.gst, grandTotal: s.total }, items: s.items.map(i => ({ ...i, name: i.product, price: i.salesPrice })) })))).catch(console.error); load(); return subscribeToTable('sales', load) }, [])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/60 backdrop-blur-sm transition-colors" onClick={onClose}>
@@ -347,7 +375,7 @@ export function SaleSuccessOverlay({ bill, onDone }) {
         <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center animate-pulse">
           <CheckCircleIcon className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
         </div>
-        
+
         <div>
           <h2 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">Sale Complete!</h2>
           <p className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">

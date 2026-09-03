@@ -9,7 +9,6 @@ export default function LoginPage() {
   const { user, profile, signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -236,21 +235,6 @@ export default function LoginPage() {
                 Forgot Password?
               </a>
             </div>
-          </div>
-
-          {/* Remember Me */}
-          <div className="flex items-center pt-0.5">
-            <input
-              id="remember-me"
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              disabled={loading || success}
-              className="h-4.5 w-4.5 rounded border-slate-700/60 bg-slate-800/80 text-emerald-500 focus:ring-emerald-500/30 cursor-pointer disabled:opacity-55 accent-emerald-500"
-            />
-            <label htmlFor="remember-me" className="ml-2 block text-xs font-semibold text-slate-400 cursor-pointer select-none">
-              Remember my session
-            </label>
           </div>
 
           {/* Submit Button */}

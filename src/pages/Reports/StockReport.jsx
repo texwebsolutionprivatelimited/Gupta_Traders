@@ -1,107 +1,9 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-
-const initialStockData = [
-  {
-    id: 1,
-    product: "UltraTech Cement",
-    sku: "UTC001",
-    category: "Cement",
-    openingStock: 200,
-    stockIn: 100,
-    stockOut: 120,
-    currentStock: 180,
-    minStock: 30,
-    unit: "Bag",
-  },
-  {
-    id: 2,
-    product: "TMT Steel",
-    sku: "TMT001",
-    category: "Steel",
-    openingStock: 150,
-    stockIn: 80,
-    stockOut: 110,
-    currentStock: 120,
-    minStock: 25,
-    unit: "Piece",
-  },
-  {
-    id: 3,
-    product: "Asian Paints",
-    sku: "AP001",
-    category: "Paint",
-    openingStock: 80,
-    stockIn: 40,
-    stockOut: 55,
-    currentStock: 65,
-    minStock: 20,
-    unit: "Litre",
-  },
-  {
-    id: 4,
-    product: "Floor Tiles",
-    sku: "FT001",
-    category: "Tiles",
-    openingStock: 300,
-    stockIn: 150,
-    stockOut: 270,
-    currentStock: 180,
-    minStock: 50,
-    unit: "Box",
-  },
-  {
-    id: 5,
-    product: "PVC Pipe",
-    sku: "PVC001",
-    category: "Hardware",
-    openingStock: 100,
-    stockIn: 30,
-    stockOut: 95,
-    currentStock: 35,
-    minStock: 40,
-    unit: "Piece",
-  },
-  {
-    id: 6,
-    product: "Electrical Wire",
-    sku: "EW001",
-    category: "Electrical",
-    openingStock: 120,
-    stockIn: 50,
-    stockOut: 85,
-    currentStock: 85,
-    minStock: 25,
-    unit: "Roll",
-  },
-  {
-    id: 7,
-    product: "Wall Putty",
-    sku: "WP001",
-    category: "Paint",
-    openingStock: 90,
-    stockIn: 30,
-    stockOut: 100,
-    currentStock: 20,
-    minStock: 25,
-    unit: "Bag",
-  },
-  {
-    id: 8,
-    product: "CPVC Pipe",
-    sku: "CPVC001",
-    category: "Hardware",
-    openingStock: 75,
-    stockIn: 45,
-    stockOut: 35,
-    currentStock: 85,
-    minStock: 20,
-    unit: "Piece",
-  },
-];
+import { useReport } from "../../context/ReportContext";
 
 export default function StockReport() {
-  const [stockData] = useState(initialStockData);
+  const { stockItems: stockData = [], loading, error } = useReport();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [status, setStatus] = useState("All");
@@ -437,7 +339,7 @@ export default function StockReport() {
                       colSpan="8"
                       className="px-6 py-12 text-center text-slate-400 dark:text-slate-500"
                     >
-                      No stock records found.
+                      {loading ? "Loading stock from Supabase..." : error || "No stock records found."}
                     </td>
                   </tr>
                 )}

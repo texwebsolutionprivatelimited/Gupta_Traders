@@ -8,47 +8,9 @@ export default function LowStockReport() {
 
     const { stockItems = [] } = useReport();
 
-    const lowStockItems =
-        stockItems.length > 0
-            ? stockItems.filter(
-                  (item) =>
-                      Number(item.stock) <=
-                      Number(item.minStock)
-              )
-            : [
-                  {
-                      id: 1,
-                      product: "UltraTech Cement",
-                      category: "Cement",
-                      stock: 12,
-                      minStock: 20,
-                      unit: "Bags",
-                  },
-                  {
-                      id: 2,
-                      product: "TMT Steel 12mm",
-                      category: "Steel",
-                      stock: 8,
-                      minStock: 15,
-                      unit: "Pieces",
-                  },
-                  {
-                      id: 3,
-                      product: "Asian Paints",
-                      category: "Paint",
-                      stock: 5,
-                      minStock: 10,
-                      unit: "Buckets",
-                  },
-                  {
-                      id: 4,
-                      product: "PVC Pipe",
-                      category: "Hardware",
-                      stock: 3,
-                      minStock: 8,
-                      unit: "Pieces",
-                  },
-              ];
+    const lowStockItems = stockItems.filter(
+        (item) => Number(item.stock) <= Number(item.minStock)
+    );
 
     const filteredItems = lowStockItems.filter(
         (item) =>

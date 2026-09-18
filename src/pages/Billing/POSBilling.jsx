@@ -146,11 +146,26 @@ export default function POSBilling() {
     }
 
     try {
-      const items=cart.filter(x=>!x.isCustomItem).map(x=>({product_id:x.supabase_id||x.id,quantity:Number(x.quantity),unit_price:Number(x.price??x.sellingPrice),discount:Number(x.itemDiscount||0),tax_rate:Number(x.gstRate||0)}))
-      if(items.length!==cart.length) throw new Error('Custom items must first be created as service products before checkout.')
+      const items=cart.map(x=>{
+        const rate=Number(x.gstRate||0)
+        const quantity=Number(x.quantity)
+        const price=Number(x.price??x.sellingPrice)
+        const discount=Number(x.itemDiscount||0)
+        const taxableUnitPrice=isGSTInclusive ? price*(1-discount/100)/(1+rate/100) : price
+        return {
+          ...(x.isCustomItem ? {is_custom:true,product_name:x.name,unit:x.unit} : {product_id:x.supabase_id||x.id}),
+          quantity,
+          unit_price:taxableUnitPrice,
+          discount:isGSTInclusive ? 0 : quantity*price*discount/100,
+          tax_rate:rate,
+          display_price:price,
+          item_discount_percent:discount,
+          is_gst_inclusive:isGSTInclusive,
+        }
+      })
       const matchedCustomer=customerIndex.find(c=>c.id===customerName||c.name.toLowerCase()===customerName.trim().toLowerCase())
       if(Number(amountPaid||0)<summary.grandTotal&&!matchedCustomer)throw new Error('A registered customer is required for credit or partial-payment sales.')
-      const saved=await persistSale({customer_id:matchedCustomer?.id||null,discount:Number(billDiscount||0),amount_paid:Number(amountPaid||0),payment_method:paymentMode,metadata:{customerName,isGSTInclusive}},items)
+      const saved=await persistSale({customer_id:matchedCustomer?.id||null,discount:summary.discountAmount,amount_paid:Number(amountPaid||0),payment_method:paymentMode,metadata:{customerName,isGSTInclusive}},items)
       const savedTotal = Number(saved?.total_amount)
       const completed={...bill,billNumber:saved.invoice_number,id:saved.id,summary:{...summary,grandTotal:Number.isFinite(savedTotal)?savedTotal:summary.grandTotal}}
       setShowSuccess(completed);setCart([]);setBillDiscount(0);setCustomerName('')

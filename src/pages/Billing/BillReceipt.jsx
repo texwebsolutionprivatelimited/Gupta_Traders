@@ -17,21 +17,37 @@ const mapUnitToShort = (unit) => {
   return unit;
 };
 
+const escapeReceiptText = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+
 // ─── Bill Receipt Component (Print & Reprint) ───────────────────
 export function ReceiptPreview({ bill, onClose, onPrint }) {
   const receiptRef = useRef(null)
 
-  const itemSavings = bill.items.reduce((sum, item) => sum + (Number(item.itemDiscount) || 0) * Number(item.quantity || 1), 0);
+  const itemSavings = bill.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0) * Number(item.itemDiscount || 0) / 100, 0);
   const totalSavings = itemSavings + (Number(bill.summary.discountAmount) || 0);
 
   const handlePrint = () => {
     // Thermal receipt window setup
     const printWindow = window.open('', '_blank', 'width=320,height=600')
+    if (!printWindow) {
+      window.alert('Please allow pop-ups to print the receipt.')
+      return
+    }
+    const items = Array.isArray(bill.items) ? bill.items : []
+    const summary = bill.summary || {}
+    const paymentMode = String(bill.paymentMode || 'cash')
+    const timestamp = bill.timestamp ? new Date(bill.timestamp) : new Date()
+    const subtotal = Number(summary.subtotal || 0)
+    const totalGST = Number(summary.totalGST || 0)
+    const totalCGST = Number(summary.totalCGST ?? totalGST / 2)
+    const totalSGST = Number(summary.totalSGST ?? totalGST / 2)
+    const discountAmount = Number(summary.discountAmount || 0)
+    const grandTotal = Number(summary.grandTotal || 0)
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Bill ${bill.billNumber}</title>
+        <title>Bill ${escapeReceiptText(bill.billNumber)}</title>
         <style>
           @page {
             size: 80mm auto;
@@ -74,14 +90,14 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
         </div>
         <div class="separator"></div>
         <div class="item-row">
-          <span>Bill No: ${bill.billNumber}</span>
-          <span>${new Date(bill.timestamp).toLocaleDateString('en-IN')}</span>
+          <span>Bill No: ${escapeReceiptText(bill.billNumber || '—')}</span>
+          <span>${timestamp.toLocaleDateString('en-IN')}</span>
         </div>
         <div class="item-row">
-          <span>Time: ${new Date(bill.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-          <span>Mode: ${bill.paymentMode.toUpperCase()}</span>
+          <span>Time: ${timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+          <span>Mode: ${escapeReceiptText(paymentMode.toUpperCase())}</span>
         </div>
-        ${bill.customerName ? `<div>Customer: ${bill.customerName}</div>` : ''}
+        ${bill.customerName ? `<div>Customer: ${escapeReceiptText(bill.customerName)}</div>` : ''}
         <div class="double-separator"></div>
         <div class="item-row bold">
           <span class="item-name">Item</span>
@@ -89,37 +105,37 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
           <span class="item-amount">Amount</span>
         </div>
         <div class="separator"></div>
-        ${bill.items.map(item => `
+        ${items.map(item => `
           <div class="item-row">
-            <span class="item-name">${item.name}</span>
-            <span class="item-qty">${item.quantity}${mapUnitToShort(item.unit)}</span>
+            <span class="item-name">${escapeReceiptText(item.name)}</span>
+            <span class="item-qty">${item.quantity}${escapeReceiptText(mapUnitToShort(item.unit))}</span>
             <span class="item-amount">${(item.price * item.quantity).toFixed(2)}</span>
           </div>
-          ${item.itemDiscount > 0 ? `<div class="item-row"><span class="item-name" style="padding-left:10px;font-size:10px">Disc: -${item.itemDiscount.toFixed(2)}</span><span></span><span></span></div>` : ''}
+          ${item.itemDiscount > 0 ? `<div class="item-row"><span class="item-name" style="padding-left:10px;font-size:10px">Disc: -${(item.price * item.quantity * item.itemDiscount / 100).toFixed(2)}</span><span></span><span></span></div>` : ''}
         `).join('')}
         <div class="double-separator"></div>
         <div class="total-row">
           <span>Subtotal:</span>
-          <span>${bill.summary.subtotal.toFixed(2)}</span>
+          <span>${subtotal.toFixed(2)}</span>
         </div>
         <div class="item-row">
           <span>CGST:</span>
-          <span>${(bill.summary.totalCGST ?? ((bill.summary.totalGST || 0) / 2)).toFixed(2)}</span>
+          <span>${totalCGST.toFixed(2)}</span>
         </div>
         <div class="item-row">
           <span>SGST:</span>
-          <span>${(bill.summary.totalSGST ?? ((bill.summary.totalGST || 0) / 2)).toFixed(2)}</span>
+          <span>${totalSGST.toFixed(2)}</span>
         </div>
-        ${bill.summary.discountAmount > 0 ? `
+        ${discountAmount > 0 ? `
           <div class="item-row">
             <span>Discount:</span>
-            <span>-${bill.summary.discountAmount.toFixed(2)}</span>
+            <span>-${discountAmount.toFixed(2)}</span>
           </div>
         ` : ''}
         <div class="separator"></div>
         <div class="total-row grand-total center">
           <span>TOTAL:</span>
-          <span>Rs. ${bill.summary.grandTotal.toFixed(2)}</span>
+          <span>Rs. ${grandTotal.toFixed(2)}</span>
         </div>
         <div class="separator"></div>
         ${totalSavings > 0 ? `
@@ -128,29 +144,39 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
           </div>
           <div class="separator"></div>
         ` : ''}
-        ${bill.paymentMode === 'cash' && bill.amountPaid ? `
+        ${paymentMode.toLowerCase() === 'cash' && Number(bill.amountPaid) ? `
           <div class="item-row">
             <span>Paid:</span>
-            <span>${bill.amountPaid.toFixed(2)}</span>
+            <span>${Number(bill.amountPaid).toFixed(2)}</span>
           </div>
           <div class="item-row bold">
             <span>Change:</span>
-            <span>${(bill.amountPaid - bill.summary.grandTotal).toFixed(2)}</span>
+            <span>${(Number(bill.amountPaid) - grandTotal).toFixed(2)}</span>
           </div>
           <div class="separator"></div>
         ` : ''}
         <div class="center" style="margin-top: 8px;">
           <div class="bold">Thank You! Visit Again!</div>
           <div>धन्यवाद! फिर आना!</div>
-          <div style="margin-top: 4px; font-size: 10px;">Items: ${bill.items.length} | Qty: ${bill.items.reduce((s, i) => s + i.quantity, 0)}</div>
+          <div style="margin-top: 4px; font-size: 10px;">Items: ${items.length} | Qty: ${items.reduce((s, i) => s + Number(i.quantity || 0), 0)}</div>
         </div>
       </body>
       </html>
     `)
     printWindow.document.close()
-    printWindow.print()
-    printWindow.close()
-    if (onPrint) onPrint()
+    // Wait until the new document has painted before invoking the browser print
+    // dialog. Printing immediately after document.write can produce a blank/plain
+    // page in Chromium, especially with thermal printer drivers.
+    const printWhenReady = () => {
+      printWindow.focus()
+      window.setTimeout(() => {
+        printWindow.print()
+        printWindow.setTimeout(() => printWindow.close(), 250)
+        if (onPrint) onPrint()
+      }, 100)
+    }
+    if (printWindow.document.readyState === 'complete') printWhenReady()
+    else printWindow.onload = printWhenReady
   }
 
   return (
@@ -209,7 +235,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
                   <span className="text-slate-900 dark:text-slate-200 w-16 text-right">{formatINR(item.price * item.quantity)}</span>
                 </div>
                 {item.itemDiscount > 0 && (
-                  <p className="text-amber-600 dark:text-amber-400/70 pl-4 text-[10px]">Disc: -{formatINR(item.itemDiscount * item.quantity)}</p>
+                  <p className="text-amber-600 dark:text-amber-400/70 pl-4 text-[10px]">Disc: -{formatINR(item.price * item.quantity * item.itemDiscount / 100)}</p>
                 )}
               </div>
             ))}
@@ -298,7 +324,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
 // ─── Reprint Bills List ──────────────────────────────────────────
 export function ReprintDrawer({ onClose, onSelectBill }) {
   const [bills, setBills] = useState([])
-  useEffect(() => { const load = () => listUISales().then(rows => setBills(rows.map(s => ({ ...s, billNumber: s.invoice, customerName: s.customer, timestamp: s.date, summary: { subtotal: s.subtotal, totalGST: s.gst, grandTotal: s.total }, items: s.items.map(i => ({ ...i, name: i.product, price: i.salesPrice })) })))).catch(console.error); load(); return subscribeToTable('sales', load) }, [])
+  useEffect(() => { const load = () => listUISales().then(rows => setBills(rows.map(s => ({ ...s, billNumber: s.invoice, customerName: s.customer, timestamp: s.date, summary: { subtotal: s.subtotal, totalGST: s.gst, discountAmount: s.discount, grandTotal: s.total }, items: s.items.map(i => ({ ...i, name: i.product, price: i.salesPrice })) })))).catch(console.error); load(); return subscribeToTable('sales', load) }, [])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/60 backdrop-blur-sm transition-colors" onClick={onClose}>

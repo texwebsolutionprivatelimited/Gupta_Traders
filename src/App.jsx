@@ -11,6 +11,7 @@ import SuppliersPage from './pages/Suppliers'
 import CustomersPage from './pages/Customers'
 import LoginPage from './pages/login'
 import TrashPage from './pages/Trash'
+import PackagedProductScanner from './pages/Products/PackagedProductScanner'
 
 // Context Providers
 import { ExpenseProvider } from './context/ExpenseContext'
@@ -78,7 +79,7 @@ function ProtectedRoute() {
   const path = location.pathname
 
   if (role === 'cashier') {
-    const allowed = ['/', '/pos', '/customers', '/sales']
+    const allowed = ['/', '/pos', '/customers', '/sales', '/packaged-scanner', '/quick-product-entry']
     if (!allowed.includes(path)) {
       return <Navigate to="/pos" replace />
     }
@@ -278,6 +279,8 @@ function App() {
               <Route element={<Layout />}>
                 <Route path="/" element={<Home />} />
                 <Route path="/products" element={<ProductsPage />} />
+                <Route path="/packaged-scanner" element={<PackagedProductScanner />} />
+                <Route path="/quick-product-entry" element={<PackagedProductScanner />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/inventory" element={<InventoryPage />} />
 

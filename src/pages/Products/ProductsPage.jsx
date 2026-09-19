@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   formatINR, unitOptions, gstOptions, generateNextSKU, generateNextProductCode,
   generateNextBarcode,
@@ -894,44 +894,66 @@ export default function ProductsPage() {
             </p>
           </div>
 
-          {/* Add Product Button with Dropdown Selector */}
-          <div className="relative" ref={addMenuRef}>
-            <button
-              onClick={() => setShowAddMenu(!showAddMenu)}
-              id="add-product-btn"
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:brightness-110 transition-all cursor-pointer text-sm"
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3">
+            <Link
+              to="/packaged-scanner"
+              className="flex items-center gap-2 px-4 sm:px-5 py-3 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-emerald-400 hover:text-emerald-300 font-semibold border border-emerald-500/30 shadow-lg shadow-emerald-500/5 hover:border-emerald-500/50 transition-all text-sm"
+              title="Quickly scan & add uncataloged packaged products"
             >
-              <PlusIcon />
-              <span>Add New Product</span>
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-              </svg>
-            </button>
+              <BarcodeIcon />
+              <span>Packaged Scanner</span>
+            </Link>
 
-            {showAddMenu && (
-              <div className="absolute right-0 mt-2 w-60 bg-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fadeIn">
-                <button
-                  onClick={() => handleAddNew('packaged')}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left text-sm text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer border-b border-slate-800/60"
-                >
-                  <span className="w-8 h-8 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center font-bold">📦</span>
-                  <div>
-                    <p className="font-semibold text-slate-200">Packaged Product</p>
-                    <p className="text-[10px] text-slate-500">Items with barcodes & brands</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => handleAddNew('loose')}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left text-sm text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <span className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center font-bold">⚖️</span>
-                  <div>
-                    <p className="font-semibold text-slate-200">Loose Product</p>
-                    <p className="text-[10px] text-slate-500">Weight-based loose items</p>
-                  </div>
-                </button>
-              </div>
-            )}
+            {/* Add Product Button with Dropdown Selector */}
+            <div className="relative" ref={addMenuRef}>
+              <button
+                onClick={() => setShowAddMenu(!showAddMenu)}
+                id="add-product-btn"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:brightness-110 transition-all cursor-pointer text-sm"
+              >
+                <PlusIcon />
+                <span>Add New Product</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                </svg>
+              </button>
+
+              {showAddMenu && (
+                <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fadeIn">
+                  <Link
+                    to="/packaged-scanner"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left text-sm text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer border-b border-slate-800/60"
+                  >
+                    <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center font-bold">⚡</span>
+                    <div>
+                      <p className="font-semibold text-emerald-400">Quick Barcode Scanner</p>
+                      <p className="text-[10px] text-slate-500">Auto-fetch name & brand by barcode</p>
+                    </div>
+                  </Link>
+                  <button
+                    onClick={() => handleAddNew('packaged')}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left text-sm text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer border-b border-slate-800/60"
+                  >
+                    <span className="w-8 h-8 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center font-bold">📦</span>
+                    <div>
+                      <p className="font-semibold text-slate-200">Packaged Product</p>
+                      <p className="text-[10px] text-slate-500">Manual full entry form</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleAddNew('loose')}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left text-sm text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <span className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center font-bold">⚖️</span>
+                    <div>
+                      <p className="font-semibold text-slate-200">Loose Product</p>
+                      <p className="text-[10px] text-slate-500">Weight-based loose items</p>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -43,10 +43,62 @@ export async function listProducts({ search = '', categoryId, status = 'active' 
 }
 export function productToUI(row) { const inv=Array.isArray(row.inventory)?row.inventory[0]:row.inventory; return { id:row.id, supabase_id:row.id, productCode:row.product_code||'', sku:row.sku||'', barcode:row.barcode||'', name:row.name, nameHi:row.hindi_name||'', categoryId:row.category_id, category:row.category?.slug||'', categoryName:row.category?.name||'', brand:row.brand||'', packSize:row.pack_size||'', unit:row.unit, purchasePrice:Number(row.purchase_price), sellingPrice:Number(row.selling_price), gstRate:Number(row.gst_rate), type:row.product_type, minStock:Number(row.minimum_stock), currentStock:Number(inv?.quantity||0), stock:Number(inv?.quantity||0), image:row.image_url||'', looseUnit:row.loose_unit, looseConversionFactor:row.loose_conversion_factor, hsnCode:row.hsn_code, description:row.description||'', status:row.status, metadata:row.metadata||{}, createdAt:row.created_at, updatedAt:row.updated_at } }
 export async function listUIProducts(filters={}) { return (await listProducts(filters)).map(productToUI) }
+
+export async function findProductByBarcode(barcode) {
+  if (!barcode) return null
+  const clean = String(barcode).trim()
+  if (!clean) return null
+  const { data, error } = await supabase
+    .from('products')
+    .select(productSelect)
+    .eq('barcode', clean)
+    .is('deleted_at', null)
+    .maybeSingle()
+  fail(error, 'Unable to query product by barcode')
+  return data ? productToUI(data) : null
+}
+
 export async function createProduct(values) {
+  const cleanBarcode = values.barcode ? String(values.barcode).trim() : ''
+  if (cleanBarcode) {
+    const existing = await findProductByBarcode(cleanBarcode)
+    if (existing) {
+      throw new Error(`Product already exists with barcode "${cleanBarcode}". Duplicates are not allowed.`)
+    }
+  }
+
   const stock = Number(values.currentStock ?? values.stock ?? 0)
-  const row = mapProduct(values); if(!row.category_id && values.category){const {data:category,error:categoryError}=await supabase.from('categories').select('id').eq('slug',values.category).single();fail(categoryError,'Unable to resolve product category');row.category_id=category.id} const { data, error } = await supabase.from('products').insert(row).select().single(); fail(error, 'Unable to create product')
-  if (stock > 0) { const { error: stockError } = await supabase.rpc('change_stock', { p_product_id: data.id, p_delta: stock, p_type: 'opening', p_reason: 'Opening stock' }); fail(stockError, 'Product created but opening stock failed') }
+  const row = mapProduct(values)
+
+  if (!row.category_id && values.category) {
+    const catSearch = values.category.trim()
+    const slug = catSearch.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    const { data: cat } = await supabase
+      .from('categories')
+      .select('id')
+      .or(`slug.eq.${slug},name.ilike.${catSearch}`)
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle()
+
+    if (cat?.id) {
+      row.category_id = cat.id
+    } else {
+      try {
+        const createdCat = await createCategory({ name: catSearch, slug })
+        if (createdCat?.id) row.category_id = createdCat.id
+      } catch (catErr) {
+        console.warn('Category auto-creation skipped:', catErr.message)
+      }
+    }
+  }
+
+  const { data, error } = await supabase.from('products').insert(row).select().single()
+  fail(error, 'Unable to create product')
+  if (stock > 0) {
+    const { error: stockError } = await supabase.rpc('change_stock', { p_product_id: data.id, p_delta: stock, p_type: 'opening', p_reason: 'Opening stock' })
+    fail(stockError, 'Product created but opening stock failed')
+  }
   return data
 }
 export async function updateProduct(id, values) {

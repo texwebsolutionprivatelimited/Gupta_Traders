@@ -11,7 +11,7 @@ import {
   formatINR,
 } from '../../utils/erp'
 import { completeSale as persistSale, deleteHeldBill as removeHeldBill, listHeldBills, listUICustomers, listUIProducts, saveHeldBill, subscribeToTable } from '../../services/erpService'
-import { FaShoppingCart as CartIcon, FaPlus } from 'react-icons/fa'
+import { FaShoppingCart as CartIcon, FaPlus, FaBarcode } from 'react-icons/fa'
 import guptaTradersLogo from '../../assets/gupta traders logo.png'
 
 // ─── Main POS Billing Page ──────────────────────────────────────
@@ -193,8 +193,8 @@ export default function POSBilling() {
   })
   const [toast, setToast] = useState(null)
 
-  const triggerToast = useCallback((type, title, message) => {
-    setToast({ type, title, message })
+  const triggerToast = useCallback((type, title, message, actionUrl = null) => {
+    setToast({ type, title, message, actionUrl })
   }, [])
 
   const playScanBeep = (success) => {
@@ -344,7 +344,12 @@ export default function POSBilling() {
         triggerToast("success", `Scanned: ${prod.name}`, `Added to cart • ₹${prod.price}`)
         playScanBeep(true)
       } else {
-        triggerToast("error", `Scanned: ${cleanCode}`, "Item not found in product database!")
+        triggerToast(
+          "error",
+          `Scanned: ${cleanCode}`,
+          "Item not found in product database!",
+          `/packaged-scanner?barcode=${encodeURIComponent(cleanCode)}`
+        )
         playScanBeep(false)
       }
     }
@@ -439,6 +444,16 @@ export default function POSBilling() {
             <span className="hidden sm:inline">Custom Item</span>
             <kbd className="hidden lg:inline text-[9px] bg-amber-500/20 px-1 py-0.2 rounded border border-amber-500/30 font-mono ml-0.5">F8</kbd>
           </button>
+
+          {/* Quick Scanner Button */}
+          <Link
+            to="/packaged-scanner"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium transition-all shadow-sm"
+            title="Scan & Quick-Add New Packaged Product"
+          >
+            <FaBarcode className="w-3 h-3" />
+            <span className="hidden sm:inline">Quick Scanner</span>
+          </Link>
 
           {/* Scanner Sync Badge */}
           <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${scannerStatus.connected && scannerStatus.erpConnected
@@ -625,6 +640,14 @@ export default function POSBilling() {
           <div>
             <p className="text-sm font-bold leading-tight">{toast.title}</p>
             <p className="text-xs text-slate-400 mt-0.5 leading-snug">{toast.message}</p>
+            {toast.actionUrl && (
+              <Link
+                to={toast.actionUrl}
+                className="inline-flex items-center gap-1 text-xs font-bold text-emerald-400 hover:text-emerald-300 mt-1.5 underline"
+              >
+                Add via Packaged Scanner →
+              </Link>
+            )}
           </div>
           <button
             onClick={() => setToast(null)}

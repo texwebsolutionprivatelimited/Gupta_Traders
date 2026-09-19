@@ -73,6 +73,16 @@ const navItems = [
     ),
   },
   {
+    label: 'Quick Product Entry',
+    path: '/packaged-scanner',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 15.75h6m-3-3v6" />
+      </svg>
+    ),
+  },
+  {
     label: 'Categories',
     path: '/categories',
     icon: (
@@ -1617,6 +1627,7 @@ export default function Layout() {
         '/',
         '/pos',
         '/products',
+        '/packaged-scanner',
         '/inventory',
         '/purchase',
         '/sales',
@@ -1631,6 +1642,7 @@ export default function Layout() {
     if (userRole === 'Cashier') {
       const allowedPaths = [
         '/pos',
+        '/packaged-scanner',
         '/customers',
         '/sales'
       ]
@@ -1646,10 +1658,10 @@ export default function Layout() {
       const hasContentAfter = filteredNavItems.slice(index + 1).some(nextItem => {
         if (nextItem.type === 'divider') return false
         if (userRole === 'Manager') {
-          return ['/', '/pos', '/products', '/inventory', '/purchase', '/sales', '/suppliers', '/customers', '/reports'].includes(nextItem.path)
+          return ['/', '/pos', '/products', '/packaged-scanner', '/inventory', '/purchase', '/sales', '/suppliers', '/customers', '/reports'].includes(nextItem.path)
         }
         if (userRole === 'Cashier') {
-          return ['/pos', '/customers', '/sales'].includes(nextItem.path)
+          return ['/pos', '/packaged-scanner', '/customers', '/sales'].includes(nextItem.path)
         }
         return true
       })

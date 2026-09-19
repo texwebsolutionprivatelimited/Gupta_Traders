@@ -176,37 +176,50 @@ export default function TrashPage() {
   }
 
   const handleRestoreConfirm = async (trashId) => {
-    const item=trashItems.find(x=>x.trashId===trashId)
+    const item = trashItems.find(x => x.trashId === trashId) || itemToRestore
+    if (!item) return
     setRestoreModalOpen(false)
     setItemToRestore(null)
-    try { await restoreTrashItem(item.type,trashId)
-      const restored = item.data
+    try {
+      await restoreTrashItem(item.type, trashId)
+      const restored = item.data || {}
       const name =
-        restored.type === 'product' ? restored.name :
-        restored.type === 'category' ? restored.name :
-        restored.type === 'supplier' ? restored.companyName :
-        restored.name
+        item.type === 'product' ? restored.name :
+        item.type === 'category' ? restored.name :
+        item.type === 'supplier' ? restored.companyName :
+        restored.name || 'Item'
 
       let restoredMessage = `Restored "${name}" successfully`
       triggerToast(restoredMessage, 'success')
       await loadTrash()
-    } catch(error){triggerToast(error.message,'error')}
+    } catch (error) {
+      triggerToast(error.message, 'error')
+    }
   }
 
   const handlePermanentDeleteConfirm = async (trashId) => {
-    const item=trashItems.find(x=>x.trashId===trashId)
-    try { await permanentlyDeleteTrashItem(item.type,trashId) } catch(error){triggerToast(error.message,'error');return}
+    const item = trashItems.find(x => x.trashId === trashId) || itemToDelete
+    if (!item) return
     setDeleteModalOpen(false)
     setItemToDelete(null)
-    triggerToast('Item permanently deleted from trash', 'success')
-    await loadTrash()
+    try {
+      await permanentlyDeleteTrashItem(item.type, trashId)
+      triggerToast('Item permanently deleted from trash', 'success')
+      await loadTrash()
+    } catch (error) {
+      triggerToast(error.message, 'error')
+    }
   }
 
   const handleEmptyTrashConfirm = async () => {
-    try { await emptyDatabaseTrash() } catch(error){triggerToast(error.message,'error');return}
     setEmptyModalOpen(false)
-    triggerToast('Trash bin emptied successfully', 'success')
-    await loadTrash()
+    try {
+      await emptyDatabaseTrash()
+      triggerToast('Trash bin emptied successfully', 'success')
+      await loadTrash()
+    } catch (error) {
+      triggerToast(error.message, 'error')
+    }
   }
 
   // Filtered trash items

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useTransition } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import {
   Scan,
   Barcode,
@@ -90,6 +91,11 @@ function playAudioFeedback(type = 'success', enabled = true) {
 }
 
 export default function PackagedProductScanner() {
+  const { role } = useAuth()
+  if (role === 'cashier') {
+    return <Navigate to="/pos" replace />
+  }
+
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const initialBarcodeFromUrl = searchParams.get('barcode') || ''

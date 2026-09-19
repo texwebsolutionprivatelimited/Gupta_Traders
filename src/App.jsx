@@ -79,7 +79,7 @@ function ProtectedRoute() {
   const path = location.pathname
 
   if (role === 'cashier') {
-    const allowed = ['/', '/pos', '/customers', '/sales', '/packaged-scanner', '/quick-product-entry']
+    const allowed = ['/', '/pos', '/customers', '/sales']
     if (!allowed.includes(path)) {
       return <Navigate to="/pos" replace />
     }

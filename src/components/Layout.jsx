@@ -1642,7 +1642,6 @@ export default function Layout() {
     if (userRole === 'Cashier') {
       const allowedPaths = [
         '/pos',
-        '/packaged-scanner',
         '/customers',
         '/sales'
       ]
@@ -1661,7 +1660,7 @@ export default function Layout() {
           return ['/', '/pos', '/products', '/packaged-scanner', '/inventory', '/purchase', '/sales', '/suppliers', '/customers', '/reports'].includes(nextItem.path)
         }
         if (userRole === 'Cashier') {
-          return ['/pos', '/packaged-scanner', '/customers', '/sales'].includes(nextItem.path)
+          return ['/pos', '/customers', '/sales'].includes(nextItem.path)
         }
         return true
       })

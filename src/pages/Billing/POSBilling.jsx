@@ -135,12 +135,19 @@ export default function POSBilling() {
   const completeSale = useCallback(async (paymentMode, amountPaid) => {
     const summary = calculateBillSummary(cart, billDiscount, isGSTInclusive)
     const bill = {
-      items: cart,
+      items: cart.map(x => ({
+        ...x,
+        name: x.name || x.product_name || x.product || 'Item',
+        price: Number(x.price ?? x.sellingPrice ?? 0),
+        quantity: Number(x.quantity || 1),
+        unit: x.unit || '',
+        itemDiscount: Number(x.itemDiscount || 0),
+      })),
       summary,
       billDiscount,
       isGSTInclusive,
       paymentMode,
-      amountPaid,
+      amountPaid: Number(amountPaid || 0),
       customerName,
       timestamp: new Date().toISOString(),
     }

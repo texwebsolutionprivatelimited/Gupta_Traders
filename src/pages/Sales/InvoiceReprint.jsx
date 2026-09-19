@@ -2,10 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { listUISales, subscribeToTable } from '../../services/erpService'
-
-/* =========================================================
-   HELPERS
-   ========================================================= */
+import { printThermalReceipt } from '../Billing/BillReceipt'
 
 const formatCurrency = (value = 0) =>
     new Intl.NumberFormat("en-IN", {
@@ -292,7 +289,7 @@ export default function InvoiceReprint() {
     const [selectedSale, setSelectedSale] = useState(null);
 
     useEffect(() => {
-        const loadSales=()=>listUISales().then(setSalesData).catch(error=>alert(error.message));loadSales();const off=subscribeToTable('sales',loadSales)
+        const loadSales = () => listUISales().then(setSalesData).catch(error => alert(error.message)); loadSales(); const off = subscribeToTable('sales', loadSales)
 
         return () => {
             off();
@@ -556,11 +553,25 @@ export default function InvoiceReprint() {
                                                         onClick={() =>
                                                             handlePrint(sale)
                                                         }
-                                                        title="Print Invoice"
-                                                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                                                        title="Print Invoice (A4)"
+                                                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600"
                                                     >
                                                         <PrinterIcon />
                                                         Print
+                                                    </button>
+
+                                                    {/* THERMAL RECEIPT */}
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            printThermalReceipt(sale)
+                                                        }
+                                                        title="Print Thermal Receipt (थर्मल रसीद)"
+                                                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600"
+                                                    >
+                                                        <PrinterIcon />
+                                                        Receipt
                                                     </button>
 
                                                 </div>
@@ -789,6 +800,17 @@ export default function InvoiceReprint() {
                             <button
                                 type="button"
                                 onClick={() =>
+                                    printThermalReceipt(selectedSale)
+                                }
+                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600"
+                            >
+                                <PrinterIcon />
+                                Print Receipt (Thermal)
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() =>
                                     handlePrint(selectedSale)
                                 }
                                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600"
@@ -807,7 +829,7 @@ export default function InvoiceReprint() {
           ===================================================== */}
 
             {selectedSale && (
-                <div className="hidden print:block">
+                <div id="invoice-printable-area" className="hidden print:block receipt-printable">
                     <div className="mx-auto max-w-3xl bg-white p-8 text-black">
 
                         <div className="flex items-start justify-between border-b border-black pb-5">
@@ -942,34 +964,56 @@ export default function InvoiceReprint() {
                 </div>
             )}
 
-            {/* =====================================================
-          PRINT STYLES
-          ===================================================== */}
-
             <style>{`
         @media print {
           body {
             background: white !important;
+            color: black !important;
           }
 
           body * {
             visibility: hidden;
           }
 
+          #invoice-printable-area,
+          #invoice-printable-area *,
           .print\\:block,
           .print\\:block * {
-            visibility: visible;
+            visibility: visible !important;
+            display: block !important;
           }
 
-          .print\\:block {
+          #invoice-printable-area table {
+            display: table !important;
+          }
+
+          #invoice-printable-area thead {
+            display: table-header-group !important;
+          }
+
+          #invoice-printable-area tbody {
+            display: table-row-group !important;
+          }
+
+          #invoice-printable-area tr {
+            display: table-row !important;
+          }
+
+          #invoice-printable-area th,
+          #invoice-printable-area td {
+            display: table-cell !important;
+          }
+
+          #invoice-printable-area {
             position: absolute;
-            inset: 0;
+            left: 0;
+            top: 0;
             width: 100%;
-            background: white;
+            background: white !important;
           }
 
           @page {
-            margin: 12mm;
+            margin: 10mm;
           }
         }
       `}</style>

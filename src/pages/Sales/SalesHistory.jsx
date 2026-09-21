@@ -126,6 +126,24 @@ function CloseIcon() {
   );
 }
 
+function ReturnIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 10h10a5 5 0 0 1 5 5v2m0 0l-3-3m3 3l3-3M3 10l4-4m-4 4l4 4"
+      />
+    </svg>
+  );
+}
+
 // =========================================================
 // BADGES
 // =========================================================
@@ -138,6 +156,8 @@ function StatusBadge({ status }) {
       "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400",
     Returned:
       "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400",
+    "Partially Returned":
+      "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400",
   };
 
   const currentStyle =
@@ -354,6 +374,7 @@ export default function SalesHistory() {
                 <option value="All" className="bg-slate-900 text-slate-200">All Status</option>
                 <option value="Completed" className="bg-slate-900 text-slate-200">Completed</option>
                 <option value="Pending" className="bg-slate-900 text-slate-200">Pending</option>
+                <option value="Partially Returned" className="bg-slate-900 text-slate-200">Partially Returned</option>
                 <option value="Returned" className="bg-slate-900 text-slate-200">Returned</option>
               </select>
             </div>
@@ -453,6 +474,16 @@ export default function SalesHistory() {
 
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
+                        {sale.isWithinReturnWindow && !sale.isFullyReturned && (
+                          <Link
+                            to={`/sales/return?invoice=${encodeURIComponent(sale.invoice || sale.id)}`}
+                            title="Return Products (7-day policy)"
+                            className="rounded-lg border border-slate-200 p-2 text-rose-500 transition hover:border-rose-500 hover:bg-rose-500/10 hover:text-rose-600 dark:border-slate-700 dark:text-rose-400"
+                          >
+                            <ReturnIcon />
+                          </Link>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => setSelectedSale(sale)}
@@ -567,6 +598,24 @@ export default function SalesHistory() {
                   <DownloadIcon />
                   Invoice
                 </button>
+
+                {sale.isWithinReturnWindow && sale.status !== "returned" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(
+                        `/sales/return?invoice=${encodeURIComponent(
+                          sale.invoice || sale.id
+                        )}`
+                      )
+                    }
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm font-medium text-rose-600 transition hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400"
+                    title="Process Return (Within 7 Days)"
+                  >
+                    <ReturnIcon />
+                    Return
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -705,6 +754,14 @@ export default function SalesHistory() {
                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                               Price: {formatCurrency(salesPrice)}
                             </p>
+                            {Number(item?.returnedQuantity) > 0 && (
+                              <div className="mt-1.5">
+                                <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+                                  ↩ Returned / Taken Back: {item.returnedQuantity}{" "}
+                                  {item.returnedQuantity >= quantity ? "(Fully Returned)" : ""}
+                                </span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-3 gap-4 text-right text-sm">
@@ -780,6 +837,73 @@ export default function SalesHistory() {
                     <span className="text-lg text-emerald-600 dark:text-emerald-400">
                       {formatCurrency(selectedSale.total)}
                     </span>
+                  </div>
+                </div>
+
+                {Number(selectedSale.totalRefunded) > 0 && (
+                  <>
+                    <div className="flex items-center justify-between font-medium text-rose-600 dark:text-rose-400">
+                      <span>Total Refunded / Taken Back</span>
+                      <span>-{formatCurrency(selectedSale.totalRefunded)}</span>
+                    </div>
+                    <div className="flex items-center justify-between font-bold text-slate-900 dark:text-slate-100 border-t border-slate-200 pt-2 dark:border-slate-700">
+                      <span>Adjusted Net Total</span>
+                      <span className="text-base text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(
+                          Math.max(
+                            0,
+                            Number(selectedSale.total || 0) -
+                              Number(selectedSale.totalRefunded || 0)
+                          )
+                        )}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* 7-Day Policy Notice & Actions */}
+              <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {selectedSale.isWithinReturnWindow ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                        ✓ Within 7-day return window ({7 - (selectedSale.daysSinceSale || 0)} days left)
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">
+                        Notice: 7-day return window has expired for this sale.
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(selectedSale)}
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-750"
+                    >
+                      <DownloadIcon />
+                      Reprint Invoice
+                    </button>
+
+                    {selectedSale.isWithinReturnWindow && selectedSale.status !== "returned" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeModal();
+                          navigate(
+                            `/sales/return?invoice=${encodeURIComponent(
+                              selectedSale.invoice || selectedSale.id
+                            )}`
+                          );
+                        }}
+                        className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700"
+                      >
+                        <ReturnIcon />
+                        Process Return
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

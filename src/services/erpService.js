@@ -108,7 +108,7 @@ export async function updateProduct(id, values) {
     fail(categoryError, 'Unable to resolve product category')
     row.category_id = category.id
   }
-  const { data, error } = await supabase.from('products').update(row).eq('id', id).select(productSelect).single()
+  const { error } = await supabase.from('products').update(row).eq('id', id).select(productSelect).single()
   fail(error, 'Unable to update product')
 
   const targetStock = values.currentStock ?? values.stock
@@ -166,12 +166,112 @@ export async function listInventoryMovements() { const { data, error } = await s
 export async function setMinimumStock(productId, minimum) { const { data, error } = await supabase.from('products').update({ minimum_stock: Number(minimum) }).eq('id', productId).select().single(); fail(error, 'Unable to update minimum stock'); return data }
 export async function completeSale(sale, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_sale', { p_sale: sale, p_items: items }); fail(error, 'Unable to complete sale'); const { data: saved, error: loadError } = await supabase.from('sales').select('id,invoice_number,subtotal,tax_amount,total_amount,paid_amount,due_amount').eq('id', data.id).single(); fail(loadError, 'Sale completed but its totals could not be loaded'); return saved }
 export async function completePurchase(purchase, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_purchase', { p_purchase: purchase, p_items: items }); fail(error, 'Unable to complete purchase'); return data }
-export async function completeSalesReturn(ret, items) { const { data, error } = await supabase.rpc('complete_sales_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete sales return'); return data }
+export async function completeSalesReturn(ret, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_sales_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete sales return'); return data }
 export async function completePurchaseReturn(ret, items) { const { data, error } = await supabase.rpc('complete_purchase_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete purchase return'); return data }
 
-export async function listSales() { const { data, error } = await supabase.from('sales').select('*, customer:customers(*), items:sale_items(*, product:products(name,unit,selling_price))').order('sale_date', { ascending: false }); fail(error, 'Unable to load sales'); return data }
+export async function listSalesReturns() {
+  const { data, error } = await supabase
+    .from('sales_returns')
+    .select('*, sale:sales(id,invoice_number,sale_date,total_amount,payment_method), customer:customers(*), items:sale_return_items(*, product:products(name,unit,sku))')
+    .order('created_at', { ascending: false });
+  fail(error, 'Unable to load sales returns');
+  return data;
+}
+
+export async function listSales() {
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*, customer:customers(*), items:sale_items(*, returns:sale_return_items(*), product:products(name,unit,selling_price)), returns:sales_returns(*, items:sale_return_items(*, product:products(name,unit,sku)))')
+    .order('sale_date', { ascending: false });
+  fail(error, 'Unable to load sales');
+  return data;
+}
 export async function listPurchases() { const { data, error } = await supabase.from('purchases').select('*, supplier:suppliers(*), items:purchase_items(*)').order('purchase_date', { ascending: false }); fail(error, 'Unable to load purchases'); return data }
-export async function listUISales() { return (await listSales()).map(s => ({ id: s.id, date: s.sale_date, customer: s.customer?.name || 'Walk-in Customer', invoice: s.invoice_number, items: (s.items || []).map(i => ({ ...i, product: i.product_name || i.product?.name || i.product || 'Item', name: i.product_name || i.product?.name || i.product || 'Item', unit: i.unit || i.product?.unit || '', salesPrice: Number(i.metadata?.display_price ?? i.selling_price ?? i.unit_price ?? i.product?.selling_price ?? 0), price: Number(i.metadata?.display_price ?? i.selling_price ?? i.unit_price ?? i.product?.selling_price ?? 0), itemDiscount: Number(i.metadata?.item_discount_percent || i.discount || 0), gst: Number(i.tax_rate || i.tax || 0), quantity: Number(i.quantity || 1) })), itemCount: s.items?.length || 0, subtotal: Number(s.subtotal), gst: Number(s.tax_amount ?? s.tax), discount: Number(s.discount), total: Number(s.total_amount), status: s.status === 'completed' ? 'Completed' : s.status, payment: s.payment_status === 'paid' ? 'Paid' : 'Pending', paymentMode: s.payment_method, notes: s.notes, createdAt: s.created_at })) }
+export async function listUISales() {
+  return (await listSales()).map(s => {
+    const saleDateStr = s.sale_date || s.created_at;
+    const saleDate = saleDateStr ? new Date(saleDateStr) : new Date();
+    const now = new Date();
+    const diffMs = now.getTime() - saleDate.getTime();
+    const daysSinceSale = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    const isWithinReturnWindow = daysSinceSale <= 7;
+    const daysRemaining = Math.max(0, 7 - daysSinceSale);
+
+    const saleReturns = s.returns || [];
+    const totalRefunded = saleReturns.reduce((sum, r) => sum + Number(r.total_amount || 0), 0);
+
+    const mappedItems = (s.items || []).map(i => {
+      const originalQty = Number(i.quantity || 1);
+      const retItems = i.returns || [];
+      const returnedQty = retItems.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+      const returnableQty = Math.max(0, originalQty - returnedQty);
+      const isReturned = returnableQty === 0 && originalQty > 0;
+      const isPartiallyReturned = returnedQty > 0 && returnableQty > 0;
+
+      const price = Number(i.metadata?.display_price ?? i.selling_price ?? i.unit_price ?? i.product?.selling_price ?? 0);
+      const itemDiscount = Number(i.metadata?.item_discount_percent || i.discount || 0);
+      const gst = Number(i.tax_rate || i.tax || 0);
+
+      return {
+        ...i,
+        product: i.product_name || i.product?.name || i.product || 'Item',
+        name: i.product_name || i.product?.name || i.product || 'Item',
+        unit: i.unit || i.product?.unit || '',
+        salesPrice: price,
+        price,
+        itemDiscount,
+        gst,
+        quantity: originalQty,
+        originalQuantity: originalQty,
+        returnedQuantity: returnedQty,
+        returnableQuantity: returnableQty,
+        isReturned,
+        isPartiallyReturned,
+      };
+    });
+
+    const totalSoldQty = mappedItems.reduce((sum, it) => sum + it.originalQuantity, 0);
+    const totalReturnedQty = mappedItems.reduce((sum, it) => sum + it.returnedQuantity, 0);
+    const isFullyReturned = totalReturnedQty >= totalSoldQty && totalSoldQty > 0;
+    const isPartiallyReturned = totalReturnedQty > 0 && !isFullyReturned;
+
+    let computedStatus = s.status === 'completed' ? 'Completed' : s.status;
+    if (isFullyReturned || s.status === 'returned') computedStatus = 'Returned';
+    else if (isPartiallyReturned || s.status === 'partially_returned') computedStatus = 'Partially Returned';
+
+    return {
+      id: s.id,
+      date: s.sale_date,
+      customer: s.customer?.name || 'Walk-in Customer',
+      customerId: s.customer_id,
+      customerObj: s.customer,
+      invoice: s.invoice_number,
+      invoice_number: s.invoice_number,
+      items: mappedItems,
+      itemCount: mappedItems.length,
+      subtotal: Number(s.subtotal),
+      gst: Number(s.tax_amount ?? s.tax),
+      discount: Number(s.discount),
+      total: Number(s.total_amount),
+      status: computedStatus,
+      rawStatus: s.status,
+      payment: totalRefunded >= Number(s.total_amount) ? 'Refunded' : s.payment_status === 'paid' ? 'Paid' : 'Pending',
+      paymentMode: s.payment_method,
+      notes: s.notes,
+      createdAt: s.created_at,
+      returns: saleReturns,
+      totalRefunded,
+      hasReturns: saleReturns.length > 0,
+      totalSoldQty,
+      totalReturnedQty,
+      isFullyReturned,
+      isPartiallyReturned,
+      daysSinceSale,
+      daysRemaining,
+      isWithinReturnWindow,
+    };
+  });
+}
 export async function listUIPurchases() { return (await listPurchases()).map(p => ({ id: p.id, date: p.purchase_date, supplier: p.supplier?.company_name || p.supplier?.name || 'Unknown Supplier', invoice: p.invoice_number, billNo: p.supplier_invoice_number || p.invoice_number, items: (p.items || []).map(i => ({ ...i, product: i.product_name || i.product, purchasePrice: Number(i.unit_price || i.purchase_price), gst: Number(i.tax_rate || i.tax), quantity: Number(i.quantity) })), itemCount: p.items?.length || 0, subtotal: Number(p.subtotal), gst: Number(p.tax_amount ?? p.tax), discount: Number(p.discount), total: Number(p.total_amount), status: p.status === 'completed' ? 'Completed' : p.status, payment: p.payment_status === 'paid' ? 'Paid' : 'Pending', paymentMode: p.payment_method, notes: p.notes, createdAt: p.created_at })) }
 export async function listCustomers() { const { data, error } = await supabase.from('customers').select('*').is('deleted_at', null).order('name'); fail(error, 'Unable to load customers'); return data }
 export function customerToUI(c) { return { id: c.id, name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', city: c.city || '', gstin: c.gstin || c.gst_number || '', customerType: c.customer_type || 'retail', creditLimit: Number(c.credit_limit || 0), outstandingBalance: Number(c.balance ?? c.opening_balance ?? 0), status: c.status || 'active', profilePic: c.profile_image_url || '', createdAt: c.created_at, updatedAt: c.updated_at, metadata: c.metadata || {} } }

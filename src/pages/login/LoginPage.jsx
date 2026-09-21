@@ -116,7 +116,7 @@ export default function LoginPage() {
             className="w-14 h-14 object-contain rounded-xl shadow-lg shadow-emerald-500/10 border border-slate-800/80 bg-slate-900/50 p-1 flex-shrink-0"
           />
           <div className="text-left">
-            <h1 className="text-2xl font-bold text-slate-100 leading-none tracking-tight font-gupta">Gupta Traders</h1>
+            <h1 className="text-2xl font-bold text-slate-100 leading-none tracking-tight font-gupta">Gupta Traders & Superstore</h1>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Management Workspace</p>
           </div>
         </div>
@@ -130,8 +130,8 @@ export default function LoginPage() {
               onClick={() => handleTabChange(role)}
               disabled={loading || success}
               className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeTab === role
-                  ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
                 }`}
             >
               {role}
@@ -259,7 +259,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold border-t border-slate-800/30 pt-4 mt-6">
-          <span>&copy; {new Date().getFullYear()} Gupta Traders</span>
+          <span>&copy; {new Date().getFullYear()} Gupta Traders & Superstore</span>
           <div className="flex gap-3">
             <button
               type="button"
@@ -307,7 +307,7 @@ export default function LoginPage() {
                   <h3 className="text-base font-black text-slate-100 leading-tight">
                     {modalType === 'terms' ? 'Terms of Service' : 'Privacy Policy'}
                   </h3>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Gupta Traders &bull; Effective August 2026</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Gupta Traders & Superstore &bull; Effective August 2026</p>
                 </div>
               </div>
 
@@ -329,8 +329,8 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setModalType('terms')}
                 className={`pb-3 text-xs font-bold transition-all relative cursor-pointer ${modalType === 'terms'
-                    ? 'text-emerald-500 border-b-2 border-emerald-500'
-                    : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-emerald-500 border-b-2 border-emerald-500'
+                  : 'text-slate-400 hover:text-slate-200'
                   }`}
               >
                 Terms of Service
@@ -339,8 +339,8 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setModalType('privacy')}
                 className={`pb-3 text-xs font-bold transition-all relative cursor-pointer ${modalType === 'privacy'
-                    ? 'text-emerald-500 border-b-2 border-emerald-500'
-                    : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-emerald-500 border-b-2 border-emerald-500'
+                  : 'text-slate-400 hover:text-slate-200'
                   }`}
               >
                 Privacy Policy

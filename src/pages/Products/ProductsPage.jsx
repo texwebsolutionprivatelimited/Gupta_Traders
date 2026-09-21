@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   formatINR, unitOptions, gstOptions, generateNextSKU, generateNextProductCode,
-  generateNextBarcode,
 } from '../../utils/erp'
 import { createProduct, listCategories, listUIProducts, removeProduct, subscribeToTable, updateProduct as updateRemoteProduct } from '../../services/erpService'
 
@@ -248,7 +247,7 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
   } : {
     name: '', nameHi: '', productCode: generateNextProductCode(),
     barcode: '',
-    category: 'loose', unit: 'kg',
+    category: 'loose', unit: 'kg', packSize: '',
     purchasePrice: '', sellingPrice: '', gstRate: 0,
     currentStock: '', minStock: 20,
   }
@@ -395,9 +394,7 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
                 <Field label="Brand" field="brand" placeholder="e.g. Tata, Amul" required />
               )}
               <Field label="Unit" field="unit" options={unitOptions} required />
-              {type === 'packaged' && (
-                <Field label="Pack Size" field="packSize" placeholder="e.g. 1 kg, 500ml" />
-              )}
+              <Field label="Pack Size" field="packSize" placeholder="e.g. 1 kg, 500ml" />
             </div>
           </div>
 
@@ -571,6 +568,11 @@ function ProductCard({ product, type, onEdit, onDelete }) {
             {product.brand}
           </span>
         )}
+        {product.packSize && (
+          <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 text-xs font-medium text-slate-300 border border-slate-700/40">
+            {product.packSize}
+          </span>
+        )}
         <span className="px-2.5 py-1 rounded-lg bg-violet-500/10 text-xs font-medium text-violet-400 border border-violet-500/20">
           GST {product.gstRate}%
         </span>
@@ -655,7 +657,14 @@ function ProductTable({ products, type, onEdit, onDelete }) {
                 >
                   <td className="py-3 px-4">
                     <div>
-                      <p className="text-sm font-semibold text-slate-200">{product.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-200">{product.name}</p>
+                        {product.packSize && (
+                          <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700/50">
+                            {product.packSize}
+                          </span>
+                        )}
+                      </div>
                       {product.nameHi && <p className="text-xs text-slate-500">{product.nameHi}</p>}
                     </div>
                   </td>

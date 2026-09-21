@@ -38,11 +38,16 @@ export function normalizeBillData(rawBill) {
 
   const items = rawItems.map((item, idx) => {
     const name = item.name || item.product_name || item.product || item.title || item.itemName || `Item #${idx + 1}`;
-    const quantity = Number(item.quantity ?? item.qty ?? 1);
+    const quantity = Number(item.quantity ?? item.qty ?? item.originalQuantity ?? 1);
     const price = Number(item.price ?? item.salesPrice ?? item.selling_price ?? item.sellingPrice ?? item.unit_price ?? item.unitPrice ?? item.rate ?? 0);
     const unit = item.unit || item.loose_unit || item.looseUnit || '';
     const itemDiscount = Number(item.itemDiscount ?? item.discount ?? item.discount_percent ?? item.item_discount_percent ?? 0);
     const lineTotal = Number(item.line_total ?? item.total ?? (price * quantity * (1 - itemDiscount / 100)));
+
+    const returnedQuantity = Number(item.returnedQuantity ?? (item.returns || []).reduce((sum, r) => sum + Number(r.quantity || 0), 0) ?? 0);
+    const returnableQuantity = Math.max(0, quantity - returnedQuantity);
+    const isReturned = returnedQuantity > 0 && returnableQuantity === 0;
+    const isPartiallyReturned = returnedQuantity > 0 && returnableQuantity > 0;
 
     return {
       ...item,
@@ -52,6 +57,10 @@ export function normalizeBillData(rawBill) {
       unit,
       itemDiscount,
       lineTotal,
+      returnedQuantity,
+      returnableQuantity,
+      isReturned,
+      isPartiallyReturned,
     };
   });
 
@@ -66,6 +75,10 @@ export function normalizeBillData(rawBill) {
 
   const itemSavings = items.reduce((sum, item) => sum + (item.price * item.quantity * item.itemDiscount / 100), 0);
   const totalSavings = itemSavings + discountAmount;
+
+  const returns = rawBill.returns || [];
+  const totalRefunded = Number(rawBill.totalRefunded ?? returns.reduce((sum, r) => sum + Number(r.total_amount || 0), 0) ?? 0);
+  const hasReturns = totalRefunded > 0 || returns.length > 0 || items.some(i => i.returnedQuantity > 0);
 
   return {
     ...rawBill,
@@ -84,6 +97,10 @@ export function normalizeBillData(rawBill) {
       grandTotal,
     },
     totalSavings,
+    returns,
+    totalRefunded,
+    hasReturns,
+    netTotalAfterReturns: Math.max(0, grandTotal - totalRefunded),
   };
 }
 
@@ -255,6 +272,12 @@ export function generateReceiptHtml(bill) {
           <td class="item-name-cell" style="text-align: left;">
             ${escapeReceiptText(item.name)}
             ${item.itemDiscount > 0 ? `<div style="font-size: 10px; font-weight: normal; color: #000000 !important;">Disc: -${(item.price * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>` : ''}
+            ${item.returnedQuantity > 0 ? `
+              <div style="font-size: 10px; font-weight: 900; color: #b91c1c !important;">
+                [TAKEN BACK: -${item.returnedQuantity}${escapeReceiptText(mapUnitToShort(item.unit))}]
+                ${item.returnableQuantity > 0 ? `(Bal: ${item.returnableQuantity})` : '(FULL RETURN)'}
+              </div>
+            ` : ''}
           </td>
           <td style="text-align: center; white-space: nowrap;">
             ${item.quantity}${escapeReceiptText(mapUnitToShort(item.unit))}
@@ -298,6 +321,20 @@ export function generateReceiptHtml(bill) {
     </tr>
   </table>
 
+  ${norm.hasReturns ? `
+    <div class="separator"></div>
+    <table class="totals-table">
+      <tr style="font-weight: 900; color: #b91c1c !important;">
+        <td style="text-align: left;">RETURNED / REFUNDED:</td>
+        <td style="text-align: right;">-Rs. ${norm.totalRefunded.toFixed(2)}</td>
+      </tr>
+      <tr style="font-weight: 900; font-size: 14px;">
+        <td style="text-align: left;">ADJUSTED NET TOTAL:</td>
+        <td style="text-align: right;">Rs. ${norm.netTotalAfterReturns.toFixed(2)}</td>
+      </tr>
+    </table>
+  ` : ''}
+
   <div class="separator"></div>
 
   ${totalSavings > 0 ? `
@@ -320,6 +357,15 @@ export function generateReceiptHtml(bill) {
     </table>
     <div class="separator"></div>
   ` : ''}
+
+  <div class="separator"></div>
+
+  <div class="center" style="margin: 6px 0; border: 1.5px solid #000000; padding: 4px 2px; font-weight: 900; font-size: 10px; text-transform: uppercase;">
+    Products sold can be returned within 7 days of purchase.
+  </div>
+  <div class="center" style="font-size: 9px; margin-top: 1px; font-weight: 700;">
+    (बिका हुआ सामान 7 दिनों के भीतर वापस हो सकता है)
+  </div>
 
   <div class="center" style="margin-top: 6px;">
     <div class="bold">Thank You! Visit Again!</div>
@@ -435,6 +481,11 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
                 {item.itemDiscount > 0 && (
                   <p className="text-amber-600 dark:text-amber-400/70 pl-4 text-[10px]">Disc: -{formatINR(item.price * item.quantity * item.itemDiscount / 100)}</p>
                 )}
+                {item.returnedQuantity > 0 && (
+                  <div className="text-rose-600 dark:text-rose-400 pl-4 text-[10px] font-bold">
+                    [TAKEN BACK: -{item.returnedQuantity}{mapUnitToShort(item.unit)}] {item.returnableQuantity > 0 ? `(Bal: ${item.returnableQuantity})` : '(FULL RETURN)'}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -466,6 +517,19 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               <span>TOTAL</span>
               <span>{formatINR(norm.summary.grandTotal)}</span>
             </div>
+            {norm.hasReturns && (
+              <>
+                <div className="border-t border-dashed border-rose-300 dark:border-rose-900/60" />
+                <div className="flex justify-between text-rose-600 dark:text-rose-400 font-bold">
+                  <span>Refunded / Taken Back</span>
+                  <span>-{formatINR(norm.totalRefunded)}</span>
+                </div>
+                <div className="flex justify-between text-base font-extrabold text-slate-900 dark:text-slate-100">
+                  <span>Adjusted Net Total</span>
+                  <span>{formatINR(norm.netTotalAfterReturns)}</span>
+                </div>
+              </>
+            )}
             {norm.totalSavings > 0 && (
               <div className="mt-2 text-center py-1.5 px-3 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold rounded-lg border border-dashed border-emerald-500/30 text-xs">
                 🎉 You saved an amount of {formatINR(norm.totalSavings)} on this purchase!
@@ -490,7 +554,11 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
           <div className="border-t border-dashed border-slate-300 dark:border-slate-700/60" />
 
           {/* Footer */}
-          <div className="text-center space-y-0.5 pt-1 pb-2">
+          <div className="text-center space-y-1 pt-1 pb-2">
+            <div className="my-2 p-1.5 border border-slate-900 dark:border-slate-300 text-center font-bold text-[10px] uppercase tracking-wide">
+              Products sold can be returned within 7 days of purchase.
+            </div>
+            <p className="text-[9px] text-slate-500 dark:text-slate-400">(बिका हुआ सामान 7 दिनों के भीतर वापस हो सकता है)</p>
             <p className="font-bold text-slate-800 dark:text-slate-200">Thank You! Visit Again!</p>
             <p className="text-slate-600 dark:text-slate-400">धन्यवाद! फिर आना!</p>
             <p className="text-slate-400 dark:text-slate-600 text-[10px] mt-1">
@@ -623,5 +691,138 @@ export function ReprintDrawer({ onClose, onSelectBill }) {
           </button>
         </div>
       </div>
-      )
+  )
+}
+
+// ─── Generate Thermal Return & Refund Slip HTML ─────────────────────
+export function generateReturnReceiptHtml(returnData) {
+  if (!returnData) return '';
+  const returnNo = escapeReceiptText(returnData.return_number || returnData.returnNo || 'SR-000');
+  const invoiceNo = escapeReceiptText(returnData.sale?.invoice_number || returnData.invoice_number || returnData.invoiceNo || '—');
+  const customerName = escapeReceiptText(returnData.customer?.name || returnData.customerName || 'Walk-in Customer');
+  const refundMethod = escapeReceiptText(returnData.refund_method || returnData.refundMethod || 'Cash').toUpperCase();
+  const reason = escapeReceiptText(returnData.reason || 'Customer Return');
+  const rawDate = returnData.return_date || returnData.created_at;
+  const returnDate = rawDate ? new Date(rawDate) : new Date();
+  const totalAmount = Number(returnData.total_amount ?? returnData.total ?? 0);
+  const items = Array.isArray(returnData.items) ? returnData.items : [];
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="color-scheme" content="light" />
+  <title>Return Voucher ${returnNo}</title>
+  <style>
+    @page { margin: 0; size: auto; }
+    * { margin: 0; padding: 0; box-sizing: border-box; color: #000000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    html, body {
+      background: #ffffff !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      font-size: 13px; font-weight: 800; line-height: 1.35; width: 100%; max-width: 78mm; margin: 0 auto; padding: 6px 8px;
+    }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .bold { font-weight: 900; }
+    .separator { border-top: 2px dashed #000000 !important; margin: 5px 0; }
+    .double-separator { border-top: 2px solid #000000 !important; margin: 5px 0; }
+    .shop-name { font-size: 20px; font-weight: 900; letter-spacing: 0.5px; }
+    .voucher-title { font-size: 12px; font-weight: 900; margin-top: 4px; border: 1.5px solid #000000; padding: 2px 6px; display: inline-block; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table td, table th { padding: 2px 0; }
+    table.items-table th { border-top: 2px solid #000000 !important; border-bottom: 2px solid #000000 !important; padding: 4px 0; font-size: 11px; }
+    table.items-table td { padding: 3px 0; vertical-align: top; }
+    @media print { .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="background: #fff1f2; border: 1px solid #fda4af; padding: 8px; text-align: center; border-radius: 6px; margin-bottom: 10px; font-family: sans-serif;">
+    <button onclick="window.print()" style="background: #e11d48; color: #ffffff; border: none; padding: 8px 18px; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 14px;">
+      🖨️ Print Return Slip (प्रिंट करें)
+    </button>
+  </div>
+  <div class="center">
+    <div class="shop-name">GUPTA TRADERS</div>
+    <div style="font-size: 11px; font-weight: 700;">General Store & Provisions</div>
+    <div class="voucher-title">SALES RETURN & REFUND VOUCHER</div>
+  </div>
+  <div class="separator"></div>
+  <table>
+    <tr><td>Return No: <span class="bold">${returnNo}</span></td><td class="right">${returnDate.toLocaleDateString('en-IN')}</td></tr>
+    <tr><td>Original Bill: ${invoiceNo}</td><td class="right">${returnDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td></tr>
+    ${customerName ? `<tr><td colspan="2">Customer: ${customerName}</td></tr>` : ''}
+    <tr><td>Refund Mode: <span class="bold">${refundMethod}</span></td><td class="right">Reason: ${reason}</td></tr>
+  </table>
+  <div class="separator"></div>
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th style="text-align: left;">Returned Product</th>
+        <th style="text-align: center; width: 48px;">Qty</th>
+        <th style="text-align: right; width: 68px;">Refund Amt</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${items.map(it => {
+        const itName = escapeReceiptText(it.product_name || it.product?.name || it.name || 'Item');
+        const itQty = Number(it.quantity || 1);
+        const itUnit = escapeReceiptText(mapUnitToShort(it.unit || it.product?.unit || ''));
+        const itTotal = Number(it.line_total || it.total || (it.price * itQty) || 0);
+        return `
+          <tr>
+            <td style="text-align: left; word-break: break-word;">${itName}</td>
+            <td style="text-align: center; white-space: nowrap;">${itQty}${itUnit}</td>
+            <td style="text-align: right; white-space: nowrap;">${itTotal.toFixed(2)}</td>
+          </tr>
+        `;
+      }).join('')}
+    </tbody>
+  </table>
+  <div class="double-separator"></div>
+  <table>
+    <tr style="font-size: 15px; font-weight: 900;">
+      <td>TOTAL REFUND AMOUNT:</td>
+      <td class="right">Rs. ${totalAmount.toFixed(2)}</td>
+    </tr>
+    <tr>
+      <td style="font-size: 11px;">Refund Mode:</td>
+      <td class="right" style="font-size: 11px;">${refundMethod}</td>
+    </tr>
+  </table>
+  <div class="separator"></div>
+  <div class="center" style="margin-top: 8px; font-size: 10px;">
+    <div>Items received in good condition & added back to stock.</div>
+    <div class="bold" style="margin-top: 6px;">Authorized Signatory / Seal</div>
+    <div style="margin-top: 18px; border-bottom: 1px dashed #000000; width: 55%; margin-left: auto; margin-right: auto;"></div>
+  </div>
+</body>
+</html>`;
+}
+
+// ─── Reliable Thermal Print Execution for Return Slip ────────────────
+export function printThermalReturnReceipt(returnData, onPrint) {
+  if (!returnData) return;
+  const html = generateReturnReceiptHtml(returnData);
+  const printWindow = window.open('', '_blank', 'width=420,height=720,menubar=no,toolbar=no,location=no,status=no');
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    const doPrint = () => {
+      try {
+        printWindow.focus();
+        printWindow.print();
+        if (onPrint) onPrint();
+      } catch (err) {
+        console.warn('Print window error:', err);
+      }
+    };
+    if (printWindow.document.readyState === 'complete') {
+      setTimeout(doPrint, 350);
+    } else {
+      printWindow.onload = () => setTimeout(doPrint, 350);
+    }
+  } else {
+    window.alert('Please allow pop-ups for this site so the return voucher window can open and print.');
+  }
 }

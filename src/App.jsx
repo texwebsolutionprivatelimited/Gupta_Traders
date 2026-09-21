@@ -79,8 +79,8 @@ function ProtectedRoute() {
   const path = location.pathname
 
   if (role === 'cashier') {
-    const allowed = ['/', '/pos', '/customers', '/sales']
-    if (!allowed.includes(path)) {
+    const allowed = ['/', '/pos', '/customers', '/sales', '/sales/history', '/sales/return', '/sales/invoice-reprint']
+    if (!allowed.includes(path) && !path.startsWith('/sales')) {
       return <Navigate to="/pos" replace />
     }
   } else if (role === 'manager') {

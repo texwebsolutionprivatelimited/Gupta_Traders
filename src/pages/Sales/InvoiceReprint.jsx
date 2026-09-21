@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { listUISales, subscribeToTable } from '../../services/erpService'
@@ -234,12 +233,9 @@ function CloseIcon() {
     );
 }
 
-/* =========================================================
-   INVOICE TOTALS
-   ========================================================= */
-
 function InvoiceTotals({ sale }) {
     const totals = calculateSaleTotals(sale);
+    const totalRefunded = Number(sale?.totalRefunded || 0);
 
     return (
         <div className="space-y-3 text-sm">
@@ -274,6 +270,26 @@ function InvoiceTotals({ sale }) {
                     </span>
                 </div>
             </div>
+
+            {totalRefunded > 0 && (
+                <>
+                    <div className="flex items-center justify-between text-rose-600 font-semibold">
+                        <span>Refunded / Taken Back</span>
+                        <span>-{formatCurrency(totalRefunded)}</span>
+                    </div>
+
+                    <div className="border-t border-slate-200 pt-2 dark:border-slate-700">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                Net Bill Total
+                            </span>
+                            <span className="text-lg font-bold text-slate-900 dark:text-white">
+                                {formatCurrency(Math.max(0, totals.total - totalRefunded))}
+                            </span>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -797,6 +813,15 @@ export default function InvoiceReprint() {
                                 Close
                             </button>
 
+                            {selectedSale.isWithinReturnWindow !== false && (
+                                <Link
+                                    to={`/sales/return?invoice=${encodeURIComponent(getInvoiceNumber(selectedSale))}`}
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-5 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-500 hover:text-white transition"
+                                >
+                                    ↩ Process Return
+                                </Link>
+                            )}
+
                             <button
                                 type="button"
                                 onClick={() =>
@@ -824,10 +849,6 @@ export default function InvoiceReprint() {
                 </div>
             )}
 
-            {/* =====================================================
-          PRINT ONLY INVOICE
-          ===================================================== */}
-
             {selectedSale && (
                 <div id="invoice-printable-area" className="hidden print:block receipt-printable">
                     <div className="mx-auto max-w-3xl bg-white p-8 text-black">
@@ -835,7 +856,7 @@ export default function InvoiceReprint() {
                         <div className="flex items-start justify-between border-b border-black pb-5">
                             <div>
                                 <h1 className="text-2xl font-bold">
-                                    Gupta Traders
+                                    Gupta Traders & Superstore
                                 </h1>
 
                                 <p className="mt-1 text-sm">
@@ -918,9 +939,16 @@ export default function InvoiceReprint() {
                                             className="border-b border-gray-300"
                                         >
                                             <td className="px-2 py-3">
-                                                {item.product ||
-                                                    item.name ||
-                                                    "Product"}
+                                                <div>
+                                                    {item.product ||
+                                                        item.name ||
+                                                        "Product"}
+                                                </div>
+                                                {Number(item.returnedQuantity || 0) > 0 && (
+                                                    <div className="text-[11px] font-bold text-rose-600">
+                                                        [Returned / Taken Back: {item.returnedQuantity} {item.unit || ''}]
+                                                    </div>
+                                                )}
                                             </td>
 
                                             <td className="px-2 py-3 text-center">
@@ -956,8 +984,13 @@ export default function InvoiceReprint() {
                             />
                         </div>
 
-                        <div className="mt-10 border-t border-black pt-4 text-center text-sm">
-                            Thank you for your business!
+                        <div className="mt-8 border-t border-black pt-4 text-center">
+                            <div className="font-bold text-xs uppercase tracking-wide border border-black py-1.5 px-3 inline-block">
+                                Products sold can be returned within 7 days of purchase.
+                            </div>
+                            <p className="mt-2 text-xs font-semibold">
+                                Thank you for your business! धन्यवाद! फिर आना!
+                            </p>
                         </div>
 
                     </div>

@@ -446,9 +446,9 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
         <div ref={receiptRef} className="px-6 py-4 font-mono text-xs font-bold space-y-2 max-h-[60vh] overflow-y-auto scrollbar-thin">
           {/* Shop Header */}
           <div className="text-center space-y-0.5">
-            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">GUPTA TRADERS</p>
-            <p className="text-slate-600 dark:text-slate-400">General Store & Provisions</p>
-            <p className="text-slate-500 dark:text-slate-500">Main Market Road, City</p>
+            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">GUPTA TRADERS & SUPERSTORE</p>
+            <p className="text-slate-600 dark:text-slate-400">Plot no. 12 Balaji Nagar, Narela Shankari</p>
+            <p className="text-slate-500 dark:text-slate-500">Near khedapati Mandir, Bhopal MP(462022)</p>
             <p className="text-slate-500 dark:text-slate-500">GSTIN: 09XXXXXXXXXXXXXXX</p>
           </div>
 
@@ -658,39 +658,39 @@ export function ReprintDrawer({ onClose, onSelectBill }) {
   )
 }
 
-      // ─── Sale Success Animation ──────────────────────────────────────
-      export function SaleSuccessOverlay({bill, onDone}) {
+// ─── Sale Success Animation ──────────────────────────────────────
+export function SaleSuccessOverlay({ bill, onDone }) {
   return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-md animate-fadeIn transition-all p-4">
-        {/* Centered Solid Card Box */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl animate-scaleIn transition-all">
-          <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center animate-pulse">
-            <CheckCircleIcon className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
-          </div>
-
-          <div>
-            <h2 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">Sale Complete!</h2>
-            <p className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">
-              {formatINR(bill.summary.grandTotal)}
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Bill #{bill.billNumber} •{' '}
-              <span className="capitalize">{bill.paymentMode} Payment</span>
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">bikli safal! Dhanyawad!</p>
-          </div>
-
-          <button
-            onClick={onDone}
-            className="w-full mt-2 py-3.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-all shadow-lg shadow-emerald-500/25 active:scale-[0.98]"
-          >
-            ✨ Next Customer — New Bill
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-md animate-fadeIn transition-all p-4">
+      {/* Centered Solid Card Box */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl animate-scaleIn transition-all">
+        <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center animate-pulse">
+          <CheckCircleIcon className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
         </div>
+
+        <div>
+          <h2 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">Sale Complete!</h2>
+          <p className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">
+            {formatINR(bill.summary.grandTotal)}
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+            Bill #{bill.billNumber} •{' '}
+            <span className="capitalize">{bill.paymentMode} Payment</span>
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">bikli safal! Dhanyawad!</p>
+        </div>
+
+        <button
+          onClick={onDone}
+          className="w-full mt-2 py-3.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-all shadow-lg shadow-emerald-500/25 active:scale-[0.98]"
+        >
+          ✨ Next Customer — New Bill
+        </button>
       </div>
+    </div>
   )
 }
 
@@ -764,18 +764,18 @@ export function generateReturnReceiptHtml(returnData) {
     </thead>
     <tbody>
       ${items.map(it => {
-        const itName = escapeReceiptText(it.product_name || it.product?.name || it.name || 'Item');
-        const itQty = Number(it.quantity || 1);
-        const itUnit = escapeReceiptText(mapUnitToShort(it.unit || it.product?.unit || ''));
-        const itTotal = Number(it.line_total || it.total || (it.price * itQty) || 0);
-        return `
+    const itName = escapeReceiptText(it.product_name || it.product?.name || it.name || 'Item');
+    const itQty = Number(it.quantity || 1);
+    const itUnit = escapeReceiptText(mapUnitToShort(it.unit || it.product?.unit || ''));
+    const itTotal = Number(it.line_total || it.total || (it.price * itQty) || 0);
+    return `
           <tr>
             <td style="text-align: left; word-break: break-word;">${itName}</td>
             <td style="text-align: center; white-space: nowrap;">${itQty}${itUnit}</td>
             <td style="text-align: right; white-space: nowrap;">${itTotal.toFixed(2)}</td>
           </tr>
         `;
-      }).join('')}
+  }).join('')}
     </tbody>
   </table>
   <div class="double-separator"></div>

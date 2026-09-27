@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { listCategories, listUIProducts, subscribeToTable } from '../../services/erpService'
+import ProductDetailModal from '../Products/ProductDetailModal'
+import { isProductInCategory } from '../Categories/CategoriesPage'
 import {
   FaSearch as MagnifyingGlassIcon,
   FaBalanceScale as ScaleIcon,
@@ -12,7 +14,9 @@ import {
   FaSmile,
   FaPepperHot,
   FaTint,
-  FaFolder
+  FaFolder,
+  FaPlus,
+  FaInfoCircle,
 } from 'react-icons/fa'
 
 function CategoryIcon({ categoryId, ...props }) {
@@ -61,6 +65,7 @@ function WeightIcon() {
 export default function ProductSearch({ onAddToCart }) {
   const [query, setQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
+  const [selectedProductForDetail, setSelectedProductForDetail] = useState(null)
   const [showLooseForm, setShowLooseForm] = useState(false)
   const [addedId, setAddedId] = useState(null)
   const [barcodeMode, setBarcodeMode] = useState(false)
@@ -68,7 +73,7 @@ export default function ProductSearch({ onAddToCart }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
-  const [categories, setCategories] = useState([{id:'all',name:'All'}])
+  const [categories, setCategories] = useState([{ id: 'all', name: 'All Categories', slug: 'all' }])
   const searchRef = useRef(null)
   const barcodeRef = useRef(null)
   const barcodeBuffer = useRef('')
@@ -113,22 +118,64 @@ export default function ProductSearch({ onAddToCart }) {
       const [items, cats] = await Promise.allSettled([listUIProducts(), listCategories()])
       if (!active || requestRevision !== revision) return
       if (items.status === 'fulfilled') {
-        setProducts(items.value.map(p => ({...p, price:p.rate??p.sellingPrice, rate:p.rate??p.sellingPrice, mrp:p.mrp??p.rate??p.sellingPrice, isLoose:p.type==='loose'})))
+        setProducts(items.value.map(p => ({
+          ...p,
+          price: p.rate ?? p.sellingPrice,
+          rate: p.rate ?? p.sellingPrice,
+          mrp: p.mrp ?? p.rate ?? p.sellingPrice,
+          brand: p.brand || '',
+          isLoose: p.type === 'loose',
+        })))
       }
       if (cats.status === 'fulfilled') {
-        setCategories([{id:'all',name:'All'}, ...cats.value.filter(c=>c.status==='active').map(c=>({id:c.slug,name:c.name}))])
+        setCategories([
+          { id: 'all', name: 'All Categories', slug: 'all', categoryId: 'all' },
+          ...cats.value.filter(c => !c.status || c.status === 'active').map(c => ({
+            id: c.slug || c.id,
+            slug: c.slug,
+            categoryId: c.id,
+            uuid: c.id,
+            name: c.name,
+          })),
+        ])
       }
       const failure = items.status === 'rejected' ? items.reason : cats.status === 'rejected' ? cats.reason : null
       setLoadError(failure ? failure.message || 'Unable to load product data.' : '')
       setLoading(false)
     }
     load()
-    const offProducts=subscribeToTable('products',load),offInventory=subscribeToTable('inventory',load),offCategories=subscribeToTable('categories',load)
-    return()=>{active=false;offProducts();offInventory();offCategories()}
+    const offProducts = subscribeToTable('products', load)
+    const offInventory = subscribeToTable('inventory', load)
+    const offCategories = subscribeToTable('categories', load)
+    return () => {
+      active = false
+      offProducts()
+      offInventory()
+      offCategories()
+    }
   }, [reloadKey])
 
-  const q=query.toLowerCase().trim();const filteredProducts=products.filter(p=>(activeCategory==='all'||p.category===activeCategory)&&(!q||p.name.toLowerCase().includes(q)||p.barcode?.toLowerCase().includes(q)||p.sku?.toLowerCase().includes(q)))
-  const lookupBarcode = code => products.find(p=>p.barcode===code)||null
+  const getCategoryCount = (cat) => {
+    if (cat.id === 'all') return products.length
+    return products.filter(p => isProductInCategory(p, cat)).length
+  }
+
+  const q = query.toLowerCase().trim()
+  const activeCatObj = categories.find(c => c.id === activeCategory || c.slug === activeCategory)
+  const filteredProducts = products.filter(p => {
+    const matchesCategory = isProductInCategory(p, activeCatObj)
+
+    const matchesQuery = !q ||
+      p.name?.toLowerCase().includes(q) ||
+      p.nameHi?.toLowerCase().includes(q) ||
+      p.brand?.toLowerCase().includes(q) ||
+      p.barcode?.toLowerCase().includes(q) ||
+      p.sku?.toLowerCase().includes(q)
+
+    return matchesCategory && matchesQuery
+  })
+
+  const lookupBarcode = code => products.find(p => p.barcode === code) || null
 
   // Handle barcode scanner input (rapid keystrokes ending with Enter)
   const handleBarcodeKeyDown = (e) => {
@@ -160,7 +207,7 @@ export default function ProductSearch({ onAddToCart }) {
       rate: product.rate ?? product.price,
       price: product.rate ?? product.price,
       mrp: product.mrp ?? product.rate ?? product.price,
-      quantity: product.isLoose ? 1 : 1,
+      quantity: product.quantity ?? (product.isLoose ? 1 : 1),
       itemDiscount: 0,
     })
     setAddedId(product.id)
@@ -177,6 +224,7 @@ export default function ProductSearch({ onAddToCart }) {
       name: looseName,
       nameHi: '',
       barcode: '',
+      brand: 'Loose Item',
       price: parsedPrice,
       rate: parsedPrice,
       mrp: parsedPrice,
@@ -213,7 +261,7 @@ export default function ProductSearch({ onAddToCart }) {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search product name, barcode..."
+              placeholder="Search product name, brand, barcode..."
               className="w-full pl-11 pr-16 py-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 text-base transition-all"
               id="pos-search"
             />
@@ -225,7 +273,7 @@ export default function ProductSearch({ onAddToCart }) {
           {/* Barcode Toggle */}
           <button
             onClick={() => setBarcodeMode(!barcodeMode)}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all text-sm font-medium
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all text-sm font-medium cursor-pointer
               ${barcodeMode
                 ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
                 : 'bg-slate-800/60 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:border-slate-600'
@@ -239,7 +287,7 @@ export default function ProductSearch({ onAddToCart }) {
           {/* Loose Product Button */}
           <button
             onClick={() => setShowLooseForm(!showLooseForm)}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all text-sm font-medium
+            className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all text-sm font-medium cursor-pointer
               ${showLooseForm
                 ? 'bg-violet-500/15 border-violet-500/30 text-violet-400'
                 : 'bg-slate-800/60 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:border-slate-600'
@@ -320,7 +368,7 @@ export default function ProductSearch({ onAddToCart }) {
                 </select>
                 <button
                   type="submit"
-                  className="px-4 py-2.5 rounded-lg bg-violet-500 hover:bg-violet-400 text-white font-semibold text-sm transition-colors"
+                  className="px-4 py-2.5 rounded-lg bg-violet-500 hover:bg-violet-400 text-white font-semibold text-sm transition-colors cursor-pointer"
                 >
                   Add
                 </button>
@@ -330,23 +378,57 @@ export default function ProductSearch({ onAddToCart }) {
         )}
       </div>
 
-      {/* ─── Category Chips ────────────────────────────── */}
-      <div className="px-4 py-3 border-b border-slate-800/40 overflow-x-auto">
-        <div className="flex gap-2 min-w-max">
-          {categories.map(cat => (
+      {/* ─── Category Boxes ────────────────────────────── */}
+      <div className="px-4 py-3 border-b border-slate-800/60 bg-slate-950/30">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Categories</span>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+              {categories.length} total
+            </span>
+          </div>
+          {activeCategory !== 'all' && (
             <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap
-                ${activeCategory === cat.id
-                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-slate-800/40 text-slate-400 border border-slate-700/30 hover:bg-slate-800/70 hover:text-slate-300'
-                }`}
+              onClick={() => setActiveCategory('all')}
+              className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
             >
-              <CategoryIcon categoryId={cat.id} className="w-4 h-4" />
-              <span>{cat.name}</span>
+              <span>Reset to All</span>
+              <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded">✕</span>
             </button>
-          ))}
+          )}
+        </div>
+
+        <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
+          {categories.map(cat => {
+            const count = getCategoryCount(cat)
+            const isActive = activeCategory === cat.id || (cat.slug && activeCategory === cat.slug)
+
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-left transition-all duration-150 flex-shrink-0 cursor-pointer group
+                  ${isActive
+                    ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/15 border-emerald-500/60 text-emerald-300 shadow-md shadow-emerald-950/50 ring-1 ring-emerald-500/30'
+                    : 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600 hover:text-white'
+                  }
+                `}
+                id={`category-box-${cat.id}`}
+              >
+                <div className={`p-2 rounded-lg transition-colors
+                  ${isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/50 text-slate-400 group-hover:text-slate-200'}
+                `}>
+                  <CategoryIcon categoryId={cat.slug || cat.id} className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate capitalize leading-tight">{cat.name}</p>
+                  <p className={`text-[10px] tabular-nums mt-0.5 ${isActive ? 'text-emerald-400/80 font-medium' : 'text-slate-500'}`}>
+                    {count} {count === 1 ? 'item' : 'items'}
+                  </p>
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -355,7 +437,7 @@ export default function ProductSearch({ onAddToCart }) {
         {loadError && (
           <div role="alert" className="mb-3 rounded-xl border border-rose-500/30 bg-slate-900 p-3 text-sm text-slate-200">
             <p>{loadError}</p>
-            <button type="button" onClick={() => setReloadKey(key => key + 1)} className="mt-2 underline font-semibold">Retry loading</button>
+            <button type="button" onClick={() => setReloadKey(key => key + 1)} className="mt-2 underline font-semibold cursor-pointer">Retry loading</button>
           </div>
         )}
         {loading && products.length === 0 ? (
@@ -370,67 +452,118 @@ export default function ProductSearch({ onAddToCart }) {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {filteredProducts.map(product => (
-              <button
-                key={product.id}
-                onClick={() => handleAddProduct(product)}
-                className={`relative group text-left p-3 rounded-xl border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg
-                  ${addedId === product.id
-                    ? 'bg-emerald-500/15 border-emerald-500/40 scale-[0.97] shadow-emerald-500/20'
-                    : 'bg-slate-800/40 border-slate-700/40 hover:bg-slate-800/70 hover:border-slate-600/60'
-                  }
-                  ${product.stock <= 5 ? 'ring-1 ring-rose-500/20' : ''}
-                `}
-                id={`product-${product.id}`}
-              >
-                {/* Added animation overlay */}
-                {addedId === product.id && (
-                  <div className="absolute inset-0 rounded-xl bg-emerald-500/10 flex items-center justify-center z-10">
-                    <span className="text-emerald-400 text-2xl">✓</span>
-                  </div>
-                )}
+            {filteredProducts.map(product => {
+              const currentStock = Number(product.currentStock ?? product.stock ?? 0)
+              const unit = product.unit || (product.isLoose ? 'kg' : 'pcs')
+              const brand = product.brand?.trim() || 'Generic'
 
-                {/* Product info */}
-                <div className="space-y-1.5">
-                  <p className="text-sm font-semibold text-slate-200 leading-snug line-clamp-1">{product.name}</p>
-                  {product.nameHi && (
-                    <p className="text-xs text-slate-500 line-clamp-1">{product.nameHi}</p>
+              return (
+                <div
+                  key={product.id}
+                  onClick={() => setSelectedProductForDetail(product)}
+                  className={`relative group text-left p-3.5 rounded-xl border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg cursor-pointer flex flex-col justify-between
+                    ${addedId === product.id
+                      ? 'bg-emerald-500/15 border-emerald-500/40 scale-[0.98] shadow-emerald-500/20'
+                      : 'bg-slate-850/80 border-slate-700/50 hover:bg-slate-800 hover:border-slate-600/80'
+                    }
+                    ${currentStock <= 0 ? 'opacity-70 border-rose-900/40' : currentStock <= 5 ? 'ring-1 ring-amber-500/30' : ''}
+                  `}
+                  id={`product-${product.id}`}
+                  title="Click to view details (Name, Brand, Stock)"
+                >
+                  {/* Added animation overlay */}
+                  {addedId === product.id && (
+                    <div className="absolute inset-0 rounded-xl bg-emerald-500/10 flex items-center justify-center z-10">
+                      <span className="text-emerald-400 text-2xl font-bold">✓</span>
+                    </div>
                   )}
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-lg font-bold text-emerald-400">₹{product.price}</span>
-                    {product.mrp > product.price && (
-                      <span className="text-xs text-slate-500 line-through">₹{product.mrp}</span>
+
+                  {/* Loose indicator */}
+                  {product.isLoose && (
+                    <div className="absolute top-2.5 right-2.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 border border-violet-500/30 flex items-center gap-1">
+                      <ScaleIcon className="w-3 h-3" /> LOOSE
+                    </div>
+                  )}
+
+                  {/* Product info */}
+                  <div className="space-y-1.5">
+                    {/* Brand Badge */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-400/90 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20 truncate max-w-[120px]">
+                        {brand}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {product.sku || product.barcode ? `${product.sku || product.barcode}`.slice(-6) : ''}
+                      </span>
+                    </div>
+
+                    {/* Product Name */}
+                    <p className="text-sm font-bold text-slate-100 leading-snug line-clamp-2 mt-1">
+                      {product.name}
+                    </p>
+                    {product.nameHi && (
+                      <p className="text-xs text-slate-400 line-clamp-1">{product.nameHi}</p>
                     )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500">{product.packSize}</span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full
-                      ${product.stock <= 5
-                        ? 'bg-rose-500/15 text-rose-400'
-                        : product.stock <= 20
-                          ? 'bg-amber-500/15 text-amber-400'
-                          : 'bg-emerald-500/10 text-emerald-500'
-                      }`}
-                    >
-                      {product.stock <= 5 ? `⚠ ${product.stock} left` : `Stock: ${product.stock}`}
-                    </span>
-                  </div>
-                  {product.gstRate > 0 && (
-                    <div className="text-[10px] text-slate-600">GST {product.gstRate}%</div>
-                  )}
-                </div>
 
-                {/* Loose indicator */}
-                {product.isLoose && (
-                  <div className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 border border-violet-500/30 flex items-center gap-1">
-                    <ScaleIcon className="w-3 h-3" /> LOOSE
+                    {/* Rate & MRP */}
+                    <div className="flex items-baseline gap-2 pt-1">
+                      <span className="text-lg font-black text-emerald-400">₹{product.price}</span>
+                      {product.mrp > product.price && (
+                        <span className="text-xs text-slate-500 line-through">₹{product.mrp}</span>
+                      )}
+                    </div>
                   </div>
-                )}
-              </button>
-            ))}
+
+                  {/* Footer: Stock & Actions */}
+                  <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                    {/* Quantity / Available Stock */}
+                    <div>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full inline-flex items-center gap-1
+                        ${currentStock <= 0
+                          ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                          : currentStock <= 5
+                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        }`}
+                      >
+                        {currentStock <= 0
+                          ? 'Out of Stock'
+                          : currentStock <= 5
+                            ? `⚠ ${currentStock} ${unit} left`
+                            : `Stock: ${currentStock} ${unit}`}
+                      </span>
+                    </div>
+
+                    {/* Quick Add button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleAddProduct(product)
+                      }}
+                      className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 transition-all cursor-pointer"
+                      title="Quick Add 1 Unit"
+                      aria-label={`Add ${product.name} to cart`}
+                    >
+                      <FaPlus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
+
+      {/* ─── Reusable Product Detail Modal ──────────────── */}
+      <ProductDetailModal
+        product={selectedProductForDetail}
+        isOpen={Boolean(selectedProductForDetail)}
+        onClose={() => setSelectedProductForDetail(null)}
+        onAddToCart={(productWithQty) => {
+          handleAddProduct(productWithQty)
+        }}
+      />
     </div>
   )
 }

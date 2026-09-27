@@ -4,6 +4,7 @@ import {
   formatINR, unitOptions, gstOptions, generateNextSKU, generateNextProductCode,
 } from '../../utils/erp'
 import { createProduct, listCategories, listUIProducts, removeProduct, subscribeToTable, updateProduct as updateRemoteProduct } from '../../services/erpService'
+import { isProductInCategory } from '../Categories/CategoriesPage'
 
 const FormContext = createContext(null)
 
@@ -852,14 +853,19 @@ export default function ProductsPage() {
   // ─── Load products on tab/filter change ───────────────
   const loadProducts = async (query, tab, catFilter) => {
     try {
-      let results=await listUIProducts({search:query||''})
-      const filtered = results.filter(p => catFilter==='all'||p.category===catFilter)
-      const tabResults = filtered.filter(p=>p.type===tab)
-      tabResults.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))
+      const [results, rawCategories] = await Promise.all([
+        listUIProducts({ search: query || '' }),
+        listCategories()
+      ])
+      const mappedCats = rawCategories.map(c => ({ ...c, uuid: c.id, id: c.slug || c.id, name: c.name, slug: c.slug || c.id }))
+      setCategories(mappedCats)
+      const targetCat = mappedCats.find(c => c.id === catFilter || c.slug === catFilter || c.uuid === catFilter)
+      const filtered = results.filter(p => catFilter === 'all' || isProductInCategory(p, targetCat || { id: catFilter, slug: catFilter }))
+      const tabResults = filtered.filter(p => p.type === tab)
+      tabResults.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       setAllProducts(filtered)
       setProducts(tabResults)
-      setCategories((await listCategories()).map(c=>({...c,id:c.slug,name:c.name})))
-    } catch(error){setToast({message:error.message,type:'error'})}
+    } catch(error) { setToast({ message: error.message, type: 'error' }) }
   }
 
   // Called from event handlers (after add/edit/delete)

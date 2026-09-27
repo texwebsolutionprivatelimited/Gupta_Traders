@@ -46,8 +46,19 @@ export default function PaymentPanel({
       setShowDiscountInput(false)
       return
     }
+    const sanitizedVal = discountType === 'percent' ? Math.min(100, Math.max(0, val)) : Math.max(0, val)
     onBillDiscountChange({
       type: discountType === 'percent' ? 'percent' : 'fixed',
+      value: sanitizedVal,
+    })
+    setShowDiscountInput(false)
+  }
+
+  const handleApplyPresetDiscount = (type, val) => {
+    setDiscountType(type)
+    setDiscountValue(String(val))
+    onBillDiscountChange({
+      type,
       value: val,
     })
     setShowDiscountInput(false)
@@ -84,18 +95,18 @@ export default function PaymentPanel({
       <div className="px-4 py-3 space-y-1.5 text-sm">
         <div className="flex justify-between text-slate-400">
           <span>Subtotal</span>
-          <span className="font-medium text-slate-300">{formatINR(summary.subtotal)}</span>
+          <span className="font-semibold text-slate-200">{formatINR(summary.subtotal)}</span>
         </div>
 
         {/* GST Breakdown */}
         {summary.totalGST > 0 && (
           <>
             <div className="flex justify-between text-slate-500 text-xs">
-              <span>CGST</span>
+              <span>{isGSTInclusive ? 'CGST (Included)' : 'CGST'}</span>
               <span>{formatINR(summary.totalCGST)}</span>
             </div>
             <div className="flex justify-between text-slate-500 text-xs">
-              <span>SGST</span>
+              <span>{isGSTInclusive ? 'SGST (Included)' : 'SGST'}</span>
               <span>{formatINR(summary.totalSGST)}</span>
             </div>
           </>
@@ -104,18 +115,18 @@ export default function PaymentPanel({
         {/* Discount */}
         {summary.discountAmount > 0 && (
           <div className="flex justify-between text-amber-400">
-            <span className="flex items-center gap-1">
-              Discount {summary.billDiscountType === 'percent' && summary.billDiscountValue > 0 ? `(${summary.billDiscountValue}%)` : ''}
+            <span className="flex items-center gap-1 font-medium">
+              Discount {summary.billDiscountType === 'percent' && summary.billDiscountValue > 0 ? `(${summary.billDiscountValue}%)` : `(₹${summary.discountAmount.toFixed(2)})`}
               <button
                 type="button"
                 onClick={handleRemoveDiscount}
-                className="text-[10px] text-rose-400 hover:text-rose-300 ml-1 cursor-pointer"
+                className="text-[10px] text-rose-400 hover:text-rose-300 ml-1.5 cursor-pointer bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20"
                 title="Remove discount"
               >
-                ✕
+                ✕ Remove
               </button>
             </span>
-            <span className="font-medium">-{formatINR(summary.discountAmount)}</span>
+            <span className="font-bold">-{formatINR(summary.discountAmount)}</span>
           </div>
         )}
 
@@ -131,13 +142,13 @@ export default function PaymentPanel({
         <button
           onClick={handleToggleDiscountInput}
           disabled={!canCheckout}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
             summary.discountAmount > 0
-              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/10'
               : 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
           }`}
         >
-          <TagIcon className="w-4 h-4" /> Discount
+          <TagIcon className="w-4 h-4" /> {summary.discountAmount > 0 ? `Discount: -${formatINR(summary.discountAmount)}` : 'Add Discount'}
         </button>
 
         {/* GST Toggle */}
@@ -179,48 +190,85 @@ export default function PaymentPanel({
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700/40 text-slate-400 border border-slate-600/30 hover:bg-slate-700/60 hover:text-slate-300 transition-all"
           title="Reprint Previous Bill (F4)"
         >
-          <PrinterIcon className="w-4 h-4" /> Reprint
+          <PrinterIcon className="w-4 h-4" /> Reprint Receipts
         </button>
       </div>
 
       {/* Discount Input */}
       {showDiscountInput && (
         <div className="px-4 pb-3">
-          <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
+          <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-amber-300">Bill Discount (बिल छूट)</span>
+              <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                <TagIcon className="w-3.5 h-3.5" /> Bill Discount Mode (छूट का तरीका)
+              </span>
               <button
                 type="button"
                 onClick={() => setShowDiscountInput(false)}
-                className="text-slate-400 hover:text-slate-200 text-xs cursor-pointer"
+                className="text-slate-400 hover:text-slate-200 text-xs cursor-pointer p-1"
               >
                 ✕
               </button>
             </div>
+
+            {/* Quick Presets */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-[11px] text-slate-400 font-medium">Quick:</span>
+              <button
+                type="button"
+                onClick={() => handleApplyPresetDiscount('flat', 50)}
+                className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 hover:bg-slate-700 text-xs border border-slate-700 font-medium"
+              >
+                ₹50
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPresetDiscount('flat', 100)}
+                className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 hover:bg-slate-700 text-xs border border-slate-700 font-medium"
+              >
+                ₹100
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPresetDiscount('percent', 5)}
+                className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 hover:bg-slate-700 text-xs border border-slate-700 font-medium"
+              >
+                5%
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyPresetDiscount('percent', 10)}
+                className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 hover:bg-slate-700 text-xs border border-slate-700 font-medium"
+              >
+                10%
+              </button>
+            </div>
+
             <div className="flex gap-2">
               <select
                 value={discountType}
                 onChange={(e) => setDiscountType(e.target.value)}
-                className="px-2 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-200 text-xs focus:outline-none"
+                className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold focus:outline-none focus:border-amber-500/50"
               >
-                <option value="flat">₹ Flat</option>
-                <option value="percent">% Percent</option>
+                <option value="flat">₹ Fixed Amount</option>
+                <option value="percent">% Percentage</option>
               </select>
               <input
                 type="number"
                 step="0.01"
                 min="0"
+                max={discountType === 'percent' ? 100 : undefined}
                 value={discountValue}
                 onChange={(e) => setDiscountValue(e.target.value)}
-                placeholder={discountType === 'flat' ? 'Amount in ₹' : 'Percentage %'}
-                className="flex-1 px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-200 text-sm placeholder:text-slate-500 focus:outline-none focus:border-amber-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                placeholder={discountType === 'flat' ? 'Discount in ₹ (e.g. 100)' : 'Discount in % (e.g. 10)'}
+                className="flex-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm placeholder:text-slate-500 focus:outline-none focus:border-amber-500/60 font-semibold"
                 autoFocus
                 onKeyDown={(e) => { if (e.key === 'Enter') handleApplyDiscount() }}
               />
               <button
                 type="button"
                 onClick={handleApplyDiscount}
-                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs transition-all cursor-pointer shadow-md shadow-amber-500/20 active:scale-95"
               >
                 Apply
               </button>

@@ -234,7 +234,7 @@ export async function listSalesReturns() {
 export async function listSales() {
   const { data, error } = await supabase
     .from('sales')
-    .select('*, customer:customers(*), items:sale_items(*, returns:sale_return_items(*), product:products(name,unit,selling_price)), returns:sales_returns(*, items:sale_return_items(*, product:products(name,unit,sku)))')
+    .select('*, customer:customers(*), items:sale_items(*, returns:sale_return_items(*), product:products(name,unit,selling_price,purchase_price)), returns:sales_returns(*, items:sale_return_items(*, product:products(name,unit,sku)))')
     .order('sale_date', { ascending: false });
   fail(error, 'Unable to load sales');
   return data;
@@ -264,6 +264,7 @@ export async function listUISales() {
       const price = Number(i.metadata?.display_price ?? i.selling_price ?? i.unit_price ?? i.product?.selling_price ?? 0);
       const itemDiscount = Number(i.metadata?.item_discount_percent || i.discount || 0);
       const gst = Number(i.tax_rate || i.tax || 0);
+      const cost = Number(i.unit_cost || i.product?.purchase_price || 0);
 
       return {
         ...i,
@@ -274,6 +275,8 @@ export async function listUISales() {
         price,
         itemDiscount,
         gst,
+        purchasePrice: cost,
+        unit_cost: cost,
         quantity: originalQty,
         originalQuantity: originalQty,
         returnedQuantity: returnedQty,

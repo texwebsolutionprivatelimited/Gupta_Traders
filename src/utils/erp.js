@@ -5,8 +5,108 @@ export const generateNextSKU=()=>`SKU-${crypto.randomUUID().slice(0,8).toUpperCa
 export const generateNextProductCode=()=>`LC-${crypto.randomUUID().slice(0,8).toUpperCase()}`
 export const generateNextBarcode=type=>type==='loose'?`9${Date.now().toString().slice(-6)}${Math.floor(Math.random()*10000).toString().padStart(4,'0')}`:''
 export function calculateItemGST(price,quantity,gstRate,isInclusive=false){const total=Number(price)*Number(quantity),rate=Number(gstRate||0);if(isInclusive){const base=total/(1+rate/100);return{baseAmount:base,gstAmount:total-base,totalAmount:total}}const gst=total*rate/100;return{baseAmount:total,gstAmount:gst,totalAmount:total+gst}}
+export function isTodayBusinessDate(dateVal) {
+  if (!dateVal) return false
+  const now = new Date()
+  const nowYear = now.getFullYear()
+  const nowMonth = String(now.getMonth() + 1).padStart(2, '0')
+  const nowDate = String(now.getDate()).padStart(2, '0')
+  const localTodayStr = `${nowYear}-${nowMonth}-${nowDate}`
+
+  if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed === localTodayStr
+    }
+  }
+
+  const d = new Date(dateVal)
+  if (isNaN(d.getTime())) return false
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  )
+}
+
+export function calculateERPDashboardMetrics(sales = [], purchases = [], products = []) {
+  // Map products for fast purchase price / cost lookup
+  const productCostMap = new Map()
+  ;(products || []).forEach(p => {
+    if (p.id) productCostMap.set(p.id, Number(p.purchasePrice || p.purchase_price || 0))
+    if (p.supabase_id) productCostMap.set(p.supabase_id, Number(p.purchasePrice || p.purchase_price || 0))
+  })
+
+  const isValidSale = (s) => {
+    const status = (s.status || s.rawStatus || '').toLowerCase()
+    return status !== 'cancelled' && status !== 'void' && status !== 'draft'
+  }
+
+  const isValidPurchase = (p) => {
+    const status = (p.status || '').toLowerCase()
+    return status !== 'cancelled' && status !== 'void' && status !== 'draft'
+  }
+
+  // Filter for today's transactions
+  const todaySales = (sales || []).filter(s =>
+    isTodayBusinessDate(s.date || s.sale_date || s.createdAt || s.created_at) && isValidSale(s)
+  )
+
+  const todayPurchases = (purchases || []).filter(p =>
+    isTodayBusinessDate(p.date || p.purchase_date || p.createdAt || p.created_at) && isValidPurchase(p)
+  )
+
+  // 1. Today's Sales Revenue (completed/valid sales net of returns)
+  let todaysSales = 0
+  let todaysProfit = 0
+
+  todaySales.forEach(s => {
+    // Net sale revenue: total_amount minus any refunds
+    const rawTotal = Number(s.total ?? s.total_amount ?? s.grandTotal ?? s.net_amount ?? 0)
+    const refunded = Number(s.totalRefunded || 0)
+    const saleRevenue = Math.max(0, rawTotal - refunded)
+    todaysSales += saleRevenue
+
+    // Cost of goods sold for this sale
+    let saleCost = 0
+    const items = Array.isArray(s.items) ? s.items : []
+    items.forEach(item => {
+      const originalQty = Number(item.quantity ?? item.qty ?? 1)
+      const retQty = Number(item.returnedQuantity || 0)
+      const netQty = Math.max(0, originalQty - retQty)
+
+      const costPrice = Number(
+        item.unit_cost ||
+        item.purchasePrice ||
+        item.costPrice ||
+        item.product?.purchase_price ||
+        productCostMap.get(item.productId) ||
+        productCostMap.get(item.product_id) ||
+        productCostMap.get(item.id) ||
+        0
+      )
+      saleCost += netQty * costPrice
+    })
+
+    const saleProfit = saleRevenue - saleCost
+    todaysProfit += saleProfit
+  })
+
+  // 2. Today's Purchases Total
+  const todaysPurchase = todayPurchases.reduce((sum, p) => sum + (Number(p.total ?? p.total_amount ?? p.totalAmount ?? 0)), 0)
+
+  return {
+    todaysSales: Math.round(todaysSales * 100) / 100,
+    todaysPurchase: Math.round(todaysPurchase * 100) / 100,
+    todaysProfit: Math.round(todaysProfit * 100) / 100,
+    todaySalesCount: todaySales.length,
+    todayPurchasesCount: todayPurchases.length,
+  }
+}
+
 export function calculateBillSummary(items = [], billDiscount = 0, isInclusive = true) {
   let subtotal = 0, totalGST = 0, itemDiscountTotal = 0;
+  let itemsTotal = 0;
 
   (items || []).forEach(item => {
     const unitRate = Number((item.rate ?? item.price ?? item.sellingPrice) || 0);
@@ -16,6 +116,7 @@ export function calculateBillSummary(items = [], billDiscount = 0, isInclusive =
     const taxable = gross - discount;
     const rate = Number(item.gstRate || 0);
 
+    itemsTotal += taxable;
     itemDiscountTotal += discount;
     if (isInclusive) {
       const base = taxable / (1 + rate / 100);
@@ -27,7 +128,8 @@ export function calculateBillSummary(items = [], billDiscount = 0, isInclusive =
     }
   });
 
-  const beforeDiscount = Math.max(0, subtotal + totalGST);
+  const beforeDiscount = Math.max(0, isInclusive ? itemsTotal : (subtotal + totalGST));
+  const applicableSubtotal = beforeDiscount;
 
   // Parse billDiscount parameter (can be object, string like '10%', or number)
   let discountType = 'fixed';
@@ -51,27 +153,33 @@ export function calculateBillSummary(items = [], billDiscount = 0, isInclusive =
     discountValue = billDiscount;
   }
 
-  if (isNaN(discountValue) || discountValue <= 0 || beforeDiscount <= 0) {
+  if (isNaN(discountValue) || discountValue <= 0 || applicableSubtotal <= 0) {
     discountValue = 0;
   }
 
+  // Calculate discount amount based on mode
   let calculatedDiscount = 0;
-  if (discountValue > 0 && beforeDiscount > 0) {
+  if (discountValue > 0 && applicableSubtotal > 0) {
     if (discountType === 'percent') {
-      calculatedDiscount = (beforeDiscount * discountValue) / 100;
+      // Percentage mode: calculate percentage from applicable subtotal
+      const clampedPct = Math.min(100, Math.max(0, discountValue));
+      calculatedDiscount = (applicableSubtotal * clampedPct) / 100;
     } else {
+      // Fixed ₹ mode: fixed amount
       calculatedDiscount = discountValue;
     }
   }
 
-  // Final discount amount: cannot be negative and cannot exceed beforeDiscount
-  const discountAmount = Math.max(0, Math.min(beforeDiscount, Math.round(calculatedDiscount * 100) / 100));
+  // Final discount amount: cannot be negative and cannot exceed applicable subtotal
+  const discountAmount = Math.max(0, Math.min(applicableSubtotal, Math.round(calculatedDiscount * 100) / 100));
 
-  // Final grand total: max(0, beforeDiscount - discountAmount)
+  // Final grand total: max(0, applicableSubtotal - discountAmount)
   const grandTotal = Math.max(0, Math.round((beforeDiscount - discountAmount) * 100) / 100);
 
   return {
-    subtotal,
+    subtotal: isInclusive ? itemsTotal : subtotal,
+    taxableBase: subtotal,
+    itemsTotal,
     beforeDiscount,
     totalGST,
     totalCGST: totalGST / 2,

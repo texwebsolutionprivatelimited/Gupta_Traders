@@ -12,7 +12,7 @@ import {
 } from '../../utils/erp'
 import { completeSale as persistSale, deleteHeldBill as removeHeldBill, listHeldBills, listUICustomers, listUIProducts, saveHeldBill, subscribeToTable } from '../../services/erpService'
 import { useAuth } from '../../context/AuthContext'
-import { FaShoppingCart as CartIcon, FaPlus, FaBarcode } from 'react-icons/fa'
+import { FaShoppingCart as CartIcon, FaPlus, FaBarcode, FaHistory } from 'react-icons/fa'
 import guptaTradersLogo from '../../assets/gupta traders logo.png'
 
 // ─── Main POS Billing Page ──────────────────────────────────────
@@ -452,12 +452,24 @@ export default function POSBilling() {
           {/* Add Custom Item Button */}
           <button
             onClick={() => setShowCustomItemModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium transition-all shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium transition-all shadow-sm cursor-pointer"
             title="Add Loose/Unlisted Product (Shortcut: F8)"
           >
             <FaPlus className="w-3 h-3" />
             <span className="hidden sm:inline">Custom Item</span>
             <kbd className="hidden lg:inline text-[9px] bg-amber-500/20 px-1 py-0.2 rounded border border-amber-500/30 font-mono ml-0.5">F8</kbd>
+          </button>
+
+          {/* Reprint Receipt Button */}
+          <button
+            onClick={() => setShowReprint(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-medium transition-all shadow-sm cursor-pointer"
+            title="Reprint Past Receipts (Shortcut: F4)"
+            id="pos-reprint-btn"
+          >
+            <FaHistory className="w-3 h-3 text-cyan-400" />
+            <span className="hidden sm:inline">Reprint</span>
+            <kbd className="hidden lg:inline text-[9px] bg-cyan-500/20 px-1 py-0.2 rounded border border-cyan-500/30 font-mono ml-0.5">F4</kbd>
           </button>
 
           {/* Quick Scanner Button - hidden for Cashier */}

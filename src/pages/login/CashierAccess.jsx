@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listUISales } from '../../services/erpService'
+import { listUISales, subscribeToTable } from '../../services/erpService'
+import { isTodayBusinessDate } from '../../utils/erp'
 import {
   FaReceipt,
   FaUsers,
@@ -31,45 +32,59 @@ export default function CashierAccess() {
   const [shiftSales, setShiftSales] = useState([])
 
   useEffect(() => {
-    listUISales().then(sales => {
-    const todayStr = new Date().toISOString().split('T')[0]
-    const todaySales = sales.filter(s => s.date === todayStr)
+    let isMounted = true
 
-    const billsCount = todaySales.length
-    const revenue = todaySales.reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+    const loadCashierData = () => {
+      listUISales().then(sales => {
+        if (!isMounted) return
+        const todaySales = sales.filter(s =>
+          isTodayBusinessDate(s.date || s.sale_date || s.createdAt) &&
+          (s.status || '').toLowerCase() !== 'cancelled'
+        )
 
-    const cash = todaySales
-      .filter(s => (s.paymentMode || '').toLowerCase() === 'cash')
-      .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+        const billsCount = todaySales.length
+        const revenue = todaySales.reduce((sum, s) => sum + (Number(s.total) || 0), 0)
 
-    const card = todaySales
-      .filter(s => (s.paymentMode || '').toLowerCase() !== 'cash')
-      .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+        const cash = todaySales
+          .filter(s => (s.paymentMode || '').toLowerCase() === 'cash')
+          .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
 
-    setShiftStats({
-      billsBilled: billsCount,
-      totalBilled: revenue,
-      cashCollected: cash,
-      cardCollected: card,
-      shiftStarted: '09:00 AM',
-      drawerStatus: 'Balanced',
-    })
+        const card = todaySales
+          .filter(s => (s.paymentMode || '').toLowerCase() !== 'cash')
+          .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
 
-    const recent = todaySales.slice(0, 5).map(s => {
-      const itemsDesc = Array.isArray(s.items) 
-        ? s.items.map(it => `${it.product} (${it.quantity})`).join(', ') 
-        : ''
-      return {
-        id: s.invoice || s.id,
-        customer: s.customer,
-        items: itemsDesc || 'No items',
-        amount: Number(s.total) || 0,
-        time: s.createdAt ? new Date(s.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Today',
-        method: s.paymentMode || 'Cash'
-      }
-    })
-    setShiftSales(recent)
-    }).catch(error => console.error('Unable to load cashier dashboard', error))
+        setShiftStats({
+          billsBilled: billsCount,
+          totalBilled: revenue,
+          cashCollected: cash,
+          cardCollected: card,
+          shiftStarted: '09:00 AM',
+          drawerStatus: 'Balanced',
+        })
+
+        const recent = todaySales.slice(0, 5).map(s => {
+          const itemsDesc = Array.isArray(s.items) 
+            ? s.items.map(it => `${it.product || it.name} (${it.quantity})`).join(', ') 
+            : ''
+          return {
+            id: s.invoice || s.invoice_number || s.id,
+            customer: s.customer || 'Walk-in Customer',
+            items: itemsDesc || 'No items',
+            amount: Number(s.total) || 0,
+            time: s.createdAt ? new Date(s.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Today',
+            method: s.paymentMode || 'Cash'
+          }
+        })
+        setShiftSales(recent)
+      }).catch(error => console.error('Unable to load cashier dashboard', error))
+    }
+
+    loadCashierData()
+    const unsub = subscribeToTable('sales', loadCashierData)
+    return () => {
+      isMounted = false
+      if (typeof unsub === 'function') unsub()
+    }
   }, [])
 
 

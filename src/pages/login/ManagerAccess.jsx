@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listUICustomers, listUIPurchases, listUIProducts, listUISales } from '../../services/erpService'
+import { listUICustomers, listUIPurchases, listUIProducts, listUISales, subscribeToTable } from '../../services/erpService'
+import { calculateERPDashboardMetrics } from '../../utils/erp'
 import {
   FaChartPie,
   FaReceipt,
@@ -122,62 +123,77 @@ export default function ManagerAccess() {
   const [salesOverview, setSalesOverview] = useState([])
 
   useEffect(() => {
-    Promise.all([listUIProducts(), listUICustomers(), listUISales(), listUIPurchases()]).then(([products, customers, sales, purchases]) => {
+    let isMounted = true
 
-    const todayStr = new Date().toISOString().split('T')[0]
+    const loadDashboardData = () => {
+      Promise.all([listUIProducts(), listUICustomers(), listUISales(), listUIPurchases()]).then(([products, customers, sales, purchases]) => {
+        if (!isMounted) return
 
-    const todaysSalesVal = sales
-      .filter(s => s.date === todayStr)
-      .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+        const metrics = calculateERPDashboardMetrics(sales, purchases, products)
+        const lowStockCount = products.filter(p => (Number(p.currentStock) || 0) <= (Number(p.minStock) || 10)).length
 
-    const todaysPurchaseVal = purchases
-      .filter(p => p.date === todayStr)
-      .reduce((sum, p) => sum + (Number(p.total) || 0), 0)
+        setDashboardData({
+          todaysSales: metrics.todaysSales,
+          todaysPurchase: metrics.todaysPurchase,
+          todaysProfit: metrics.todaysProfit,
+          totalProducts: products.length,
+          totalCustomers: customers.length,
+          lowStockItems: lowStockCount,
+        })
 
-    const todaysProfitVal = todaysSalesVal - todaysPurchaseVal
+        const recent = sales.slice(0, 4).map(s => {
+          const itemsDesc = Array.isArray(s.items) 
+            ? s.items.map(it => `${it.product || it.name} (${it.quantity})`).join(', ') 
+            : ''
+          return {
+            id: s.invoice || s.invoice_number || s.id,
+            customer: s.customer || 'Walk-in Customer',
+            items: itemsDesc || 'No items',
+            amount: Number(s.total) || 0,
+            time: s.createdAt ? new Date(s.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Today',
+            status: s.status === 'Returned' ? 'returned' : 'completed'
+          }
+        })
+        setRecentSales(recent)
 
-    const lowStockCount = products.filter(p => (Number(p.currentStock) || 0) <= (Number(p.minStock) || 10)).length
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        const today = new Date()
+        const last7Days = Array.from({ length: 7 }, (_, idx) => {
+          const d = new Date(today)
+          d.setDate(today.getDate() - (6 - idx))
+          
+          const daySales = sales
+            .filter(s => {
+              const sDate = s.date || s.sale_date || s.createdAt
+              if (!sDate) return false
+              const sd = new Date(sDate)
+              return !isNaN(sd.getTime()) &&
+                sd.getFullYear() === d.getFullYear() &&
+                sd.getMonth() === d.getMonth() &&
+                sd.getDate() === d.getDate()
+            })
+            .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
+          return {
+            day: days[d.getDay()],
+            sales: daySales
+          }
+        })
+        setSalesOverview(last7Days)
+      }).catch(error => console.error('Unable to load dashboard', error))
+    }
 
-    setDashboardData({
-      todaysSales: todaysSalesVal,
-      todaysPurchase: todaysPurchaseVal,
-      todaysProfit: todaysProfitVal,
-      totalProducts: products.length,
-      totalCustomers: customers.length,
-      lowStockItems: lowStockCount,
-    })
+    loadDashboardData()
 
-    const recent = sales.slice(0, 4).map(s => {
-      const itemsDesc = Array.isArray(s.items) 
-        ? s.items.map(it => `${it.product} (${it.quantity})`).join(', ') 
-        : ''
-      return {
-        id: s.invoice || s.id,
-        customer: s.customer,
-        items: itemsDesc || 'No items',
-        amount: Number(s.total) || 0,
-        time: s.createdAt ? new Date(s.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Today',
-        status: s.status === 'Returned' ? 'returned' : 'completed'
-      }
-    })
-    setRecentSales(recent)
+    const unsubSales = subscribeToTable('sales', loadDashboardData)
+    const unsubPurchases = subscribeToTable('purchases', loadDashboardData)
+    const unsubProducts = subscribeToTable('products', loadDashboardData)
 
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const today = new Date()
-    const last7Days = Array.from({ length: 7 }, (_, idx) => {
-      const d = new Date(today)
-      d.setDate(today.getDate() - (6 - idx))
-      const dateStr = d.toISOString().split('T')[0]
-      const daySales = sales
-        .filter(s => s.date === dateStr)
-        .reduce((sum, s) => sum + (Number(s.total) || 0), 0)
-      return {
-        day: days[d.getDay()],
-        sales: daySales
-      }
-    })
-    setSalesOverview(last7Days)
-    }).catch(error => console.error('Unable to load dashboard', error))
+    return () => {
+      isMounted = false
+      if (typeof unsubSales === 'function') unsubSales()
+      if (typeof unsubPurchases === 'function') unsubPurchases()
+      if (typeof unsubProducts === 'function') unsubProducts()
+    }
   }, [])
 
   // List of all modules allowed for Manager

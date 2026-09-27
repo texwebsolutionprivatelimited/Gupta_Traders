@@ -4,6 +4,31 @@ import {
   iconPresets, colorPresets,
 } from '../../utils/erp'
 import { createCategory, listCategories, listUIProducts, removeCategory, subscribeToTable, updateCategory } from '../../services/erpService'
+import ProductDetailModal from '../Products/ProductDetailModal'
+
+export function isProductInCategory(product, cat) {
+  if (!cat) return false
+  if (cat.id === 'all' || cat.slug === 'all') return true
+
+  const pCatId = String(product.categoryId || product.category_id || '').toLowerCase().trim()
+  const pCatSlug = String(product.category || '').toLowerCase().trim()
+  const pCatName = String(product.categoryName || product.category_name || '').toLowerCase().trim()
+
+  const targetUuid = String(cat.uuid || cat.categoryId || cat.id || '').toLowerCase().trim()
+  const targetSlug = String(cat.slug || cat.id || '').toLowerCase().trim()
+  const targetName = String(cat.name || '').toLowerCase().trim()
+
+  const metaCatId = String(product.metadata?.category_id || '').toLowerCase().trim()
+  const metaCat = String(product.metadata?.category || '').toLowerCase().trim()
+
+  return (
+    (targetUuid && (pCatId === targetUuid || metaCatId === targetUuid)) ||
+    (targetSlug && (pCatSlug === targetSlug || pCatId === targetSlug || metaCat === targetSlug)) ||
+    (targetName && (pCatName === targetName || pCatSlug === targetName || metaCat === targetName)) ||
+    (targetSlug && pCatName === targetSlug) ||
+    (targetName && pCatSlug === targetName)
+  )
+}
 
 // ─── SVG Icons ──────────────────────────────────────────────────
 
@@ -526,14 +551,484 @@ function StatCard({ icon, label, value, color }) {
 }
 
 
+// ─── CENTERED CATEGORY PRODUCTS PANEL / MODAL ──────────────────
+
+function CategoryProductsModal({ category, products, isOpen, onClose, onSelectProduct, isChildModalOpen }) {
+  const [search, setSearch] = useState('')
+  const [stockFilter, setStockFilter] = useState('all') // 'all' | 'in_stock' | 'low_stock' | 'out_of_stock'
+  const [sortBy, setSortBy] = useState('name_asc') // 'name_asc' | 'price_asc' | 'price_desc' | 'stock_desc'
+  const [viewMode, setViewMode] = useState('grid') // 'grid' | 'list'
+
+  useEffect(() => {
+    setSearch('')
+    setStockFilter('all')
+    setSortBy('name_asc')
+  }, [category])
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!isOpen) return
+      // When product detail modal is open on top, don't close this panel on Escape
+      if (e.key === 'Escape' && !isChildModalOpen) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, isChildModalOpen, onClose])
+
+  if (!isOpen || !category) return null
+
+  const categoryProducts = products.filter(p => isProductInCategory(p, category))
+
+  // Calculate stock counts for filter pills
+  const inStockCount = categoryProducts.filter(p => {
+    const stock = Number(p.currentStock ?? p.stock ?? 0)
+    const minStock = Number(p.minStock || 5)
+    return stock > minStock
+  }).length
+
+  const lowStockCount = categoryProducts.filter(p => {
+    const stock = Number(p.currentStock ?? p.stock ?? 0)
+    const minStock = Number(p.minStock || 5)
+    return stock > 0 && stock <= minStock
+  }).length
+
+  const outOfStockCount = categoryProducts.filter(p => {
+    const stock = Number(p.currentStock ?? p.stock ?? 0)
+    return stock <= 0
+  }).length
+
+  // Filter products
+  const filtered = categoryProducts.filter(p => {
+    const q = search.toLowerCase().trim()
+    const matchesSearch = !q ||
+      p.name?.toLowerCase().includes(q) ||
+      p.nameHi?.toLowerCase().includes(q) ||
+      p.brand?.toLowerCase().includes(q) ||
+      p.barcode?.toLowerCase().includes(q) ||
+      p.sku?.toLowerCase().includes(q)
+
+    const stock = Number(p.currentStock ?? p.stock ?? 0)
+    const minStock = Number(p.minStock || 5)
+    let matchesStock = true
+    if (stockFilter === 'in_stock') matchesStock = stock > minStock
+    else if (stockFilter === 'low_stock') matchesStock = stock > 0 && stock <= minStock
+    else if (stockFilter === 'out_of_stock') matchesStock = stock <= 0
+
+    return matchesSearch && matchesStock
+  })
+
+  // Sort products
+  const sortedProducts = [...filtered].sort((a, b) => {
+    if (sortBy === 'name_asc') {
+      return (a.name || '').localeCompare(b.name || '')
+    }
+    if (sortBy === 'price_asc') {
+      const priceA = Number(a.rate ?? a.price ?? a.sellingPrice ?? 0)
+      const priceB = Number(b.rate ?? b.price ?? b.sellingPrice ?? 0)
+      return priceA - priceB
+    }
+    if (sortBy === 'price_desc') {
+      const priceA = Number(a.rate ?? a.price ?? a.sellingPrice ?? 0)
+      const priceB = Number(b.rate ?? b.price ?? b.sellingPrice ?? 0)
+      return priceB - priceA
+    }
+    if (sortBy === 'stock_desc') {
+      const stockA = Number(a.currentStock ?? a.stock ?? 0)
+      const stockB = Number(b.currentStock ?? b.stock ?? 0)
+      return stockB - stockA
+    }
+    return 0
+  })
+
+  return (
+    <div
+      className="fixed inset-0 z-[75] flex items-center justify-center p-3 sm:p-5 md:p-6 bg-black/75 backdrop-blur-md animate-fadeIn"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-5xl h-[88vh] max-h-[850px] flex flex-col shadow-2xl shadow-black/90 overflow-hidden animate-scaleIn"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Panel Header */}
+        <div className="p-5 sm:p-6 border-b border-slate-800 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 flex items-start justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            {category.image ? (
+              <img
+                src={category.image}
+                alt={category.name}
+                className="w-14 h-14 rounded-2xl object-cover border border-slate-700/80 shrink-0 shadow-md"
+              />
+            ) : (
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 shadow-inner"
+                style={{
+                  backgroundColor: (category.color || '#10b981') + '25',
+                  border: '1px solid ' + (category.color || '#10b981') + '45',
+                }}
+              >
+                {category.icon || '🏷️'}
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Category Products
+                </span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  category.status === 'active'
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                    : 'bg-amber-500/15 text-amber-400 border border-amber-500/25'
+                }`}>
+                  {category.status}
+                </span>
+                <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                  {categoryProducts.length} Product{categoryProducts.length !== 1 ? 's' : ''} Total
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-100 truncate leading-snug">
+                {category.name}
+              </h2>
+              {category.description && (
+                <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">
+                  {category.description}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 sm:p-2.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 border border-slate-700/60 hover:border-slate-600 transition-all cursor-pointer shrink-0"
+            title="Close Panel (Esc)"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        {/* Toolbar: Search, Stock Pills, Sorting & View Toggle */}
+        <div className="p-3.5 sm:p-4 border-b border-slate-800 bg-slate-900/80 space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">
+                <SearchIcon />
+              </div>
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={`Search ${category.name} products by name, brand, barcode, SKU...`}
+                className="w-full pl-11 pr-9 py-2.5 rounded-xl text-xs sm:text-sm bg-slate-800/90 border border-slate-700/70 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/30 transition-all"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Sort Selector */}
+            <div className="flex items-center gap-2">
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value)}
+                className="px-3 py-2.5 rounded-xl text-xs font-semibold bg-slate-800/90 border border-slate-700/70 text-slate-300 focus:outline-none focus:border-emerald-500/60 cursor-pointer"
+                title="Sort Products"
+              >
+                <option value="name_asc">Name: A to Z</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="stock_desc">Stock: High to Low</option>
+              </select>
+
+              {/* View Toggle */}
+              <div className="flex items-center bg-slate-800/90 border border-slate-700/70 rounded-xl p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-lg transition-all cursor-pointer ${
+                    viewMode === 'grid'
+                      ? 'bg-emerald-500/20 text-emerald-300 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Grid View"
+                >
+                  <GridIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-lg transition-all cursor-pointer ${
+                    viewMode === 'list'
+                      ? 'bg-emerald-500/20 text-emerald-300 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="List View"
+                >
+                  <ListIcon />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Stock Filter Pills */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
+            {[
+              { id: 'all', label: `All (${categoryProducts.length})` },
+              { id: 'in_stock', label: `In Stock (${inStockCount})` },
+              { id: 'low_stock', label: `Low Stock (${lowStockCount})` },
+              { id: 'out_of_stock', label: `Out of Stock (${outOfStockCount})` },
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setStockFilter(f.id)}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  stockFilter === f.id
+                    ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 shadow-sm'
+                    : 'bg-slate-800/60 text-slate-400 border border-slate-700/50 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Products Content Area */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 scrollbar-thin">
+          {categoryProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+              <div className="w-16 h-16 rounded-2xl bg-slate-800/50 border border-slate-700/40 flex items-center justify-center text-3xl mb-4">
+                📦
+              </div>
+              <h4 className="text-base font-bold text-slate-200">No products found in this category</h4>
+              <p className="text-xs text-slate-400 max-w-sm mt-1.5 leading-relaxed">
+                Products assigned to "{category.name}" in Products or Inventory will show up here automatically from your live database.
+              </p>
+            </div>
+          ) : sortedProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <p className="text-slate-300 text-sm font-semibold">No products match your current search or filter</p>
+              <p className="text-xs text-slate-500 mt-1">Try clearing your search keyword or switching stock filter tabs.</p>
+              <button
+                onClick={() => { setSearch(''); setStockFilter('all'); }}
+                className="mt-4 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-emerald-400 border border-slate-700 transition-all cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            </div>
+          ) : viewMode === 'grid' ? (
+            /* ─── Grid View ─── */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+              {sortedProducts.map(product => {
+                const stock = Number(product.currentStock ?? product.stock ?? 0)
+                const minStock = Number(product.minStock || 5)
+                const isOut = stock <= 0
+                const isLow = !isOut && stock <= minStock
+                const unit = product.unit || (product.type === 'loose' ? (product.looseUnit || 'kg') : 'pcs')
+                const brand = product.brand?.trim() || 'Generic'
+                const sellingPrice = Number(product.rate ?? product.price ?? product.sellingPrice ?? 0)
+                const mrp = Number(product.mrp ?? sellingPrice)
+                const savings = mrp > sellingPrice ? mrp - sellingPrice : 0
+
+                return (
+                  <div
+                    key={product.id}
+                    onClick={() => onSelectProduct(product)}
+                    className="group p-4 rounded-2xl bg-slate-850/90 border border-slate-700/60 hover:border-emerald-500/60 hover:bg-slate-800 transition-all duration-200 cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-lg hover:shadow-black/40 hover:-translate-y-0.5"
+                    title="Click to view complete ERP product details"
+                  >
+                    <div>
+                      {/* Top Badges */}
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/15 px-2.5 py-0.5 rounded-full border border-indigo-500/30 truncate max-w-[130px]">
+                          {brand}
+                        </span>
+                        {product.barcode ? (
+                          <span className="text-[10px] font-mono text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/60 truncate max-w-[120px]">
+                            #{product.barcode}
+                          </span>
+                        ) : product.sku ? (
+                          <span className="text-[10px] font-mono text-slate-500 truncate max-w-[100px]">
+                            {product.sku}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {/* Product Name */}
+                      <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-300 transition-colors line-clamp-2 leading-snug">
+                        {product.name}
+                      </h4>
+                      {product.nameHi && (
+                        <p className="text-xs text-slate-400 font-medium mt-0.5 line-clamp-1">{product.nameHi}</p>
+                      )}
+
+                      {/* Stock Status Badge */}
+                      <div className="flex items-center gap-2 mt-3">
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                          isOut
+                            ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                            : isLow
+                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        }`}>
+                          {isOut ? 'Out of Stock' : isLow ? `⚠ ${stock} ${unit} left` : `Stock: ${stock} ${unit}`}
+                        </span>
+                        {product.packSize && (
+                          <span className="text-[11px] text-slate-400 font-medium bg-slate-800/60 px-2 py-0.5 rounded border border-slate-700/40">
+                            {product.packSize}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Commercial Pricing Block & View CTA */}
+                    <div className="pt-3 mt-3 border-t border-slate-700/50 flex items-end justify-between">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-medium">Rate (Our Price):</span>
+                        <div className="text-lg font-black text-emerald-400 tabular-nums">
+                          ₹{sellingPrice.toFixed(2)}
+                          <span className="text-xs font-normal text-slate-400 ml-0.5">/{unit}</span>
+                        </div>
+                        {mrp > sellingPrice && (
+                          <div className="text-[11px] text-slate-400 line-through tabular-nums">
+                            MRP: ₹{mrp.toFixed(2)}
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="text-xs font-semibold text-emerald-400 group-hover:text-emerald-300 flex items-center gap-1 bg-emerald-500/10 group-hover:bg-emerald-500/20 px-2.5 py-1.5 rounded-xl border border-emerald-500/20 transition-all">
+                        <span>Details</span>
+                        <span>→</span>
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            /* ─── List View ─── */
+            <div className="bg-slate-850/80 border border-slate-700/60 rounded-2xl overflow-hidden divide-y divide-slate-700/40">
+              {sortedProducts.map((product, idx) => {
+                const stock = Number(product.currentStock ?? product.stock ?? 0)
+                const minStock = Number(product.minStock || 5)
+                const isOut = stock <= 0
+                const isLow = !isOut && stock <= minStock
+                const unit = product.unit || (product.type === 'loose' ? (product.looseUnit || 'kg') : 'pcs')
+                const brand = product.brand?.trim() || 'Generic'
+                const sellingPrice = Number(product.rate ?? product.price ?? product.sellingPrice ?? 0)
+                const mrp = Number(product.mrp ?? sellingPrice)
+
+                return (
+                  <div
+                    key={product.id}
+                    onClick={() => onSelectProduct(product)}
+                    className="p-3.5 sm:p-4 hover:bg-slate-800/80 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                    title="Click to view complete ERP product details"
+                  >
+                    <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                      <span className="w-6 text-xs text-slate-600 font-mono text-center shrink-0 hidden sm:block">
+                        {idx + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-500/15 px-2 py-0.5 rounded border border-indigo-500/30 truncate max-w-[120px]">
+                            {brand}
+                          </span>
+                          {product.barcode && (
+                            <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                              #{product.barcode}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-300 transition-colors truncate">
+                          {product.name}
+                        </h4>
+                        {product.nameHi && (
+                          <p className="text-xs text-slate-400 truncate">{product.nameHi}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+                      <div className="text-left sm:text-right">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
+                          isOut
+                            ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                            : isLow
+                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        }`}>
+                          {isOut ? 'Out of Stock' : `${stock} ${unit}`}
+                        </span>
+                        {product.packSize && (
+                          <span className="text-[10px] text-slate-400 block mt-0.5">{product.packSize}</span>
+                        )}
+                      </div>
+
+                      <div className="text-right min-w-[90px]">
+                        <div className="text-sm sm:text-base font-black text-emerald-400 tabular-nums">
+                          ₹{sellingPrice.toFixed(2)}
+                        </div>
+                        {mrp > sellingPrice && (
+                          <div className="text-[10px] text-slate-400 line-through tabular-nums">
+                            MRP ₹{mrp.toFixed(2)}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 group-hover:bg-emerald-500/20 text-slate-300 group-hover:text-emerald-300 border border-slate-700 group-hover:border-emerald-500/40 text-xs font-semibold transition-all shrink-0 cursor-pointer"
+                      >
+                        Details →
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Panel Footer */}
+        <div className="px-5 py-3.5 border-t border-slate-800 bg-slate-950 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <p className="text-slate-400 text-center sm:text-left">
+            Showing <strong className="text-slate-200">{sortedProducts.length}</strong> of{' '}
+            <strong className="text-slate-200">{categoryProducts.length}</strong> products in{' '}
+            <span className="text-emerald-400 font-semibold">{category.name}</span> • Click any product to inspect details
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold transition-all cursor-pointer border border-slate-700"
+          >
+            Close Panel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
 // ─── CATEGORY CARD (Grid view) ──────────────────────────────────
 
-function CategoryCard({ category, productCount, onEdit, onDelete }) {
+function CategoryCard({ category, productCount, onSelectCategory, onEdit, onDelete }) {
   const hasImage = !!category.image
 
   return (
-    <div className="group relative rounded-2xl overflow-hidden border border-slate-700/40 hover:border-slate-600/60 transition-all duration-300 hover:shadow-xl hover:shadow-black/30 hover:-translate-y-1">
-
+    <div
+      onClick={() => onSelectCategory(category)}
+      className="group relative rounded-2xl overflow-hidden border border-slate-700/40 hover:border-emerald-500/60 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-950/20 hover:-translate-y-1 cursor-pointer flex flex-col justify-between bg-slate-900/60"
+      title={`Click to view all products in ${category.name}`}
+    >
       {/* ── Cover image or fallback colour block ── */}
       {hasImage ? (
         <div className="relative h-44 overflow-hidden">
@@ -546,16 +1041,18 @@ function CategoryCard({ category, productCount, onEdit, onDelete }) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
           {/* Action buttons — top right */}
-          <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10">
             <button
-              onClick={() => onEdit(category)}
-              className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-emerald-400 transition-all cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); onEdit(category); }}
+              className="w-8 h-8 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-emerald-400 transition-all cursor-pointer"
+              title="Edit Category"
             >
               <EditIcon />
             </button>
             <button
-              onClick={() => onDelete(category)}
-              className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-rose-400 transition-all cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); onDelete(category); }}
+              className="w-8 h-8 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 hover:text-rose-400 transition-all cursor-pointer"
+              title="Delete Category"
             >
               <DeleteIcon />
             </button>
@@ -589,16 +1086,18 @@ function CategoryCard({ category, productCount, onEdit, onDelete }) {
           <span className="absolute -right-2 -bottom-2 text-6xl opacity-15 select-none">{category.icon}</span>
 
           {/* Action buttons */}
-          <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10">
             <button
-              onClick={() => onEdit(category)}
+              onClick={(e) => { e.stopPropagation(); onEdit(category); }}
               className="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-700/40 flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all cursor-pointer"
+              title="Edit Category"
             >
               <EditIcon />
             </button>
             <button
-              onClick={() => onDelete(category)}
+              onClick={(e) => { e.stopPropagation(); onDelete(category); }}
               className="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-700/40 flex items-center justify-center text-slate-400 hover:text-rose-400 hover:border-rose-500/30 transition-all cursor-pointer"
+              title="Delete Category"
             >
               <DeleteIcon />
             </button>
@@ -627,28 +1126,34 @@ function CategoryCard({ category, productCount, onEdit, onDelete }) {
         </div>
       )}
 
-      {/* ── Bottom bar — product count ── */}
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-900/80">
+      {/* ── Bottom bar — product count & click CTA ── */}
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-900/80 border-t border-slate-800/60">
         <div className="flex items-center gap-1.5 text-slate-400">
           <PackageIcon />
-          <span className="text-xs font-medium">{productCount} product{productCount !== 1 ? 's' : ''}</span>
+          <span className="text-xs font-semibold">{productCount} product{productCount !== 1 ? 's' : ''}</span>
         </div>
-        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-bold text-emerald-400 group-hover:underline flex items-center gap-1">
+            View Products →
+          </span>
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: category.color }} />
+        </div>
       </div>
     </div>
   )
 }
 
-
 // ─── CATEGORY ROW (List view) ───────────────────────────────────
 
-function CategoryRow({ category, productCount, index, onEdit, onDelete }) {
+function CategoryRow({ category, productCount, index, onSelectCategory, onEdit, onDelete }) {
   return (
     <div
+      onClick={() => onSelectCategory(category)}
       className={`
-        group flex items-center gap-3 px-3 sm:px-5 py-3 sm:py-4 transition-all duration-200 hover:bg-slate-800/40
+        group flex items-center gap-3 px-3 sm:px-5 py-3 sm:py-4 transition-all duration-200 hover:bg-slate-800/50 cursor-pointer
         ${index > 0 ? 'border-t border-slate-700/30' : ''}
       `}
+      title={`Click to view all products in ${category.name}`}
     >
       {/* Index */}
       <span className="w-6 text-xs text-slate-600 font-mono text-center shrink-0 hidden sm:block">{index + 1}</span>
@@ -661,7 +1166,7 @@ function CategoryRow({ category, productCount, index, onEdit, onDelete }) {
       ) : (
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
-          style={{ backgroundColor: category.color + '20', border: `1px solid ${category.color}30` }}
+          style={{ backgroundColor: category.color + '20', border: '1px solid ' + category.color + '30' }}
         >
           {category.icon}
         </div>
@@ -669,16 +1174,19 @@ function CategoryRow({ category, productCount, index, onEdit, onDelete }) {
 
       {/* Name + description */}
       <div className="flex-1 min-w-0">
-        <h4 className="text-sm font-bold text-slate-100">{category.name}</h4>
+        <h4 className="text-sm font-bold text-slate-100 group-hover:text-emerald-300 transition-colors">{category.name}</h4>
         {category.description && (
           <p className="text-xs text-slate-500 truncate">{category.description}</p>
         )}
       </div>
 
-      {/* Product Count */}
-      <div className="flex items-center gap-1.5 text-slate-400 shrink-0">
+      {/* Product Count & CTA */}
+      <div className="flex items-center gap-2 text-slate-400 shrink-0">
         <PackageIcon />
-        <span className="text-xs font-medium">{productCount}</span>
+        <span className="text-xs font-semibold">{productCount}</span>
+        <span className="hidden sm:inline text-[11px] font-bold text-emerald-400 group-hover:underline ml-1">
+          View Products →
+        </span>
       </div>
 
       {/* Status */}
@@ -697,14 +1205,16 @@ function CategoryRow({ category, productCount, index, onEdit, onDelete }) {
       {/* Actions */}
       <div className="flex gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
         <button
-          onClick={() => onEdit(category)}
+          onClick={(e) => { e.stopPropagation(); onEdit(category); }}
           className="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-700/40 flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all cursor-pointer"
+          title="Edit Category"
         >
           <EditIcon />
         </button>
         <button
-          onClick={() => onDelete(category)}
+          onClick={(e) => { e.stopPropagation(); onDelete(category); }}
           className="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-700/40 flex items-center justify-center text-slate-400 hover:text-rose-400 hover:border-rose-500/30 transition-all cursor-pointer"
+          title="Delete Category"
         >
           <DeleteIcon />
         </button>
@@ -712,10 +1222,6 @@ function CategoryRow({ category, productCount, index, onEdit, onDelete }) {
     </div>
   )
 }
-
-
-// ─── EMPTY STATE ────────────────────────────────────────────────
-
 function EmptyState({ isSearch, onAdd }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-8">
@@ -767,15 +1273,40 @@ export default function CategoriesPage() {
     }
   }
 
-  // Modals
+  // Modals & Selection State
   const [showFormModal, setShowFormModal] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [toast, setToast] = useState(null)
+  const [products, setProducts] = useState([])
+  const [selectedCategoryForProducts, setSelectedCategoryForProducts] = useState(null)
+  const [selectedProductForDetail, setSelectedProductForDetail] = useState(null)
 
   // Load data
   async function loadData() {
-    try { const [cats,products]=await Promise.all([listCategories(),listUIProducts({status:null})]);setCategories(cats.map(c=>({...c,uuid:c.id,id:c.slug,image:c.image_url,sortOrder:c.sort_order})));const counts={};products.forEach(p=>{counts[p.category]=(counts[p.category]||0)+1});setProductCounts(counts) } catch(error){setToast({message:error.message,type:'error'})}
+    try {
+      const [cats, prods] = await Promise.all([
+        listCategories(),
+        listUIProducts({ status: null })
+      ])
+      const mappedCats = cats.map(c => ({
+        ...c,
+        uuid: c.id,
+        id: c.slug || c.id,
+        slug: c.slug || c.id,
+        image: c.image_url,
+        sortOrder: c.sort_order,
+      }))
+      setCategories(mappedCats)
+      setProducts(prods)
+      const counts = {}
+      mappedCats.forEach(cat => {
+        counts[cat.id] = prods.filter(p => isProductInCategory(p, cat)).length
+      })
+      setProductCounts(counts)
+    } catch (error) {
+      setToast({ message: error.message, type: 'error' })
+    }
   }
 
   useEffect(() => {
@@ -959,6 +1490,7 @@ export default function CategoriesPage() {
               key={cat.id}
               category={cat}
               productCount={productCounts[cat.id] || 0}
+              onSelectCategory={(category) => setSelectedCategoryForProducts(category)}
               onEdit={handleEdit}
               onDelete={handleDelete}
             />
@@ -972,6 +1504,7 @@ export default function CategoriesPage() {
               category={cat}
               productCount={productCounts[cat.id] || 0}
               index={idx}
+              onSelectCategory={(category) => setSelectedCategoryForProducts(category)}
               onEdit={handleEdit}
               onDelete={handleDelete}
             />
@@ -1009,6 +1542,23 @@ export default function CategoriesPage() {
           </div>
         </div>
       </div>
+
+      {/* Centered Category Products Panel */}
+      <CategoryProductsModal
+        category={selectedCategoryForProducts}
+        products={products}
+        isOpen={Boolean(selectedCategoryForProducts)}
+        onClose={() => setSelectedCategoryForProducts(null)}
+        onSelectProduct={(prod) => setSelectedProductForDetail(prod)}
+        isChildModalOpen={Boolean(selectedProductForDetail)}
+      />
+
+      {/* Product Detail Modal */}
+      <ProductDetailModal
+        product={selectedProductForDetail}
+        isOpen={Boolean(selectedProductForDetail)}
+        onClose={() => setSelectedProductForDetail(null)}
+      />
     </div>
   )
 }

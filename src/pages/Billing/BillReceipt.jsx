@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { formatINR, numberToWordsINR } from '../../utils/erp'
 import { listUISales, subscribeToTable, getStoredBusinessSettings } from '../../services/erpService'
 import { FaReceipt as ReceiptIcon, FaPrint as PrinterIcon, FaCheckCircle as CheckCircleIcon } from 'react-icons/fa'
@@ -142,12 +142,11 @@ export function generateReceiptHtml(bill) {
   const items = norm.items;
   const summary = norm.summary;
   const timestamp = norm.timestamp;
-
   const day = String(timestamp.getDate()).padStart(2, '0');
-  const month = String(timestamp.getMonth() + 1).padStart(2, '0');
   const year = timestamp.getFullYear();
-  const formattedDate = `${day}-${month}-${year}`;
-  const formattedTime = timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const formattedDate = `${day}-${monthNames[timestamp.getMonth()]}-${year}`;
+  const formattedTime = timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   return `<!DOCTYPE html>
 <html>
@@ -161,7 +160,7 @@ export function generateReceiptHtml(bill) {
     }
     @page {
       margin: 0;
-      size: auto;
+      size: 80mm auto;
     }
     * {
       margin: 0;
@@ -182,7 +181,7 @@ export function generateReceiptHtml(bill) {
       width: 100%;
       max-width: 78mm;
       margin: 0 auto;
-      padding: 6px 8px;
+      padding: 4px 6px;
       text-rendering: geometricPrecision;
       -webkit-font-smoothing: antialiased;
     }
@@ -191,19 +190,11 @@ export function generateReceiptHtml(bill) {
     .left { text-align: left; }
     .bold { font-weight: 900; }
     .dash-line {
-      border-top: 2px dashed #000000 !important;
-      margin: 5px 0;
-    }
-    .separator {
-      border-top: 2px dashed #000000 !important;
-      margin: 5px 0;
-    }
-    .double-separator {
-      border-top: 2px solid #000000 !important;
-      margin: 5px 0;
+      border-top: 1px dashed #000000 !important;
+      margin: 4px 0;
     }
     .store-title {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 900;
       letter-spacing: 0.5px;
       text-transform: uppercase;
@@ -219,7 +210,7 @@ export function generateReceiptHtml(bill) {
     .invoice-title {
       font-size: 13px;
       font-weight: 900;
-      margin: 5px 0 3px 0;
+      margin: 3px 0 2px 0;
       text-transform: uppercase;
       color: #000000 !important;
     }
@@ -228,26 +219,27 @@ export function generateReceiptHtml(bill) {
       justify-content: space-between;
       font-size: 12px;
       font-weight: 800;
-      line-height: 1.4;
+      line-height: 1.35;
       color: #000000 !important;
     }
     table.items-table {
       width: 100%;
       border-collapse: collapse;
+      table-layout: fixed;
       font-size: 12px;
       color: #000000 !important;
-      margin-top: 3px;
+      margin: 2px 0;
     }
     table.items-table th {
-      border-top: 2px solid #000000 !important;
-      border-bottom: 2px solid #000000 !important;
-      padding: 4px 1px;
+      border-top: 1px dashed #000000 !important;
+      border-bottom: 1px dashed #000000 !important;
+      padding: 3px 1px;
       font-weight: 900;
-      font-size: 12px;
+      font-size: 11px;
       color: #000000 !important;
     }
     table.items-table td {
-      padding: 3px 1px;
+      padding: 1.5px 1px;
       vertical-align: top;
       font-size: 12px;
       font-weight: 800;
@@ -258,16 +250,16 @@ export function generateReceiptHtml(bill) {
       justify-content: space-between;
       font-size: 12px;
       font-weight: 800;
-      line-height: 1.4;
+      line-height: 1.35;
       color: #000000 !important;
     }
     .big-total-row {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 900;
-      margin: 3px 0;
+      margin: 2px 0;
       color: #000000 !important;
     }
     @media print {
@@ -284,7 +276,7 @@ export function generateReceiptHtml(bill) {
         max-width: 78mm;
         background: #ffffff !important;
         color: #000000 !important;
-        padding: 6px 8px;
+        padding: 4px 6px;
       }
     }
   </style>
@@ -300,60 +292,69 @@ export function generateReceiptHtml(bill) {
   <div class="center">
     <div class="store-title">${escapeReceiptText(norm.storeName)}</div>
     <div class="store-info">${escapeReceiptText(norm.storeAddress)}</div>
-    <div class="store-info">Mob: ${escapeReceiptText(norm.storePhone)}</div>
-    <div class="store-info">GSTIN: ${escapeReceiptText(norm.storeGstin)}</div>
-    <div class="invoice-title">RETAIL INVOICE</div>
+    <div class="store-info">Mob.no ${escapeReceiptText(norm.storePhone)}</div>
+    <div class="store-info">GSTIN-${escapeReceiptText(norm.storeGstin)}</div>
+    <div class="invoice-title">Retail Invoice</div>
   </div>
 
   <div class="dash-line"></div>
 
   <!-- Invoice Meta -->
   <div class="meta-row">
-    <span>Invoice No: ${escapeReceiptText(norm.billNumber)}</span>
+    <span>Memo# ${escapeReceiptText(norm.billNumber)}</span>
+    <span>${formattedTime} ${formattedDate}</span>
   </div>
   <div class="meta-row">
-    <span>Date: ${formattedDate} &nbsp; Time: ${formattedTime}</span>
+    <span>Printed On: ${formattedDate} ${formattedTime}</span>
   </div>
   <div class="meta-row">
-    <span>Cashier/User: ${escapeReceiptText(norm.cashier)}</span>
+    <span>User: ${escapeReceiptText(norm.cashier)}</span>
     ${norm.customerName ? `<span>Cust: ${escapeReceiptText(norm.customerName)}</span>` : ''}
   </div>
 
   <!-- Product Table: Sr | Product | Qty | MRP | Rate | Amount -->
   <table class="items-table">
+    <colgroup>
+      <col style="width: 7%;" />
+      <col style="width: 41%;" />
+      <col style="width: 13%;" />
+      <col style="width: 13%;" />
+      <col style="width: 13%;" />
+      <col style="width: 13%;" />
+    </colgroup>
     <thead>
       <tr>
-        <th style="text-align: left; width: 20px;">Sr</th>
-        <th style="text-align: left;">Product</th>
-        <th style="text-align: right; width: 38px;">Qty</th>
-        <th style="text-align: right; width: 44px;">MRP</th>
-        <th style="text-align: right; width: 44px;">Rate</th>
-        <th style="text-align: right; width: 48px;">Amount</th>
+        <th style="text-align: left;">Sr</th>
+        <th style="text-align: left; padding-left: 2px;">Product</th>
+        <th style="text-align: right;">Qty</th>
+        <th style="text-align: right;">MRP</th>
+        <th style="text-align: right;">Rate</th>
+        <th style="text-align: right;">Amount</th>
       </tr>
     </thead>
     <tbody>
       ${items.map(item => `
         <tr>
-          <td style="text-align: left; vertical-align: top;">${item.sr}</td>
-          <td style="text-align: left; word-break: break-word; vertical-align: top;">
-            ${escapeReceiptText(item.name)}
-            ${item.itemDiscount > 0 ? `<div style="font-size: 9px; font-weight: normal;">Disc: -${(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>` : ''}
+          <td style="text-align: left;">${item.sr}</td>
+          <td style="text-align: left; word-break: break-word; padding-left: 2px;">
+            <div style="font-weight: 800;">${escapeReceiptText(item.name)}</div>
+            ${item.itemDiscount > 0 ? `<div style="font-size: 9px; font-weight: normal; color: #444;">Disc: -${(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>` : ''}
             ${item.returnedQuantity > 0 ? `
               <div style="font-size: 9px; font-weight: 900; color: #b91c1c !important;">
                 [TAKEN BACK: -${item.returnedQuantity}${escapeReceiptText(mapUnitToShort(item.unit))}]
               </div>
             ` : ''}
           </td>
-          <td style="text-align: right; white-space: nowrap; vertical-align: top;">
+          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
             ${item.quantity.toFixed(3)}
           </td>
-          <td style="text-align: right; white-space: nowrap; vertical-align: top;">
+          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
             ${item.mrp.toFixed(2)}
           </td>
-          <td style="text-align: right; white-space: nowrap; vertical-align: top;">
+          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
             ${item.rate.toFixed(2)}
           </td>
-          <td style="text-align: right; white-space: nowrap; font-weight: 900; vertical-align: top;">
+          <td style="text-align: right; white-space: nowrap; font-weight: 900; font-variant-numeric: tabular-nums;">
             ${item.amount.toFixed(2)}
           </td>
         </tr>
@@ -402,20 +403,15 @@ export function generateReceiptHtml(bill) {
   </div>
 
   <!-- MRP Total, Bill Total and Savings -->
+  <div class="totals-row" style="margin-top: 2px;">
+    <span>MRP Total: ${norm.mrpTotal.toFixed(2)}</span>
+    <span>Bill Total: ${summary.grandTotal.toFixed(2)}</span>
+  </div>
   ${norm.totalSavings > 0 ? `
-    <div class="totals-row" style="margin-top: 2px;">
-      <span>MRP Total: ${norm.mrpTotal.toFixed(2)}</span>
-      <span>Bill Total: ${summary.grandTotal.toFixed(2)}</span>
-    </div>
     <div class="totals-row bold">
       <span>Your Savings Rs. ${norm.totalSavings.toFixed(2)} i.e.${norm.savingsPct}%</span>
     </div>
-  ` : `
-    <div class="totals-row" style="margin-top: 2px;">
-      <span>MRP Total: ${norm.mrpTotal.toFixed(2)}</span>
-      <span>Bill Total: ${summary.grandTotal.toFixed(2)}</span>
-    </div>
-  `}
+  ` : ''}
 
   ${norm.hasReturns ? `
     <div class="dash-line"></div>
@@ -498,8 +494,9 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
   const day = String(norm.timestamp.getDate()).padStart(2, '0');
   const month = String(norm.timestamp.getMonth() + 1).padStart(2, '0');
   const year = norm.timestamp.getFullYear();
-  const formattedDate = `${day}-${month}-${year}`;
-  const formattedTime = norm.timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const formattedDate = `${day}-${monthNames[norm.timestamp.getMonth()]}-${year}`;
+  const formattedTime = norm.timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-3 transition-colors" onClick={onClose}>
@@ -529,7 +526,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-950 flex justify-center">
           <div
             ref={receiptRef}
-            className="w-full max-w-[360px] bg-white text-black p-5 rounded-2xl shadow-2xl text-xs font-bold leading-normal select-text space-y-2 border border-slate-300"
+            className="w-full max-w-[340px] bg-white text-black p-4 sm:p-5 rounded-2xl shadow-2xl text-xs font-bold leading-normal select-text space-y-1.5 border border-slate-300"
             style={{
               color: '#000000',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, monospace'
@@ -539,53 +536,75 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
             <div className="text-center space-y-0.5">
               <p className="text-base font-black uppercase tracking-wide leading-tight text-black">{norm.storeName}</p>
               <p className="text-xs font-bold text-black leading-tight">{norm.storeAddress}</p>
-              <p className="text-xs font-bold text-black">Mob: {norm.storePhone}</p>
-              <p className="text-xs font-bold text-black">GSTIN: {norm.storeGstin}</p>
-              <p className="text-xs font-black uppercase pt-1 text-black">RETAIL INVOICE</p>
+              <p className="text-xs font-bold text-black">Mob.no {norm.storePhone}</p>
+              <p className="text-xs font-bold text-black">GSTIN-{norm.storeGstin}</p>
+              <p className="text-xs font-black uppercase pt-0.5 text-black">Retail Invoice</p>
             </div>
 
-            <div className="border-t-2 border-dashed border-black my-1.5" />
+            <div className="border-t border-dashed border-black my-1" />
 
             {/* Invoice Info */}
             <div className="space-y-0.5 text-xs font-bold text-black">
               <div className="flex justify-between">
-                <span>Invoice No: {norm.billNumber}</span>
+                <span>Memo# {norm.billNumber}</span>
+                <span>{formattedTime} {formattedDate}</span>
               </div>
               <div className="flex justify-between">
-                <span>Date: {formattedDate} &nbsp; Time: {formattedTime}</span>
+                <span>Printed On: {formattedDate} {formattedTime}</span>
               </div>
               <div className="flex justify-between">
-                <span>Cashier/User: {norm.cashier}</span>
+                <span>User: {norm.cashier}</span>
                 {norm.customerName && <span>Cust: {norm.customerName}</span>}
               </div>
             </div>
 
             {/* Product Table: Sr | Product | Qty | MRP | Rate | Amount */}
-            <div className="border-t-2 border-dashed border-black pt-1">
-              <div className="grid grid-cols-12 text-xs font-black border-b-2 border-dashed border-black pb-1 mb-1.5 text-black">
-                <span className="col-span-1 text-left">Sr</span>
-                <span className="col-span-4 text-left">Product</span>
-                <span className="col-span-2 text-right">Qty</span>
-                <span className="col-span-2 text-right">MRP</span>
-                <span className="col-span-1 text-right">Rate</span>
-                <span className="col-span-2 text-right">Amount</span>
-              </div>
-
-              <div className="space-y-1.5">
-                {norm.items.map((item) => (
-                  <div key={item.sr} className="grid grid-cols-12 text-xs items-start leading-snug font-bold text-black">
-                    <span className="col-span-1 text-left">{item.sr}</span>
-                    <span className="col-span-4 text-left break-words">{item.name}</span>
-                    <span className="col-span-2 text-right whitespace-nowrap">{item.quantity.toFixed(3)}</span>
-                    <span className="col-span-2 text-right whitespace-nowrap text-slate-800">{item.mrp.toFixed(2)}</span>
-                    <span className="col-span-1 text-right whitespace-nowrap">{item.rate.toFixed(2)}</span>
-                    <span className="col-span-2 text-right font-black whitespace-nowrap">{item.amount.toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="pt-0.5">
+              <table className="w-full text-xs font-bold border-collapse" style={{ tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '41%' }} />
+                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '13%' }} />
+                </colgroup>
+                <thead>
+                  <tr className="border-t border-b border-dashed border-black text-black">
+                    <th className="text-left py-1 font-black">Sr</th>
+                    <th className="text-left py-1 px-1 font-black">Product</th>
+                    <th className="text-right py-1 font-black">Qty</th>
+                    <th className="text-right py-1 font-black">MRP</th>
+                    <th className="text-right py-1 font-black">Rate</th>
+                    <th className="text-right py-1 font-black">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {norm.items.map((item) => (
+                    <tr key={item.sr} className="align-top leading-tight">
+                      <td className="text-left py-0.5 font-bold text-black">{item.sr}</td>
+                      <td className="text-left py-0.5 px-1 break-words font-bold text-black">
+                        <div>{item.name}</div>
+                        {item.itemDiscount > 0 && (
+                          <div className="text-[10px] font-normal text-slate-700">Disc: -{(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>
+                        )}
+                        {item.returnedQuantity > 0 && (
+                          <div className="text-[9px] font-black text-rose-700">
+                            [TAKEN BACK: -{item.returnedQuantity}{mapUnitToShort(item.unit)}]
+                          </div>
+                        )}
+                      </td>
+                      <td className="text-right py-0.5 whitespace-nowrap font-bold text-black tabular-nums">{item.quantity.toFixed(3)}</td>
+                      <td className="text-right py-0.5 whitespace-nowrap font-bold text-black tabular-nums">{item.mrp.toFixed(2)}</td>
+                      <td className="text-right py-0.5 whitespace-nowrap font-bold text-black tabular-nums">{item.rate.toFixed(2)}</td>
+                      <td className="text-right py-0.5 whitespace-nowrap font-black text-black tabular-nums">{item.amount.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            <div className="border-t-2 border-dashed border-black my-1.5" />
+            <div className="border-t border-dashed border-black my-1" />
 
             {/* Sub Total */}
             <div className="flex justify-between text-xs font-extrabold text-black">
@@ -600,7 +619,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               </div>
             )}
 
-            <div className="border-t-2 border-dashed border-black my-1.5" />
+            <div className="border-t border-dashed border-black my-1" />
 
             {/* Total Qty & Large Bill Total */}
             <div className="flex justify-between items-baseline pt-0.5 text-black">
@@ -640,7 +659,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
 
             {norm.hasReturns && (
               <>
-                <div className="border-t-2 border-dashed border-black my-1.5" />
+                <div className="border-t border-dashed border-black my-1" />
                 <div className="flex justify-between text-xs font-black text-rose-700">
                   <span>RETURNED / REFUNDED:</span>
                   <span>-{norm.totalRefunded.toFixed(2)}</span>
@@ -652,7 +671,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               </>
             )}
 
-            <div className="border-t-2 border-dashed border-black my-1.5" />
+            <div className="border-t border-dashed border-black my-1" />
 
             {/* Net Value */}
             <div className="flex justify-between text-sm font-black text-black">
@@ -660,7 +679,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               <span>{(norm.hasReturns ? norm.netTotalAfterReturns : norm.summary.grandTotal).toFixed(2)}</span>
             </div>
 
-            <div className="border-t-2 border-dashed border-black my-1.5" />
+            <div className="border-t border-dashed border-black my-1" />
 
             {/* Footer */}
             <div className="text-center pt-1 space-y-0.5 text-black">
@@ -693,67 +712,243 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
 // ─── Reprint Bills List ──────────────────────────────────────────
 export function ReprintDrawer({ onClose, onSelectBill }) {
   const [bills, setBills] = useState([])
-  useEffect(() => { const load = () => listUISales().then(rows => setBills(rows.map(normalizeBillData))).catch(console.error); load(); return subscribeToTable('sales', load) }, [])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [filterMode, setFilterMode] = useState('all') // 'all' | 'today' | 'yesterday' | 'cash' | 'upi' | 'card'
+
+  useEffect(() => {
+    let active = true
+    const load = () => {
+      setLoading(true)
+      listUISales().then(rows => {
+        if (!active) return
+        setBills(rows.map(normalizeBillData))
+        setLoading(false)
+      }).catch(err => {
+        console.error('Failed to load reprint bills:', err)
+        setLoading(false)
+      })
+    }
+    load()
+    const unsub = subscribeToTable('sales', load)
+    return () => {
+      active = false
+      if (typeof unsub === 'function') unsub()
+    }
+  }, [])
+
+  const filteredBills = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const now = new Date()
+    const yesterday = new Date(now)
+    yesterday.setDate(now.getDate() - 1)
+
+    return bills.filter(bill => {
+      if (!bill) return false
+
+      // Match search
+      const billNo = String(bill.billNumber || '').toLowerCase()
+      const cust = String(bill.customerName || '').toLowerCase()
+      const amountStr = String(bill.summary?.grandTotal || '')
+      const itemsMatch = (bill.items || []).some(it => String(it.name || '').toLowerCase().includes(q))
+
+      const matchesSearch = !q || billNo.includes(q) || cust.includes(q) || amountStr.includes(q) || itemsMatch
+
+      if (!matchesSearch) return false
+
+      // Match tab filter
+      if (filterMode === 'all') return true
+
+      const billDate = new Date(bill.timestamp)
+      if (filterMode === 'today') {
+        return (
+          billDate.getFullYear() === now.getFullYear() &&
+          billDate.getMonth() === now.getMonth() &&
+          billDate.getDate() === now.getDate()
+        )
+      }
+      if (filterMode === 'yesterday') {
+        return (
+          billDate.getFullYear() === yesterday.getFullYear() &&
+          billDate.getMonth() === yesterday.getMonth() &&
+          billDate.getDate() === yesterday.getDate()
+        )
+      }
+      if (filterMode === 'cash') {
+        return (bill.paymentMode || '').toLowerCase() === 'cash'
+      }
+      if (filterMode === 'upi') {
+        return (bill.paymentMode || '').toLowerCase() === 'upi'
+      }
+      if (filterMode === 'card') {
+        return (bill.paymentMode || '').toLowerCase() === 'card'
+      }
+
+      return true
+    })
+  }, [bills, search, filterMode])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/60 backdrop-blur-sm transition-colors" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-2xl max-w-lg w-full mx-4 shadow-2xl overflow-hidden transition-colors" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/70 backdrop-blur-sm p-4 animate-fadeIn" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800/60">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/70">
           <div className="flex items-center gap-3">
-            <PrinterIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <PrinterIcon className="w-5 h-5" />
+            </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Reprint Bill (बिल दोबारा प्रिंट करें)</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Select a bill to reprint</p>
+              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                Reprint Receipt History
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                  {filteredBills.length} / {bills.length}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">Select any previous receipt to preview and print</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all cursor-pointer"
+          >
+            ✕
           </button>
         </div>
 
+        {/* Search & Filter Controls */}
+        <div className="p-4 border-b border-slate-800 bg-slate-900/90 space-y-3">
+          <div className="relative">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by invoice #, customer name, item name, amount..."
+              className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/60"
+              autoFocus
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-sm"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Quick Filter Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            {[
+              { id: 'all', label: 'All Receipts' },
+              { id: 'today', label: "Today's Sales" },
+              { id: 'yesterday', label: 'Yesterday' },
+              { id: 'cash', label: 'Cash' },
+              { id: 'upi', label: 'UPI' },
+              { id: 'card', label: 'Card' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilterMode(tab.id)}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all whitespace-nowrap cursor-pointer ${
+                  filterMode === tab.id
+                    ? 'bg-indigo-500 text-white shadow-sm'
+                    : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-700/60'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Bills List */}
-        <div className="max-h-[60vh] overflow-y-auto scrollbar-thin">
-          {bills.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="text-slate-400 dark:text-slate-500 mb-3 opacity-40 flex justify-center">
-                <ReceiptIcon className="w-12 h-12" />
+        <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+          {loading ? (
+            <div className="p-8 text-center text-slate-400 text-sm">Loading receipt history...</div>
+          ) : filteredBills.length === 0 ? (
+            <div className="p-10 text-center space-y-2">
+              <div className="w-12 h-12 mx-auto rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
+                <ReceiptIcon className="w-6 h-6" />
               </div>
-              <p className="text-slate-600 dark:text-slate-400 font-medium">No previous bills found</p>
-              <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">Complete a sale to see bills here</p>
+              <p className="text-slate-300 font-semibold text-sm">No receipts match your search</p>
+              <p className="text-slate-500 text-xs">Try clearing search filters or completed sales will appear here</p>
             </div>
           ) : (
-            bills.map((bill) => (
-              <button
-                key={bill.billNumber}
-                onClick={() => onSelectBill(bill)}
-                className="w-full text-left px-6 py-4 border-b border-slate-100 dark:border-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-all"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200 font-mono">{bill.billNumber}</span>
-                  <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatINR(bill.summary.grandTotal)}</span>
+            filteredBills.map((bill, index) => {
+              const dateObj = new Date(bill.timestamp)
+              const formattedDateStr = dateObj.toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+              })
+              const formattedTimeStr = dateObj.toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })
+              const itemsListDesc = (bill.items || []).slice(0, 3).map(it => it.name).join(', ')
+              const remainingCount = (bill.items || []).length - 3
+
+              return (
+                <div
+                  key={bill.id || bill.billNumber || index}
+                  onClick={() => onSelectBill(bill)}
+                  className="group p-4 rounded-xl bg-slate-800/40 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500/50 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:shadow-md"
+                >
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-slate-100 text-sm group-hover:text-indigo-400 transition-colors">
+                        {bill.billNumber}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        (bill.paymentMode || '').toLowerCase() === 'cash'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : (bill.paymentMode || '').toLowerCase() === 'upi'
+                            ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
+                            : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                      }`}>
+                        {bill.paymentMode || 'CASH'}
+                      </span>
+                      {bill.hasReturns && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                          Returned
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs text-slate-400">
+                      <span>{formattedDateStr} • {formattedTimeStr}</span>
+                      <span>•</span>
+                      <span className="text-slate-300 font-medium truncate">
+                        {bill.customerName || 'Walk-in Customer'}
+                      </span>
+                      <span>•</span>
+                      <span>{(bill.items || []).length} items</span>
+                    </div>
+
+                    {itemsListDesc && (
+                      <p className="text-[11px] text-slate-500 truncate">
+                        {itemsListDesc}{remainingCount > 0 ? ` +${remainingCount} more` : ''}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between gap-1 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-700/40">
+                    <span className="text-lg font-black text-emerald-400 tabular-nums">
+                      {formatINR(bill.summary?.grandTotal || 0)}
+                    </span>
+                    <button
+                      type="button"
+                      className="px-3 py-1 rounded-lg bg-indigo-500/15 group-hover:bg-indigo-500 text-indigo-400 group-hover:text-white border border-indigo-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+                    >
+                      <PrinterIcon className="w-3 h-3" />
+                      <span>Reprint</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                  <span>
-                    {new Date(bill.timestamp).toLocaleString('en-IN', {
-                      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                    })}
-                  </span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold capitalize
-                    ${bill.paymentMode === 'cash' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                      : bill.paymentMode === 'upi' ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400'
-                        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                    }`}
-                  >
-                    {bill.paymentMode}
-                  </span>
-                  <span>{bill.items.length} items</span>
-                  {bill.customerName && <span>• {bill.customerName}</span>}
-                </div>
-              </button>
-            ))
+              )
+            })
           )}
         </div>
       </div>

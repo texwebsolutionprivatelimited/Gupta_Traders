@@ -41,7 +41,48 @@ export async function listProducts({ search = '', categoryId, status = 'active' 
   if (search.trim()) { const q = search.trim().replace(/[,%()]/g, ' '); query = query.or(`name.ilike.%${q}%,hindi_name.ilike.%${q}%,barcode.ilike.%${q}%,sku.ilike.%${q}%,brand.ilike.%${q}%`) }
   const { data, error } = await query; fail(error, 'Unable to load products'); return data
 }
-export function productToUI(row) { const inv = Array.isArray(row.inventory) ? row.inventory[0] : row.inventory; return { id: row.id, supabase_id: row.id, productCode: row.product_code || '', sku: row.sku || '', barcode: row.barcode || '', name: row.name, nameHi: row.hindi_name || '', categoryId: row.category_id, category: row.category?.slug || '', categoryName: row.category?.name || '', brand: row.brand || '', packSize: row.pack_size || '', unit: row.unit, purchasePrice: Number(row.purchase_price), sellingPrice: Number(row.selling_price), gstRate: Number(row.gst_rate), type: row.product_type, minStock: Number(row.minimum_stock), currentStock: Number(inv?.quantity || 0), stock: Number(inv?.quantity || 0), image: row.image_url || '', looseUnit: row.loose_unit, looseConversionFactor: row.loose_conversion_factor, hsnCode: row.hsn_code, description: row.description || '', status: row.status, metadata: row.metadata || {}, createdAt: row.created_at, updatedAt: row.updated_at } }
+export function productToUI(row) {
+  const inv = Array.isArray(row.inventory) ? row.inventory[0] : row.inventory;
+  const rawRate = row.rate !== undefined && row.rate !== null ? row.rate : (row.selling_price !== undefined ? row.selling_price : 0);
+  const rate = Number(rawRate || 0);
+  const rawMrp = row.mrp !== undefined && row.mrp !== null ? row.mrp : (row.metadata?.mrp !== undefined ? row.metadata.mrp : (rate || 0));
+  const mrp = Number(rawMrp || rate || 0);
+  const purchasePrice = Number(row.purchase_price || 0);
+
+  return {
+    id: row.id,
+    supabase_id: row.id,
+    productCode: row.product_code || '',
+    sku: row.sku || '',
+    barcode: row.barcode || '',
+    name: row.name,
+    nameHi: row.hindi_name || '',
+    categoryId: row.category_id,
+    category: row.category?.slug || '',
+    categoryName: row.category?.name || '',
+    brand: row.brand || '',
+    packSize: row.pack_size || '',
+    unit: row.unit,
+    purchasePrice,
+    mrp: mrp || rate,
+    rate,
+    sellingPrice: rate, // backward compatibility
+    gstRate: Number(row.gst_rate || 0),
+    type: row.product_type,
+    minStock: Number(row.minimum_stock || 0),
+    currentStock: Number(inv?.quantity || 0),
+    stock: Number(inv?.quantity || 0),
+    image: row.image_url || '',
+    looseUnit: row.loose_unit,
+    looseConversionFactor: row.loose_conversion_factor,
+    hsnCode: row.hsn_code,
+    description: row.description || '',
+    status: row.status,
+    metadata: row.metadata || {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
 export async function listUIProducts(filters = {}) { return (await listProducts(filters)).map(productToUI) }
 
 export async function findProductByBarcode(barcode) {
@@ -135,6 +176,18 @@ export async function updateProduct(id, values) {
 }
 export async function removeProduct(id) { return softDeleteEntity('product', id) }
 function mapProduct(v, partial = false) {
+  const rateVal = v.rate !== undefined && v.rate !== '' ? v.rate : (v.sellingPrice !== undefined && v.sellingPrice !== '' ? v.sellingPrice : v.selling_price);
+  const mrpVal = v.mrp !== undefined && v.mrp !== '' ? v.mrp : (v.metadata?.mrp !== undefined ? v.metadata.mrp : rateVal);
+  const cleanRate = rateVal !== undefined ? Number(rateVal ?? 0) : undefined;
+  const cleanMrp = mrpVal !== undefined ? Number(mrpVal ?? cleanRate ?? 0) : undefined;
+
+  const existingMeta = (v.metadata && typeof v.metadata === 'object') ? v.metadata : {};
+  const metadata = {
+    ...existingMeta,
+    ...(cleanMrp !== undefined ? { mrp: cleanMrp } : {}),
+    ...(cleanRate !== undefined ? { rate: cleanRate } : {}),
+  };
+
   const row = {
     product_code: v.productCode === undefined ? undefined : (v.productCode ? v.productCode : null),
     sku: v.sku === undefined ? undefined : (v.sku ? v.sku : null),
@@ -146,7 +199,7 @@ function mapProduct(v, partial = false) {
     pack_size: v.packSize,
     unit: v.unit,
     purchase_price: v.purchasePrice === undefined && v.purchase_price === undefined ? undefined : Number(v.purchasePrice ?? v.purchase_price ?? 0),
-    selling_price: v.sellingPrice === undefined && v.selling_price === undefined ? undefined : Number(v.sellingPrice ?? v.selling_price ?? 0),
+    selling_price: cleanRate,
     gst_rate: v.gstRate === undefined && v.gst_rate === undefined ? undefined : Number(v.gstRate ?? v.gst_rate ?? 0),
     product_type: v.type === undefined && v.product_type === undefined ? undefined : (v.type || v.product_type || 'packaged'),
     minimum_stock: v.minStock === undefined && v.minimum_stock === undefined ? undefined : Number(v.minStock ?? v.minimum_stock ?? 0),
@@ -156,7 +209,7 @@ function mapProduct(v, partial = false) {
     hsn_code: v.hsnCode,
     description: v.description,
     status: v.status === undefined ? undefined : (v.status || 'active'),
-    metadata: v.metadata === undefined ? undefined : (v.metadata || {})
+    metadata: metadata
   }
   if (partial) Object.keys(row).forEach(k => row[k] === undefined && delete row[k]); return row
 }
@@ -293,8 +346,93 @@ export async function deleteExpense(id) { const { error } = await supabase.from(
 export async function listHeldBills() { const { data, error } = await supabase.from('held_bills').select('*').order('held_at', { ascending: false }); fail(error, 'Unable to load held bills'); return data }
 export async function saveHeldBill(values) { const user = await requireSession(); const { data, error } = await supabase.from('held_bills').insert({ ...values, held_by: user.id }).select().single(); fail(error, 'Unable to hold bill'); return data }
 export async function deleteHeldBill(id) { const { error } = await supabase.from('held_bills').delete().eq('id', id); fail(error, 'Unable to remove held bill') }
-export async function getBusinessSettings() { const { data, error } = await supabase.from('settings').select('*').order('created_at').limit(1).single(); fail(error, 'Unable to load settings'); return { ...data, shop: { shopName: data.shop_name || '', address: data.shop_address || '', phone: data.phone || '', email: data.email || '' }, gst: { gstin: data.gst_number || '' }, invoice: { prefix: data.invoice_prefix || 'INV', footer: data.invoice_footer || '', currency: data.currency || 'INR' }, printer: data.printer_config || {} } }
-export async function saveBusinessSettings(values) { await requireSession(); const current = await supabase.from('settings').select('id').order('created_at').limit(1).single(); fail(current.error, 'Unable to load settings'); const shop = values.shop || {}, gst = values.gst || {}, invoice = values.invoice || {}; const row = { shop_name: shop.shopName, address: shop.address, shop_address: shop.address, phone: shop.phone, email: shop.email, gst_number: gst.gstin || gst.gstNumber, invoice_prefix: invoice.prefix, invoice_footer: invoice.footer, currency: invoice.currency, printer_config: values.printer }; delete row.address; const { data, error } = await supabase.from('settings').update(row).eq('id', current.data.id).select().single(); fail(error, 'Unable to save settings'); return data }
+export function getStoredBusinessSettings() {
+  try {
+    const raw = localStorage.getItem('businessSettings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (e) {}
+  return {
+    shop: {
+      shopName: 'Gupta Trader & Superstore',
+      address: 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
+      phone: '9876543210',
+      email: 'guptatraders@example.com'
+    },
+    gst: {
+      gstin: '09ABCDE1234F1Z5'
+    },
+    invoice: {
+      prefix: 'INV-',
+      footer: 'Items sold after 10 days will not be returned',
+      currency: 'INR'
+    },
+    printer: {}
+  };
+}
+
+export async function getBusinessSettings() {
+  const { data, error } = await supabase.from('settings').select('*').order('created_at').limit(1).single();
+  fail(error, 'Unable to load settings');
+  const res = {
+    ...data,
+    shop: {
+      shopName: data.shop_name || 'Gupta Trader & Superstore',
+      address: data.shop_address || data.address || 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
+      phone: data.phone || '9876543210',
+      email: data.email || 'guptatraders@example.com'
+    },
+    gst: {
+      gstin: data.gst_number || '09ABCDE1234F1Z5'
+    },
+    invoice: {
+      prefix: data.invoice_prefix || 'INV-',
+      footer: data.invoice_footer || 'Items sold after 10 days will not be returned',
+      currency: data.currency || 'INR'
+    },
+    printer: data.printer_config || {}
+  };
+  try {
+    localStorage.setItem('businessSettings', JSON.stringify(res));
+  } catch (e) {}
+  return res;
+}
+
+export async function saveBusinessSettings(values) {
+  await requireSession();
+  const current = await supabase.from('settings').select('id').order('created_at').limit(1).single();
+  fail(current.error, 'Unable to load settings');
+  const shop = values.shop || {}, gst = values.gst || {}, invoice = values.invoice || {};
+  const row = {
+    shop_name: shop.shopName,
+    address: shop.address,
+    shop_address: shop.address,
+    phone: shop.phone,
+    email: shop.email,
+    gst_number: gst.gstin || gst.gstNumber,
+    invoice_prefix: invoice.prefix,
+    invoice_footer: invoice.footer,
+    currency: invoice.currency,
+    printer_config: values.printer
+  };
+  delete row.address;
+  const { data, error } = await supabase.from('settings').update(row).eq('id', current.data.id).select().single();
+  fail(error, 'Unable to save settings');
+  try {
+    const cached = getStoredBusinessSettings();
+    const updated = {
+      ...cached,
+      shop: { ...cached.shop, ...shop },
+      gst: { ...cached.gst, ...gst },
+      invoice: { ...cached.invoice, ...invoice },
+      printer: values.printer || cached.printer
+    };
+    localStorage.setItem('businessSettings', JSON.stringify(updated));
+  } catch (e) {}
+  return data;
+}
 
 export function subscribeToTable(table, onChange) { const channel = supabase.channel(`erp:${table}:${Math.random().toString(36).slice(2)}`).on('postgres_changes', { event: '*', schema: 'public', table }, onChange).subscribe(); return () => supabase.removeChannel(channel) }
 export async function softDeleteEntity(entityType, id) { const { error } = await supabase.rpc('soft_delete_entity', { p_entity_type: entityType, p_id: id }); fail(error, `Unable to move ${entityType} to trash`) }

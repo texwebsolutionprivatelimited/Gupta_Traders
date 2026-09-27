@@ -64,7 +64,7 @@ export default function InventoryPage() {
     setProducts(sorted)
     setLogs(movements.map(x=>({id:x.id,productId:x.product_id,productName:x.product?.name,type:x.movement_type,adjustment:x.quantity_delta,newStock:x.quantity_after,reason:x.reason,operator:'Authenticated user',timestamp:x.created_at})))
     setCategories(cats.map(c=>({id:c.slug,name:c.name})))
-    setSummary({totalCostValue:all.reduce((n,p)=>n+p.currentStock*p.purchasePrice,0),totalRetailValue:all.reduce((n,p)=>n+p.currentStock*p.sellingPrice,0),totalItems:all.reduce((n,p)=>n+p.currentStock,0),lowStockCount:all.filter(p=>p.currentStock>0&&p.currentStock<=p.minStock).length,outOfStockCount:all.filter(p=>p.currentStock<=0).length})
+    setSummary({totalCostValue:all.reduce((n,p)=>n+p.currentStock*p.purchasePrice,0),totalRetailValue:all.reduce((n,p)=>n+p.currentStock*(p.rate??p.sellingPrice??0),0),totalItems:all.reduce((n,p)=>n+p.currentStock,0),lowStockCount:all.filter(p=>p.currentStock>0&&p.currentStock<=p.minStock).length,outOfStockCount:all.filter(p=>p.currentStock<=0).length})
     } catch(error){setToast({message:error.message,type:'error'})}
   }
 
@@ -279,7 +279,7 @@ export default function InventoryPage() {
                         <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">SKU / Code</th>
                         <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
                         <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Cost Price</th>
-                        <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Retail Price</th>
+                        <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Rate (Our Price)</th>
                         <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Stock Alert Level</th>
                         <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Stock Quantity</th>
                         <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
@@ -318,7 +318,7 @@ export default function InventoryPage() {
                             </td>
                             {/* Selling Price */}
                             <td className="py-3.5 px-4 text-right text-xs font-bold text-slate-200">
-                              {formatINR(product.sellingPrice || 0)}
+                              {formatINR(product.rate ?? product.sellingPrice ?? 0)}
                             </td>
                             {/* Min Stock Limit */}
                             <td className="py-3.5 px-4 text-center text-xs font-semibold text-slate-400">
@@ -390,8 +390,8 @@ export default function InventoryPage() {
                         </div>
 
                         <div className="flex justify-between items-center text-xs">
-                          <span className="text-slate-500">Retail Price:</span>
-                          <span className="font-bold text-slate-300">{formatINR(product.sellingPrice)}</span>
+                          <span className="text-slate-500">Rate (Our Price):</span>
+                          <span className="font-bold text-slate-300">{formatINR(product.rate ?? product.sellingPrice)}</span>
                         </div>
 
                         <div className="flex justify-between items-center text-xs">

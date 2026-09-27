@@ -101,7 +101,7 @@ export default function ProductSearch({ onAddToCart }) {
   }, [])
 
   useEffect(() => {
-    const load=async()=>{try{const [items,cats]=await Promise.all([listUIProducts(),listCategories()]);setProducts(items.map(p=>({...p,price:p.sellingPrice,mrp:p.sellingPrice,isLoose:p.type==='loose'})));setCategories([{id:'all',name:'All'},...cats.filter(c=>c.status==='active').map(c=>({id:c.slug,name:c.name}))])}catch(error){console.error(error)}}
+    const load=async()=>{try{const [items,cats]=await Promise.all([listUIProducts(),listCategories()]);setProducts(items.map(p=>({...p,price:p.rate??p.sellingPrice,rate:p.rate??p.sellingPrice,mrp:p.mrp??p.rate??p.sellingPrice,isLoose:p.type==='loose'})));setCategories([{id:'all',name:'All'},...cats.filter(c=>c.status==='active').map(c=>({id:c.slug,name:c.name}))])}catch(error){console.error(error)}}
     load();const offProducts=subscribeToTable('products',load),offInventory=subscribeToTable('inventory',load),offCategories=subscribeToTable('categories',load);return()=>{offProducts();offInventory();offCategories()}
   }, [])
 
@@ -135,6 +135,9 @@ export default function ProductSearch({ onAddToCart }) {
   const handleAddProduct = (product) => {
     onAddToCart({
       ...product,
+      rate: product.rate ?? product.price,
+      price: product.rate ?? product.price,
+      mrp: product.mrp ?? product.rate ?? product.price,
       quantity: product.isLoose ? 1 : 1,
       itemDiscount: 0,
     })
@@ -146,13 +149,15 @@ export default function ProductSearch({ onAddToCart }) {
     e.preventDefault()
     if (!looseName || !loosePrice || !looseQty) return
 
+    const parsedPrice = parseFloat(loosePrice)
     const looseProduct = {
       id: `loose-${Date.now()}`,
       name: looseName,
       nameHi: '',
       barcode: '',
-      price: parseFloat(loosePrice),
-      mrp: parseFloat(loosePrice),
+      price: parsedPrice,
+      rate: parsedPrice,
+      mrp: parsedPrice,
       gstRate: 0,
       category: 'loose',
       unit: looseUnit,

@@ -242,17 +242,24 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
   const defaultForm = type === 'packaged' ? {
     name: '', nameHi: '', barcode: '', sku: generateNextSKU(),
     category: categories[0]?.id || '', brand: '', unit: 'pcs',
-    packSize: '', purchasePrice: '', sellingPrice: '', gstRate: 0,
+    packSize: '', purchasePrice: '', mrp: '', rate: '', gstRate: 0,
     currentStock: '', minStock: 10,
   } : {
     name: '', nameHi: '', productCode: generateNextProductCode(),
     barcode: '',
     category: 'loose', unit: 'kg', packSize: '',
-    purchasePrice: '', sellingPrice: '', gstRate: 0,
+    purchasePrice: '', mrp: '', rate: '', gstRate: 0,
     currentStock: '', minStock: 20,
   }
 
-  const [form, setForm] = useState(isEditing ? { ...defaultForm, ...product } : defaultForm)
+  const initialForm = isEditing ? {
+    ...defaultForm,
+    ...product,
+    mrp: product.mrp !== undefined && product.mrp !== null ? product.mrp : (product.sellingPrice || ''),
+    rate: product.rate !== undefined && product.rate !== null ? product.rate : (product.sellingPrice || ''),
+  } : defaultForm
+
+  const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const [translating, setTranslating] = useState(false)
 
@@ -296,9 +303,11 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
     const newErrors = {}
     if (!form.name.trim()) newErrors.name = 'Product name is required'
     if (type === 'packaged' && !form.brand.trim()) newErrors.brand = 'Brand is required'
-    if (!form.purchasePrice || Number(form.purchasePrice) <= 0) newErrors.purchasePrice = 'Enter valid price'
-    if (!form.sellingPrice || Number(form.sellingPrice) <= 0) newErrors.sellingPrice = 'Enter valid price'
-    if (Number(form.sellingPrice) < Number(form.purchasePrice)) newErrors.sellingPrice = 'Selling price should be ≥ purchase price'
+    if (!form.purchasePrice || Number(form.purchasePrice) <= 0) newErrors.purchasePrice = 'Enter valid purchase price'
+    if (!form.mrp || Number(form.mrp) <= 0) newErrors.mrp = 'Enter valid MRP'
+    if (!form.rate || Number(form.rate) <= 0) newErrors.rate = 'Enter valid Rate (Our Price)'
+    if (Number(form.rate) > Number(form.mrp)) newErrors.rate = 'Rate (Our Price) cannot exceed MRP'
+    if (Number(form.rate) < Number(form.purchasePrice)) newErrors.rate = 'Rate should be ≥ purchase price'
     if (!form.currentStock && form.currentStock !== 0) newErrors.currentStock = 'Enter current stock'
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -312,12 +321,17 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
       firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
     }
+    const cleanRate = Number(form.rate)
+    const cleanMrp = Number(form.mrp)
+    const cleanPurchase = Number(form.purchasePrice)
     onSave({
       ...form,
       type,
-      purchasePrice: Number(form.purchasePrice),
-      sellingPrice: Number(form.sellingPrice),
-      gstRate: Number(form.gstRate),
+      purchasePrice: cleanPurchase,
+      mrp: cleanMrp,
+      rate: cleanRate,
+      sellingPrice: cleanRate, // safe backward compatibility
+      gstRate: Number(form.gstRate || 0),
       currentStock: Number(form.currentStock),
       minStock: Number(form.minStock),
     })
@@ -326,9 +340,12 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
   // ─── Category options for dropdown ─────────────────────
   const categoryOptions = categories.map(c => ({ value: c.id, label: c.name }))
 
-  // ─── Profit calculation ────────────────────────────────
-  const profit = form.purchasePrice && form.sellingPrice
-    ? (Number(form.sellingPrice) - Number(form.purchasePrice)).toFixed(2)
+  // ─── Profit & Savings calculations ─────────────────────
+  const profit = form.purchasePrice && form.rate
+    ? (Number(form.rate) - Number(form.purchasePrice)).toFixed(2)
+    : null
+  const customerSavings = form.mrp && form.rate && Number(form.mrp) > Number(form.rate)
+    ? (Number(form.mrp) - Number(form.rate)).toFixed(2)
     : null
 
   return (
@@ -437,25 +454,37 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
               <span className="w-6 h-6 rounded-lg bg-violet-500/15 text-violet-400 flex items-center justify-center text-xs font-bold">3</span>
               Pricing & Tax
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field
-                label="Purchase Price"
+                label="1. Purchase Price"
                 field="purchasePrice"
                 type="number"
                 placeholder="0.00"
                 prefix="₹"
                 required
-                helpText="Price you buy at"
+                helpText="Actual cost paid to purchase"
               />
               <Field
-                label="Selling Price (MRP)"
-                field="sellingPrice"
+                label="2. MRP"
+                field="mrp"
                 type="number"
                 placeholder="0.00"
                 prefix="₹"
                 required
-                helpText="Price you sell at"
+                helpText="Maximum Retail Price"
               />
+              <Field
+                label="3. Rate (Our Price)"
+                field="rate"
+                type="number"
+                placeholder="0.00"
+                prefix="₹"
+                required
+                helpText="Actual price charged to customer"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 items-center">
               <Field label="GST Rate" field="gstRate" options={gstOptions} />
 
               {/* Profit indicator */}
@@ -471,6 +500,21 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
                     <p className="text-[11px] text-slate-500 font-medium">Profit per unit</p>
                     <p className={`text-sm font-bold ${Number(profit) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       ₹{profit}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Customer Savings indicator */}
+              {customerSavings !== null && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold bg-cyan-500/15 text-cyan-400">
+                    🏷️
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-slate-500 font-medium">Customer Savings</p>
+                    <p className="text-sm font-bold text-cyan-400">
+                      ₹{customerSavings} ({((Number(customerSavings) / Number(form.mrp)) * 100).toFixed(1)}% off)
                     </p>
                   </div>
                 </div>
@@ -579,21 +623,18 @@ function ProductCard({ product, type, onEdit, onDelete }) {
       </div>
 
       {/* Price row */}
-      <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-800/40">
+      <div className="grid grid-cols-3 gap-2 mb-3 pb-3 border-b border-slate-800/40 text-center">
         <div>
-          <p className="text-[11px] text-slate-500 font-medium mb-0.5">Purchase</p>
-          <p className="text-sm font-bold text-slate-300">{formatINR(product.purchasePrice)}</p>
+          <p className="text-[10px] text-slate-500 font-medium mb-0.5">Purchase</p>
+          <p className="text-xs font-bold text-slate-300">{formatINR(product.purchasePrice)}</p>
         </div>
-        <div className="text-slate-700">→</div>
         <div>
-          <p className="text-[11px] text-slate-500 font-medium mb-0.5">Selling</p>
-          <p className="text-sm font-bold text-emerald-400">{formatINR(product.sellingPrice)}</p>
+          <p className="text-[10px] text-slate-500 font-medium mb-0.5">MRP</p>
+          <p className="text-xs font-bold text-slate-400 line-through opacity-80">{formatINR(product.mrp || product.rate || product.sellingPrice)}</p>
         </div>
-        <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${(product.sellingPrice - product.purchasePrice) >= 0
-          ? 'bg-emerald-500/10 text-emerald-400'
-          : 'bg-rose-500/10 text-rose-400'
-          }`}>
-          +₹{(product.sellingPrice - product.purchasePrice).toFixed(0)}
+        <div>
+          <p className="text-[10px] text-slate-500 font-medium mb-0.5">Rate</p>
+          <p className="text-xs font-bold text-emerald-400">{formatINR(product.rate || product.sellingPrice)}</p>
         </div>
       </div>
 
@@ -640,7 +681,8 @@ function ProductTable({ products, type, onEdit, onDelete }) {
               <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Barcode</th>
               <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
               <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Purchase ₹</th>
-              <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Selling ₹</th>
+              <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">MRP ₹</th>
+              <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Rate (Our Price) ₹</th>
               <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">GST</th>
               <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Stock</th>
               <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
@@ -685,7 +727,10 @@ function ProductTable({ products, type, onEdit, onDelete }) {
                     <span className="text-sm font-medium text-slate-300">{formatINR(product.purchasePrice)}</span>
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <span className="text-sm font-bold text-emerald-400">{formatINR(product.sellingPrice)}</span>
+                    <span className="text-sm font-medium text-slate-400 line-through opacity-80">{formatINR(product.mrp || product.rate || product.sellingPrice)}</span>
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <span className="text-sm font-bold text-emerald-400">{formatINR(product.rate || product.sellingPrice)}</span>
                   </td>
                   <td className="py-3 px-4 text-center">
                     <span className="px-2 py-0.5 rounded-md bg-violet-500/10 text-xs font-medium text-violet-400">

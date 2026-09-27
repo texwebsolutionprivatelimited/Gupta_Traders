@@ -397,6 +397,19 @@ select option {
   color: var(--slate-200);
 }
 
+/* Ensure form inputs, selects, and textareas have high-contrast text color in Light Mode */
+html.light input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+html.light select,
+html.light textarea {
+  color: var(--slate-100);
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: var(--slate-500);
+}
+
+
 /* Custom responsive grid for dashboard stat cards */
 .dashboard-stats-grid {
   display: grid !important;

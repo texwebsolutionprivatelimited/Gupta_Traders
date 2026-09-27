@@ -23,7 +23,7 @@ export default function POSBilling() {
   const [cart, setCart] = useState([])
   const [productIndex,setProductIndex]=useState([])
   const [customerIndex,setCustomerIndex]=useState([])
-  useEffect(()=>{const load=()=>listUIProducts().then(rows=>setProductIndex(rows.map(p=>({...p,price:p.sellingPrice,mrp:p.sellingPrice,stock:p.currentStock,isLoose:p.type==='loose'})))).catch(console.error);load();return subscribeToTable('products',load)},[])
+  useEffect(()=>{const load=()=>listUIProducts().then(rows=>setProductIndex(rows.map(p=>({...p,price:p.rate??p.sellingPrice,rate:p.rate??p.sellingPrice,mrp:p.mrp??p.rate??p.sellingPrice,stock:p.currentStock,isLoose:p.type==='loose'})))).catch(console.error);load();return subscribeToTable('products',load)},[])
   useEffect(()=>{listUICustomers().then(setCustomerIndex).catch(console.error)},[])
   const [billDiscount, setBillDiscount] = useState(0)
   const [isGSTInclusive, setIsGSTInclusive] = useState(true)
@@ -137,15 +137,27 @@ export default function POSBilling() {
   // ─── Complete Sale ──────────────────────────────────────────
   const completeSale = useCallback(async (paymentMode, amountPaid) => {
     const summary = calculateBillSummary(cart, billDiscount, isGSTInclusive)
+    const userProfile = (() => {
+      try { return JSON.parse(localStorage.getItem('user_profile') || '{}') } catch { return {} }
+    })()
+    const cashierName = userProfile?.full_name || userProfile?.name || (role === 'cashier' ? 'Cashier' : 'Admin')
+
     const bill = {
-      items: cart.map(x => ({
-        ...x,
-        name: x.name || x.product_name || x.product || 'Item',
-        price: Number(x.price ?? x.sellingPrice ?? 0),
-        quantity: Number(x.quantity || 1),
-        unit: x.unit || '',
-        itemDiscount: Number(x.itemDiscount || 0),
-      })),
+      items: cart.map(x => {
+        const rate = Number(x.rate ?? x.price ?? x.sellingPrice ?? 0)
+        const mrp = Number(x.mrp ?? rate)
+        return {
+          ...x,
+          name: x.name || x.product_name || x.product || 'Item',
+          mrp,
+          rate,
+          price: rate,
+          quantity: Number(x.quantity || 1),
+          unit: x.unit || '',
+          itemDiscount: Number(x.itemDiscount || 0),
+        }
+      }),
+      cashier: cashierName,
       summary,
       billDiscount,
       isGSTInclusive,
@@ -157,30 +169,30 @@ export default function POSBilling() {
 
     try {
       const items=cart.map(x=>{
-        const rate=Number(x.gstRate||0)
+        const rateTax=Number(x.gstRate||0)
         const quantity=Number(x.quantity)
-        const price=Number(x.price??x.sellingPrice)
+        const unitRate=Number(x.rate??x.price??x.sellingPrice??0)
         const discount=Number(x.itemDiscount||0)
-        const taxableUnitPrice=isGSTInclusive ? price*(1-discount/100)/(1+rate/100) : price
+        const taxableUnitPrice=isGSTInclusive ? unitRate*(1-discount/100)/(1+rateTax/100) : unitRate
         return {
           ...(x.isCustomItem ? {is_custom:true,product_name:x.name,unit:x.unit} : {product_id:x.supabase_id||x.id}),
           quantity,
           unit_price:taxableUnitPrice,
-          discount:isGSTInclusive ? 0 : quantity*price*discount/100,
-          tax_rate:rate,
-          display_price:price,
+          discount:isGSTInclusive ? 0 : quantity*unitRate*discount/100,
+          tax_rate:rateTax,
+          display_price:unitRate,
           item_discount_percent:discount,
           is_gst_inclusive:isGSTInclusive,
         }
       })
       const matchedCustomer=customerIndex.find(c=>c.id===customerName||c.name.toLowerCase()===customerName.trim().toLowerCase())
       if(Number(amountPaid||0)<summary.grandTotal&&!matchedCustomer)throw new Error('A registered customer is required for credit or partial-payment sales.')
-      const saved=await persistSale({customer_id:matchedCustomer?.id||null,discount:summary.discountAmount,amount_paid:Number(amountPaid||0),payment_method:paymentMode,metadata:{customerName,isGSTInclusive}},items)
+      const saved=await persistSale({customer_id:matchedCustomer?.id||null,discount:summary.discountAmount,amount_paid:Number(amountPaid||0),payment_method:paymentMode,metadata:{customerName,isGSTInclusive,cashier:cashierName}},items)
       const savedTotal = Number(saved?.total_amount)
       const completed={...bill,billNumber:saved.invoice_number,id:saved.id,summary:{...summary,grandTotal:Number.isFinite(savedTotal)?savedTotal:summary.grandTotal}}
       setShowSuccess(completed);setCart([]);setBillDiscount(0);setCustomerName('')
     } catch(e) { window.alert(e.message) }
-  }, [cart, billDiscount, isGSTInclusive, customerName, customerIndex])
+  }, [cart, billDiscount, isGSTInclusive, customerName, customerIndex, role])
 
   // ─── Barcode Scanner Settings & Toast State ─────────────────
   const [scannerStatus, setScannerStatus] = useState({

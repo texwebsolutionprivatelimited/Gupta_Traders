@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatINR } from '../../utils/erp'
-import { listUISales, subscribeToTable } from '../../services/erpService'
+import { formatINR, numberToWordsINR } from '../../utils/erp'
+import { listUISales, subscribeToTable, getStoredBusinessSettings } from '../../services/erpService'
 import { FaReceipt as ReceiptIcon, FaPrint as PrinterIcon, FaCheckCircle as CheckCircleIcon } from 'react-icons/fa'
 
 const mapUnitToShort = (unit) => {
   if (!unit) return '';
   const u = unit.toLowerCase().trim();
-  if (u === 'piece' || u === 'pieces' || u === 'pcs' || u === 'pc') return 'pc';
+  if (u === 'piece' || u === 'pieces' || u === 'pcs' || u === 'pc') return '';
   if (u === 'kilogram' || u === 'kilograms' || u === 'kg' || u === 'kgs') return 'kg';
   if (u === 'litre' || u === 'litres' || u === 'liter' || u === 'ltr' || u === 'ltrs') return 'L';
-  if (u === 'millilitre' || u === 'millilitres' || u === 'ml') return 'Ml';
+  if (u === 'millilitre' || u === 'millilitres' || u === 'ml') return 'ml';
   if (u === 'gram' || u === 'grams' || u === 'gm' || u === 'gms' || u === 'g') return 'g';
   if (u === 'packet' || u === 'packets' || u === 'pkt' || u === 'pkts') return 'pkt';
   if (u === 'box' || u === 'boxes') return 'box';
@@ -23,8 +23,16 @@ const escapeReceiptText = (value) => String(value ?? '').replace(/[&<>"']/g, cha
 export function normalizeBillData(rawBill) {
   if (!rawBill) return null;
 
+  const storeSettings = getStoredBusinessSettings();
+  const storeName = 'GUPTA TRADER & SUPERSTORE';
+  const storeAddress = rawBill.storeAddress || rawBill.address || storeSettings.address;
+  const storePhone = rawBill.storePhone || rawBill.phone || storeSettings.phone;
+  const storeGstin = rawBill.storeGstin || rawBill.gstin || storeSettings.gstin;
+  const returnPolicy = rawBill.returnPolicy || storeSettings.receiptFooter || 'Items sold after 10 days will not be returned';
+
   const billNumber = rawBill.billNumber || rawBill.invoice_number || rawBill.invoice || rawBill.billNo || rawBill.id || '—';
   const customerName = rawBill.customerName || (typeof rawBill.customer === 'string' ? rawBill.customer : rawBill.customer?.name) || rawBill.partyName || '';
+  const cashier = rawBill.cashier || rawBill.cashierName || rawBill.user || rawBill.created_by || rawBill.username || 'Admin';
   const paymentMode = String(rawBill.paymentMode || rawBill.payment_method || rawBill.paymentMethod || rawBill.payment || 'cash');
   const amountPaid = Number(rawBill.amountPaid ?? rawBill.paid_amount ?? rawBill.paidAmount ?? rawBill.paid ?? 0);
 
@@ -39,10 +47,14 @@ export function normalizeBillData(rawBill) {
   const items = rawItems.map((item, idx) => {
     const name = item.name || item.product_name || item.product || item.title || item.itemName || `Item #${idx + 1}`;
     const quantity = Number(item.quantity ?? item.qty ?? item.originalQuantity ?? 1);
-    const price = Number(item.price ?? item.salesPrice ?? item.selling_price ?? item.sellingPrice ?? item.unit_price ?? item.unitPrice ?? item.rate ?? 0);
+    const rate = Number(item.rate ?? item.price ?? item.selling_price ?? item.sellingPrice ?? item.unit_price ?? item.unitPrice ?? 0);
+    const rawMrp = Number(item.mrp ?? item.metadata?.mrp ?? 0);
+    const mrp = rawMrp > 0 ? rawMrp : rate;
     const unit = item.unit || item.loose_unit || item.looseUnit || '';
     const itemDiscount = Number(item.itemDiscount ?? item.discount ?? item.discount_percent ?? item.item_discount_percent ?? 0);
-    const lineTotal = Number(item.line_total ?? item.total ?? (price * quantity * (1 - itemDiscount / 100)));
+    // CRITICAL: Amount MUST use Rate (Our Price). Amount = Rate * Quantity. NEVER use MRP.
+    const amount = Number((rate * quantity).toFixed(2));
+    const lineTotal = itemDiscount > 0 ? Number((amount * (1 - itemDiscount / 100)).toFixed(2)) : amount;
 
     const returnedQuantity = Number(item.returnedQuantity ?? (item.returns || []).reduce((sum, r) => sum + Number(r.quantity || 0), 0) ?? 0);
     const returnableQuantity = Math.max(0, quantity - returnedQuantity);
@@ -51,9 +63,13 @@ export function normalizeBillData(rawBill) {
 
     return {
       ...item,
+      sr: idx + 1,
       name,
       quantity,
-      price,
+      mrp,
+      rate,
+      price: rate,
+      amount,
       unit,
       itemDiscount,
       lineTotal,
@@ -65,7 +81,7 @@ export function normalizeBillData(rawBill) {
   });
 
   const rawSummary = rawBill.summary || rawBill.totals || {};
-  const calculatedSubtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const calculatedSubtotal = items.reduce((sum, item) => sum + item.amount, 0);
   const subtotal = Number(rawSummary.subtotal ?? rawBill.subtotal ?? calculatedSubtotal);
   const totalGST = Number(rawSummary.totalGST ?? rawSummary.gst ?? rawBill.tax_amount ?? rawBill.gst ?? rawBill.tax ?? 0);
   const totalCGST = Number(rawSummary.totalCGST ?? rawBill.cgst ?? (totalGST / 2));
@@ -73,8 +89,11 @@ export function normalizeBillData(rawBill) {
   const discountAmount = Number(rawSummary.discountAmount ?? rawBill.discount ?? 0);
   const grandTotal = Number(rawSummary.grandTotal ?? rawBill.total_amount ?? rawBill.total ?? Math.max(0, subtotal + totalGST - discountAmount));
 
-  const itemSavings = items.reduce((sum, item) => sum + (item.price * item.quantity * item.itemDiscount / 100), 0);
-  const totalSavings = itemSavings + discountAmount;
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
+  const totalSavings = Math.max(0, mrpTotal - grandTotal);
+  const savingsPct = mrpTotal > 0 && totalSavings > 0 ? ((totalSavings / mrpTotal) * 100).toFixed(2) : '0.00';
+  const wordsAmount = numberToWordsINR(grandTotal);
 
   const returns = rawBill.returns || [];
   const totalRefunded = Number(rawBill.totalRefunded ?? returns.reduce((sum, r) => sum + Number(r.total_amount || 0), 0) ?? 0);
@@ -82,12 +101,23 @@ export function normalizeBillData(rawBill) {
 
   return {
     ...rawBill,
+    storeName,
+    storeAddress,
+    storePhone,
+    storeGstin,
+    returnPolicy,
     billNumber,
     customerName,
+    cashier,
     paymentMode,
-    amountPaid,
+    amountPaid: amountPaid > 0 ? amountPaid : grandTotal,
     timestamp,
     items,
+    totalQuantity,
+    mrpTotal,
+    totalSavings,
+    savingsPct,
+    wordsAmount,
     summary: {
       subtotal,
       totalGST,
@@ -96,7 +126,6 @@ export function normalizeBillData(rawBill) {
       discountAmount,
       grandTotal,
     },
-    totalSavings,
     returns,
     totalRefunded,
     hasReturns,
@@ -104,7 +133,7 @@ export function normalizeBillData(rawBill) {
   };
 }
 
-// ─── Generate Bulletproof Thermal Receipt HTML ────────────────────
+// ─── Generate Thermal Receipt HTML matching reference image ─────────────
 export function generateReceiptHtml(bill) {
   const norm = normalizeBillData(bill);
   if (!norm) return '';
@@ -112,14 +141,18 @@ export function generateReceiptHtml(bill) {
   const items = norm.items;
   const summary = norm.summary;
   const timestamp = norm.timestamp;
-  const totalSavings = norm.totalSavings;
+
+  const day = String(timestamp.getDate()).padStart(2, '0');
+  const month = String(timestamp.getMonth() + 1).padStart(2, '0');
+  const year = timestamp.getFullYear();
+  const formattedDate = `${day}-${month}-${year}`;
+  const formattedTime = timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta name="color-scheme" content="light" />
-  <meta name="supported-color-schemes" content="light" />
   <title>Receipt ${escapeReceiptText(norm.billNumber)}</title>
   <style>
     :root {
@@ -154,53 +187,86 @@ export function generateReceiptHtml(bill) {
     }
     .center { text-align: center; }
     .right { text-align: right; }
+    .left { text-align: left; }
     .bold { font-weight: 900; }
-    .separator { border-top: 2px dashed #000000 !important; margin: 5px 0; }
-    .double-separator { border-top: 2px solid #000000 !important; margin: 5px 0; }
-    .shop-name { font-size: 20px; font-weight: 900; letter-spacing: 0.5px; color: #000000 !important; }
-    .shop-sub { font-size: 12px; margin-top: 1px; color: #000000 !important; font-weight: 700; }
-
-    table.meta-table, table.items-table, table.totals-table {
+    .dash-line {
+      border-top: 2px dashed #000000 !important;
+      margin: 5px 0;
+    }
+    .separator {
+      border-top: 2px dashed #000000 !important;
+      margin: 5px 0;
+    }
+    .double-separator {
+      border-top: 2px solid #000000 !important;
+      margin: 5px 0;
+    }
+    .store-title {
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+      color: #000000 !important;
+    }
+    .store-info {
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.3;
+      color: #000000 !important;
+    }
+    .invoice-title {
+      font-size: 13px;
+      font-weight: 900;
+      margin: 5px 0 3px 0;
+      text-transform: uppercase;
+      color: #000000 !important;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.4;
+      color: #000000 !important;
+    }
+    table.items-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 12px;
       color: #000000 !important;
-    }
-    table.meta-table td {
-      padding: 2px 0;
-      color: #000000 !important;
-      font-weight: 800;
+      margin-top: 3px;
     }
     table.items-table th {
       border-top: 2px solid #000000 !important;
       border-bottom: 2px solid #000000 !important;
-      padding: 4px 0;
-      font-size: 12px;
+      padding: 4px 1px;
       font-weight: 900;
+      font-size: 12px;
       color: #000000 !important;
     }
     table.items-table td {
-      padding: 3px 0;
+      padding: 3px 1px;
       vertical-align: top;
       font-size: 12px;
-      color: #000000 !important;
       font-weight: 800;
-    }
-    .item-name-cell {
-      word-break: break-word;
-      overflow-wrap: break-word;
-      padding-right: 4px;
-      font-weight: 900;
       color: #000000 !important;
     }
-    table.totals-table td {
-      padding: 2px 0;
-      color: #000000 !important;
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
       font-weight: 800;
+      line-height: 1.4;
+      color: #000000 !important;
     }
-    .grand-total-row td {
-      font-size: 16px;
+    .big-total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 18px;
       font-weight: 900;
+      margin: 3px 0;
       color: #000000 !important;
     }
     @media print {
@@ -217,160 +283,158 @@ export function generateReceiptHtml(bill) {
         max-width: 78mm;
         background: #ffffff !important;
         color: #000000 !important;
+        padding: 6px 8px;
       }
     }
   </style>
 </head>
 <body>
-  <div class="no-print" style="background: #fef2f2; border: 1px solid #f87171; padding: 10px; text-align: center; border-radius: 8px; margin-bottom: 12px; font-family: sans-serif;">
-    <button onclick="window.print()" style="background: #059669; color: #ffffff; border: none; padding: 10px 24px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
-      🖨️ Click Here to Print (प्रिंट करें)
+  <div class="no-print" style="background: #f0fdf4; border: 1px solid #86efac; padding: 10px; text-align: center; border-radius: 8px; margin-bottom: 12px; font-family: sans-serif;">
+    <button onclick="window.print()" style="background: #059669; color: #ffffff; border: none; padding: 10px 24px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+      🖨️ Print Receipt (प्रिंट करें)
     </button>
-    <div style="font-size: 11px; color: #991b1b; margin-top: 6px; font-weight: 600;">
-      ⚠️ Note: If paper comes out blank/white, flip your thermal paper roll upside down.
-    </div>
   </div>
 
+  <!-- Store Header -->
   <div class="center">
-    <div class="shop-name">GUPTA TRADERS</div>
-    <div class="shop-sub">General Store & Provisions</div>
-    <div class="shop-sub">Main Market Road, City</div>
-    <div class="shop-sub">GSTIN: 09XXXXXXXXXXXXXXX</div>
-    <div class="shop-sub">Ph: 9876543210</div>
+    <div class="store-title">${escapeReceiptText(norm.storeName)}</div>
+    <div class="store-info">${escapeReceiptText(norm.storeAddress)}</div>
+    <div class="store-info">Mob: ${escapeReceiptText(norm.storePhone)}</div>
+    <div class="store-info">GSTIN: ${escapeReceiptText(norm.storeGstin)}</div>
+    <div class="invoice-title">RETAIL INVOICE</div>
   </div>
 
-  <div class="separator"></div>
+  <div class="dash-line"></div>
 
-  <table class="meta-table">
-    <tr>
-      <td style="text-align: left;">Bill No: ${escapeReceiptText(norm.billNumber)}</td>
-      <td style="text-align: right;">${timestamp.toLocaleDateString('en-IN')}</td>
-    </tr>
-    <tr>
-      <td style="text-align: left;">Time: ${timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
-      <td style="text-align: right;">Mode: ${escapeReceiptText(norm.paymentMode.toUpperCase())}</td>
-    </tr>
-    ${norm.customerName ? `
-    <tr>
-      <td colspan="2" style="text-align: left; padding-top: 2px;">Customer: ${escapeReceiptText(norm.customerName)}</td>
-    </tr>` : ''}
-  </table>
+  <!-- Invoice Meta -->
+  <div class="meta-row">
+    <span>Invoice No: ${escapeReceiptText(norm.billNumber)}</span>
+  </div>
+  <div class="meta-row">
+    <span>Date: ${formattedDate} &nbsp; Time: ${formattedTime}</span>
+  </div>
+  <div class="meta-row">
+    <span>Cashier/User: ${escapeReceiptText(norm.cashier)}</span>
+    ${norm.customerName ? `<span>Cust: ${escapeReceiptText(norm.customerName)}</span>` : ''}
+  </div>
 
-  <div class="separator"></div>
-
+  <!-- Product Table: Sr | Product | Qty | MRP | Rate | Amount -->
   <table class="items-table">
     <thead>
       <tr>
-        <th style="text-align: left;">Item</th>
-        <th style="text-align: center; width: 48px;">Qty</th>
-        <th style="text-align: right; width: 68px;">Amount</th>
+        <th style="text-align: left; width: 20px;">Sr</th>
+        <th style="text-align: left;">Product</th>
+        <th style="text-align: right; width: 38px;">Qty</th>
+        <th style="text-align: right; width: 44px;">MRP</th>
+        <th style="text-align: right; width: 44px;">Rate</th>
+        <th style="text-align: right; width: 48px;">Amount</th>
       </tr>
     </thead>
     <tbody>
       ${items.map(item => `
         <tr>
-          <td class="item-name-cell" style="text-align: left;">
+          <td style="text-align: left; vertical-align: top;">${item.sr}</td>
+          <td style="text-align: left; word-break: break-word; vertical-align: top;">
             ${escapeReceiptText(item.name)}
-            ${item.itemDiscount > 0 ? `<div style="font-size: 10px; font-weight: normal; color: #000000 !important;">Disc: -${(item.price * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>` : ''}
+            ${item.itemDiscount > 0 ? `<div style="font-size: 9px; font-weight: normal;">Disc: -${(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>` : ''}
             ${item.returnedQuantity > 0 ? `
-              <div style="font-size: 10px; font-weight: 900; color: #b91c1c !important;">
+              <div style="font-size: 9px; font-weight: 900; color: #b91c1c !important;">
                 [TAKEN BACK: -${item.returnedQuantity}${escapeReceiptText(mapUnitToShort(item.unit))}]
-                ${item.returnableQuantity > 0 ? `(Bal: ${item.returnableQuantity})` : '(FULL RETURN)'}
               </div>
             ` : ''}
           </td>
-          <td style="text-align: center; white-space: nowrap;">
-            ${item.quantity}${escapeReceiptText(mapUnitToShort(item.unit))}
+          <td style="text-align: right; white-space: nowrap; vertical-align: top;">
+            ${item.quantity.toFixed(3)}
           </td>
-          <td style="text-align: right; white-space: nowrap;">
-            ${(item.price * item.quantity).toFixed(2)}
+          <td style="text-align: right; white-space: nowrap; vertical-align: top;">
+            ${item.mrp.toFixed(2)}
+          </td>
+          <td style="text-align: right; white-space: nowrap; vertical-align: top;">
+            ${item.rate.toFixed(2)}
+          </td>
+          <td style="text-align: right; white-space: nowrap; font-weight: 900; vertical-align: top;">
+            ${item.amount.toFixed(2)}
           </td>
         </tr>
       `).join('')}
     </tbody>
   </table>
 
-  <div class="double-separator"></div>
+  <div class="dash-line"></div>
 
-  <table class="totals-table">
-    <tr>
-      <td style="text-align: left;">Subtotal:</td>
-      <td style="text-align: right;">${summary.subtotal.toFixed(2)}</td>
-    </tr>
-    <tr>
-      <td style="text-align: left;">CGST:</td>
-      <td style="text-align: right;">${summary.totalCGST.toFixed(2)}</td>
-    </tr>
-    <tr>
-      <td style="text-align: left;">SGST:</td>
-      <td style="text-align: right;">${summary.totalSGST.toFixed(2)}</td>
-    </tr>
-    ${summary.discountAmount > 0 ? `
-    <tr>
-      <td style="text-align: left;">Discount:</td>
-      <td style="text-align: right;">-${summary.discountAmount.toFixed(2)}</td>
-    </tr>` : ''}
-  </table>
+  <!-- Sub Total -->
+  <div class="totals-row">
+    <span>Sub Total</span>
+    <span class="bold">${summary.subtotal.toFixed(2)}</span>
+  </div>
 
-  <div class="separator"></div>
+  <div class="dash-line"></div>
 
-  <table class="totals-table grand-total-row">
-    <tr>
-      <td style="text-align: left;">TOTAL:</td>
-      <td style="text-align: right;">Rs. ${summary.grandTotal.toFixed(2)}</td>
-    </tr>
-  </table>
+  <!-- Total Qty and Big Bill Amount -->
+  <div class="big-total-row">
+    <span style="font-size: 11px; font-weight: 700;">
+      Total Qty: ${norm.totalQuantity.toFixed(3)} &nbsp; Amt:
+    </span>
+    <span>${summary.grandTotal.toFixed(2)}</span>
+  </div>
+
+  <!-- Rupees in words -->
+  <div style="font-size: 11px; font-style: italic; margin-bottom: 3px;">
+    (${escapeReceiptText(norm.wordsAmount)})
+  </div>
+
+  <!-- Tender and Payment Mode -->
+  <div class="totals-row">
+    <span>Tender:</span>
+    <span>${norm.amountPaid.toFixed(2)}</span>
+  </div>
+  <div class="totals-row">
+    <span>Pay Mode: ${escapeReceiptText(norm.paymentMode.toUpperCase())}:</span>
+    <span>${summary.grandTotal.toFixed(2)}</span>
+  </div>
+
+  <!-- MRP Total, Bill Total and Savings -->
+  ${norm.totalSavings > 0 ? `
+    <div class="totals-row" style="margin-top: 2px;">
+      <span>MRP Total: ${norm.mrpTotal.toFixed(2)}</span>
+      <span>Bill Total: ${summary.grandTotal.toFixed(2)}</span>
+    </div>
+    <div class="totals-row bold">
+      <span>Your Savings Rs. ${norm.totalSavings.toFixed(2)} i.e.${norm.savingsPct}%</span>
+    </div>
+  ` : `
+    <div class="totals-row" style="margin-top: 2px;">
+      <span>MRP Total: ${norm.mrpTotal.toFixed(2)}</span>
+      <span>Bill Total: ${summary.grandTotal.toFixed(2)}</span>
+    </div>
+  `}
 
   ${norm.hasReturns ? `
-    <div class="separator"></div>
-    <table class="totals-table">
-      <tr style="font-weight: 900; color: #b91c1c !important;">
-        <td style="text-align: left;">RETURNED / REFUNDED:</td>
-        <td style="text-align: right;">-Rs. ${norm.totalRefunded.toFixed(2)}</td>
-      </tr>
-      <tr style="font-weight: 900; font-size: 14px;">
-        <td style="text-align: left;">ADJUSTED NET TOTAL:</td>
-        <td style="text-align: right;">Rs. ${norm.netTotalAfterReturns.toFixed(2)}</td>
-      </tr>
-    </table>
-  ` : ''}
-
-  <div class="separator"></div>
-
-  ${totalSavings > 0 ? `
-    <div class="center bold" style="margin: 5px 0; font-size: 11px; border: 1.5px dashed #000000; padding: 4px; text-transform: uppercase;">
-      *** YOU SAVED Rs. ${totalSavings.toFixed(2)} ON THIS PURCHASE ***
+    <div class="dash-line"></div>
+    <div class="totals-row" style="font-weight: 900;">
+      <span>RETURNED / REFUNDED:</span>
+      <span>-${norm.totalRefunded.toFixed(2)}</span>
     </div>
-    <div class="separator"></div>
+    <div class="totals-row" style="font-weight: 900; font-size: 13px;">
+      <span>ADJUSTED NET TOTAL:</span>
+      <span>${norm.netTotalAfterReturns.toFixed(2)}</span>
+    </div>
   ` : ''}
 
-  ${norm.paymentMode.toLowerCase() === 'cash' && norm.amountPaid > 0 ? `
-    <table class="totals-table">
-      <tr>
-        <td style="text-align: left;">Paid:</td>
-        <td style="text-align: right;">${norm.amountPaid.toFixed(2)}</td>
-      </tr>
-      <tr style="font-weight: bold;">
-        <td style="text-align: left;">Change:</td>
-        <td style="text-align: right;">${Math.max(0, norm.amountPaid - summary.grandTotal).toFixed(2)}</td>
-      </tr>
-    </table>
-    <div class="separator"></div>
-  ` : ''}
+  <div class="dash-line"></div>
 
-  <div class="separator"></div>
-
-  <div class="center" style="margin: 6px 0; border: 1.5px solid #000000; padding: 4px 2px; font-weight: 900; font-size: 10px; text-transform: uppercase;">
-    Products sold can be returned within 7 days of purchase.
-  </div>
-  <div class="center" style="font-size: 9px; margin-top: 1px; font-weight: 700;">
-    (बिका हुआ सामान 7 दिनों के भीतर वापस हो सकता है)
+  <!-- Net Value -->
+  <div class="totals-row bold" style="font-size: 13px;">
+    <span>Net Value</span>
+    <span>${(norm.hasReturns ? norm.netTotalAfterReturns : summary.grandTotal).toFixed(2)}</span>
   </div>
 
+  <div class="dash-line"></div>
+
+  <!-- Footer -->
   <div class="center" style="margin-top: 6px;">
-    <div class="bold">Thank You! Visit Again!</div>
-    <div>धन्यवाद! फिर आना!</div>
-    <div style="margin-top: 3px; font-size: 10px;">Items: ${items.length} | Total Qty: ${items.reduce((s, i) => s + Number(i.quantity || 0), 0)}</div>
+    <div class="bold" style="font-size: 12px; letter-spacing: 0.5px;">THANKS, VISIT AGAIN</div>
+    <div style="font-size: 10px; margin-top: 3px;">${escapeReceiptText(norm.returnPolicy)}</div>
   </div>
 </body>
 </html>`;
@@ -412,7 +476,7 @@ export function printThermalReceipt(bill, onPrint) {
   }
 }
 
-// ─── Bill Receipt Component (Print & Reprint) ───────────────────
+// ─── Bill Receipt Component (Print & Reprint Preview) ────────────
 export function ReceiptPreview({ bill, onClose, onPrint }) {
   const receiptRef = useRef(null);
   const norm = normalizeBillData(bill);
@@ -423,161 +487,185 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
     printThermalReceipt(norm, onPrint);
   };
 
+  const day = String(norm.timestamp.getDate()).padStart(2, '0');
+  const month = String(norm.timestamp.getMonth() + 1).padStart(2, '0');
+  const year = norm.timestamp.getFullYear();
+  const formattedDate = `${day}-${month}-${year}`;
+  const formattedTime = norm.timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm transition-colors" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-2xl max-w-md w-full mx-4 shadow-2xl overflow-hidden transition-colors" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800/60">
-          <div className="flex items-center gap-3">
-            <ReceiptIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-3 transition-colors" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+        {/* Modal Top Bar */}
+        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-950 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <ReceiptIcon className="w-4 h-4" />
+            </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Receipt Preview</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{norm.billNumber}</p>
+              <h3 className="text-sm font-bold text-slate-100">Thermal Receipt Preview</h3>
+              <p className="text-[11px] font-mono text-slate-400">Invoice: {norm.billNumber}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all cursor-pointer"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Receipt Content */}
-        <div ref={receiptRef} className="px-6 py-4 font-mono text-xs font-bold space-y-2 max-h-[60vh] overflow-y-auto scrollbar-thin">
-          {/* Shop Header */}
-          <div className="text-center space-y-0.5">
-            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">GUPTA TRADERS & SUPERSTORE</p>
-            <p className="text-slate-600 dark:text-slate-400">Plot no. 12 Balaji Nagar, Narela Shankari</p>
-            <p className="text-slate-500 dark:text-slate-500">Near khedapati Mandir, Bhopal MP(462022)</p>
-            <p className="text-slate-500 dark:text-slate-500">GSTIN: 09XXXXXXXXXXXXXXX</p>
-          </div>
+        {/* Thermal Receipt Paper Card (High clarity, bold thermal aesthetic) */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-950 flex justify-center">
+          <div
+            ref={receiptRef}
+            className="w-full max-w-[360px] bg-white text-black p-5 rounded-2xl shadow-2xl text-xs font-bold leading-normal select-text space-y-2 border border-slate-300"
+            style={{
+              color: '#000000',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, monospace'
+            }}
+          >
+            {/* Store Header */}
+            <div className="text-center space-y-0.5">
+              <p className="text-base font-black uppercase tracking-wide leading-tight text-black">{norm.storeName}</p>
+              <p className="text-xs font-bold text-black leading-tight">{norm.storeAddress}</p>
+              <p className="text-xs font-bold text-black">Mob: {norm.storePhone}</p>
+              <p className="text-xs font-bold text-black">GSTIN: {norm.storeGstin}</p>
+              <p className="text-xs font-black uppercase pt-1 text-black">RETAIL INVOICE</p>
+            </div>
 
-          <div className="border-t border-dashed border-slate-300 dark:border-slate-700/60" />
+            <div className="border-t-2 border-dashed border-black my-1.5" />
 
-          {/* Bill Info */}
-          <div className="flex justify-between text-slate-600 dark:text-slate-400">
-            <span>Bill: {norm.billNumber}</span>
-            <span>{norm.timestamp.toLocaleDateString('en-IN')}</span>
-          </div>
-          <div className="flex justify-between text-slate-600 dark:text-slate-400">
-            <span>Time: {norm.timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-            <span className="capitalize">Mode: {norm.paymentMode}</span>
-          </div>
-          {norm.customerName && (
-            <p className="text-slate-600 dark:text-slate-400">Customer: {norm.customerName}</p>
-          )}
+            {/* Invoice Info */}
+            <div className="space-y-0.5 text-xs font-bold text-black">
+              <div className="flex justify-between">
+                <span>Invoice No: {norm.billNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Date: {formattedDate} &nbsp; Time: {formattedTime}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Cashier/User: {norm.cashier}</span>
+                {norm.customerName && <span>Cust: {norm.customerName}</span>}
+              </div>
+            </div>
 
-          <div className="border-t-2 border-slate-300 dark:border-slate-700/60" />
+            {/* Product Table: Sr | Product | Qty | MRP | Rate | Amount */}
+            <div className="border-t-2 border-dashed border-black pt-1">
+              <div className="grid grid-cols-12 text-xs font-black border-b-2 border-dashed border-black pb-1 mb-1.5 text-black">
+                <span className="col-span-1 text-left">Sr</span>
+                <span className="col-span-4 text-left">Product</span>
+                <span className="col-span-2 text-right">Qty</span>
+                <span className="col-span-2 text-right">MRP</span>
+                <span className="col-span-1 text-right">Rate</span>
+                <span className="col-span-2 text-right">Amount</span>
+              </div>
 
-          {/* Items */}
-          <div className="space-y-1.5">
-            {norm.items.map((item, i) => (
-              <div key={i}>
-                <div className="flex justify-between">
-                  <span className="text-slate-800 dark:text-slate-200 flex-1 break-words whitespace-normal">{item.name}</span>
-                  <span className="text-slate-500 dark:text-slate-400 w-12 text-center">{item.quantity}{mapUnitToShort(item.unit)}</span>
-                  <span className="text-slate-900 dark:text-slate-200 w-16 text-right">{formatINR(item.price * item.quantity)}</span>
-                </div>
-                {item.itemDiscount > 0 && (
-                  <p className="text-amber-600 dark:text-amber-400/70 pl-4 text-[10px]">Disc: -{formatINR(item.price * item.quantity * item.itemDiscount / 100)}</p>
-                )}
-                {item.returnedQuantity > 0 && (
-                  <div className="text-rose-600 dark:text-rose-400 pl-4 text-[10px] font-bold">
-                    [TAKEN BACK: -{item.returnedQuantity}{mapUnitToShort(item.unit)}] {item.returnableQuantity > 0 ? `(Bal: ${item.returnableQuantity})` : '(FULL RETURN)'}
+              <div className="space-y-1.5">
+                {norm.items.map((item) => (
+                  <div key={item.sr} className="grid grid-cols-12 text-xs items-start leading-snug font-bold text-black">
+                    <span className="col-span-1 text-left">{item.sr}</span>
+                    <span className="col-span-4 text-left break-words">{item.name}</span>
+                    <span className="col-span-2 text-right whitespace-nowrap">{item.quantity.toFixed(3)}</span>
+                    <span className="col-span-2 text-right whitespace-nowrap text-slate-800">{item.mrp.toFixed(2)}</span>
+                    <span className="col-span-1 text-right whitespace-nowrap">{item.rate.toFixed(2)}</span>
+                    <span className="col-span-2 text-right font-black whitespace-nowrap">{item.amount.toFixed(2)}</span>
                   </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
 
-          <div className="border-t-2 border-slate-300 dark:border-slate-700/60" />
+            <div className="border-t-2 border-dashed border-black my-1.5" />
 
-          {/* Totals */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-slate-700 dark:text-slate-300">
-              <span>Subtotal</span>
-              <span>{formatINR(norm.summary.subtotal)}</span>
+            {/* Sub Total */}
+            <div className="flex justify-between text-xs font-extrabold text-black">
+              <span>Sub Total</span>
+              <span className="font-black">{norm.summary.subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-slate-500 dark:text-slate-500 text-[10px]">
-              <span>CGST</span>
-              <span>{formatINR(norm.summary.totalCGST)}</span>
+
+            <div className="border-t-2 border-dashed border-black my-1.5" />
+
+            {/* Total Qty & Large Bill Total */}
+            <div className="flex justify-between items-baseline pt-0.5 text-black">
+              <span className="text-xs font-bold">Total Qty: {norm.totalQuantity.toFixed(3)} &nbsp; Amt:</span>
+              <span className="text-xl font-black">{norm.summary.grandTotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-slate-500 dark:text-slate-500 text-[10px]">
-              <span>SGST</span>
-              <span>{formatINR(norm.summary.totalSGST)}</span>
-            </div>
-            {norm.summary.discountAmount > 0 && (
-              <div className="flex justify-between text-amber-600 dark:text-amber-400">
-                <span>Discount</span>
-                <span>-{formatINR(norm.summary.discountAmount)}</span>
+
+            {/* Rupees in Words */}
+            <p className="text-xs italic text-black leading-tight font-semibold">
+              ({norm.wordsAmount})
+            </p>
+
+            {/* Tender & Pay Mode */}
+            <div className="space-y-0.5 text-xs pt-1 font-bold text-black">
+              <div className="flex justify-between">
+                <span>Tender:</span>
+                <span>{norm.amountPaid.toFixed(2)}</span>
               </div>
-            )}
-            <div className="border-t border-dashed border-slate-300 dark:border-slate-700/60" />
-            <div className="flex justify-between text-lg font-bold text-emerald-600 dark:text-emerald-400">
-              <span>TOTAL</span>
-              <span>{formatINR(norm.summary.grandTotal)}</span>
+              <div className="flex justify-between">
+                <span>Pay Mode: {norm.paymentMode.toUpperCase()}:</span>
+                <span>{norm.summary.grandTotal.toFixed(2)}</span>
+              </div>
             </div>
+
+            {/* MRP Total, Bill Total & Savings */}
+            <div className="space-y-0.5 text-xs pt-1 border-t border-dotted border-black font-bold text-black">
+              <div className="flex justify-between">
+                <span>MRP Total: {norm.mrpTotal.toFixed(2)}</span>
+                <span>Bill Total: {norm.summary.grandTotal.toFixed(2)}</span>
+              </div>
+              {norm.totalSavings > 0 && (
+                <div className="flex justify-between font-black text-black">
+                  <span>Your Savings Rs. ${norm.totalSavings.toFixed(2)} i.e.${norm.savingsPct}%</span>
+                </div>
+              )}
+            </div>
+
             {norm.hasReturns && (
               <>
-                <div className="border-t border-dashed border-rose-300 dark:border-rose-900/60" />
-                <div className="flex justify-between text-rose-600 dark:text-rose-400 font-bold">
-                  <span>Refunded / Taken Back</span>
-                  <span>-{formatINR(norm.totalRefunded)}</span>
+                <div className="border-t-2 border-dashed border-black my-1.5" />
+                <div className="flex justify-between text-xs font-black text-rose-700">
+                  <span>RETURNED / REFUNDED:</span>
+                  <span>-{norm.totalRefunded.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-base font-extrabold text-slate-900 dark:text-slate-100">
-                  <span>Adjusted Net Total</span>
-                  <span>{formatINR(norm.netTotalAfterReturns)}</span>
+                <div className="flex justify-between text-xs font-black">
+                  <span>ADJUSTED NET TOTAL:</span>
+                  <span>{norm.netTotalAfterReturns.toFixed(2)}</span>
                 </div>
               </>
             )}
-            {norm.totalSavings > 0 && (
-              <div className="mt-2 text-center py-1.5 px-3 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold rounded-lg border border-dashed border-emerald-500/30 text-xs">
-                🎉 You saved an amount of {formatINR(norm.totalSavings)} on this purchase!
-              </div>
-            )}
-          </div>
 
-          {norm.paymentMode.toLowerCase() === 'cash' && norm.amountPaid > 0 && (
-            <>
-              <div className="border-t border-dashed border-slate-300 dark:border-slate-700/60" />
-              <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                <span>Paid</span>
-                <span>{formatINR(norm.amountPaid)}</span>
-              </div>
-              <div className="flex justify-between font-bold text-slate-800 dark:text-slate-200">
-                <span>Change</span>
-                <span>{formatINR(Math.max(0, norm.amountPaid - norm.summary.grandTotal))}</span>
-              </div>
-            </>
-          )}
+            <div className="border-t-2 border-dashed border-black my-1.5" />
 
-          <div className="border-t border-dashed border-slate-300 dark:border-slate-700/60" />
-
-          {/* Footer */}
-          <div className="text-center space-y-1 pt-1 pb-2">
-            <div className="my-2 p-1.5 border border-slate-900 dark:border-slate-300 text-center font-bold text-[10px] uppercase tracking-wide">
-              Products sold can be returned within 7 days of purchase.
+            {/* Net Value */}
+            <div className="flex justify-between text-sm font-black text-black">
+              <span>Net Value</span>
+              <span>{(norm.hasReturns ? norm.netTotalAfterReturns : norm.summary.grandTotal).toFixed(2)}</span>
             </div>
-            <p className="text-[9px] text-slate-500 dark:text-slate-400">(बिका हुआ सामान 7 दिनों के भीतर वापस हो सकता है)</p>
-            <p className="font-bold text-slate-800 dark:text-slate-200">Thank You! Visit Again!</p>
-            <p className="text-slate-600 dark:text-slate-400">धन्यवाद! फिर आना!</p>
-            <p className="text-slate-400 dark:text-slate-600 text-[10px] mt-1">
-              Items: {norm.items.length} | Qty: {norm.items.reduce((s, i) => s + Number(i.quantity || 0), 0)}
-            </p>
+
+            <div className="border-t-2 border-dashed border-black my-1.5" />
+
+            {/* Footer */}
+            <div className="text-center pt-1 space-y-0.5 text-black">
+              <p className="text-xs font-black uppercase tracking-wider">THANKS, VISIT AGAIN</p>
+              <p className="text-[11px] font-bold text-slate-800 leading-tight">{norm.returnPolicy}</p>
+            </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800/60 flex gap-3">
+        {/* Modal Bottom Action Bar */}
+        <div className="px-5 py-3.5 bg-slate-950 border-t border-slate-800 flex gap-3">
           <button
             onClick={handlePrint}
-            className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold text-sm hover:from-emerald-500 hover:to-emerald-400 transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
+            className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
           >
-            <PrinterIcon className="w-5 h-5" /> Print Receipt
+            <PrinterIcon className="w-4 h-4" /> Print Thermal Receipt
           </button>
           <button
             onClick={onClose}
-            className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 font-medium text-sm transition-all"
+            className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all cursor-pointer"
           >
             Close
           </button>
@@ -742,9 +830,8 @@ export function generateReturnReceiptHtml(returnData) {
     </button>
   </div>
   <div class="center">
-    <div class="shop-name">GUPTA TRADERS</div>
-    <div style="font-size: 11px; font-weight: 700;">General Store & Provisions</div>
-    <div class="voucher-title">SALES RETURN & REFUND VOUCHER</div>
+    <div class="shop-name">GUPTA TRADER & SUPERSTORE</div>
+    <div style="font-size: 11px; font-weight: 700;">SALES RETURN & REFUND VOUCHER</div>
   </div>
   <div class="separator"></div>
   <table>

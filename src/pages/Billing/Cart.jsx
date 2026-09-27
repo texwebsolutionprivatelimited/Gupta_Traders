@@ -67,7 +67,7 @@ export default function Cart({ items, onUpdateQuantity, onUpdateDiscount, onRemo
                     )}
                   </div>
                   <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                    <span>{formatINR(item.price)} × {item.quantity} {item.unit || 'Pcs'}</span>
+                    <span className="font-semibold text-emerald-400">Rate: {formatINR(item.rate ?? item.price)}</span>{item.mrp && Number(item.mrp) > Number(item.rate ?? item.price) ? <span className="text-[10px] text-slate-500 line-through">MRP: {formatINR(item.mrp)}</span> : null}<span>× {item.quantity} {item.unit || 'Pcs'}</span>
                     {isLoose && <ScaleIcon className="w-3.5 h-3.5 text-violet-400" title="Loose Item" />}
                   </p>
                 </div>

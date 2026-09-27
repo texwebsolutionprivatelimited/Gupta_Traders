@@ -132,7 +132,8 @@ export default function PackagedProductScanner() {
     category: '',
     unit: 'pcs',
     purchasePrice: '',
-    sellingPrice: '',
+    mrp: '',
+    rate: '',
     gstRate: 0,
     currentStock: '0',
     minStock: '10',
@@ -298,7 +299,8 @@ export default function PackagedProductScanner() {
         category: matchedCategorySlug || 'packaged',
         unit: 'pcs',
         purchasePrice: '', // MUST be entered manually by user
-        sellingPrice: '', // MUST be entered manually by user
+        mrp: extData.mrp || '', // Pre-fill if API provides MRP, else manual
+        rate: '', // Rate (Our Price) MUST be entered manually by user
         gstRate: 0,
         currentStock: '0',
         minStock: '10',
@@ -374,14 +376,22 @@ export default function PackagedProductScanner() {
     if (!formData.name.trim()) errs.name = 'Product name is required'
     if (!formData.brand.trim()) errs.brand = 'Brand is required'
 
-    // Manual price validation (MANDATORY REQUIREMENT)
+    // Manual price validation (Purchase Price, MRP, Rate)
     if (!formData.purchasePrice || Number(formData.purchasePrice) <= 0) {
       errs.purchasePrice = 'Enter valid purchase price (₹)'
     }
-    if (!formData.sellingPrice || Number(formData.sellingPrice) <= 0) {
-      errs.sellingPrice = 'Enter valid selling price / MRP (₹)'
-    } else if (Number(formData.sellingPrice) < Number(formData.purchasePrice)) {
-      errs.sellingPrice = 'Selling price should be ≥ purchase price'
+    if (!formData.mrp || Number(formData.mrp) <= 0) {
+      errs.mrp = 'Enter valid MRP (₹)'
+    }
+    if (!formData.rate || Number(formData.rate) <= 0) {
+      errs.rate = 'Enter valid Rate (Our Price) (₹)'
+    } else {
+      if (formData.mrp && Number(formData.rate) > Number(formData.mrp)) {
+        errs.rate = 'Rate cannot exceed MRP'
+      }
+      if (formData.purchasePrice && Number(formData.rate) < Number(formData.purchasePrice)) {
+        errs.rate = 'Rate should be ≥ purchase price'
+      }
     }
 
     if (formData.currentStock === '' || Number(formData.currentStock) < 0) {
@@ -412,7 +422,9 @@ export default function PackagedProductScanner() {
         barcode: barcodeInput.trim(),
         sku: generateNextSKU(),
         purchasePrice: Number(formData.purchasePrice),
-        sellingPrice: Number(formData.sellingPrice),
+        mrp: Number(formData.mrp),
+        rate: Number(formData.rate),
+        sellingPrice: Number(formData.rate), // Kept for 100% database & backend compatibility
         gstRate: Number(formData.gstRate),
         currentStock: Number(formData.currentStock),
         minStock: Number(formData.minStock) || 10,
@@ -423,6 +435,8 @@ export default function PackagedProductScanner() {
           scanned_entry: true,
           added_via: 'packaged_product_scanner',
           external_source: fetchedMetadata?.source || null,
+          mrp: Number(formData.mrp),
+          rate: Number(formData.rate),
         },
       }
 
@@ -438,7 +452,9 @@ export default function PackagedProductScanner() {
           name: payload.name,
           brand: payload.brand,
           barcode: payload.barcode,
-          sellingPrice: payload.sellingPrice,
+          mrp: payload.mrp,
+          rate: payload.rate,
+          sellingPrice: payload.rate,
           purchasePrice: payload.purchasePrice,
           stock: payload.currentStock,
           image: payload.image,
@@ -450,7 +466,8 @@ export default function PackagedProductScanner() {
       setSaveSuccessMsg({
         name: payload.name,
         barcode: payload.barcode,
-        price: payload.sellingPrice,
+        rate: payload.rate,
+        mrp: payload.mrp,
       })
 
       // Reset immediately for the next product! (Rapid continuous scanning)
@@ -465,9 +482,12 @@ export default function PackagedProductScanner() {
 
   // Calculations for profit & margin
   const purchaseNum = Number(formData.purchasePrice) || 0
-  const sellingNum = Number(formData.sellingPrice) || 0
-  const profitAmt = sellingNum > 0 ? sellingNum - purchaseNum : 0
-  const marginPct = sellingNum > 0 && profitAmt > 0 ? ((profitAmt / sellingNum) * 100).toFixed(1) : '0'
+  const mrpNum = Number(formData.mrp) || 0
+  const rateNum = Number(formData.rate) || 0
+  const profitAmt = rateNum > 0 ? rateNum - purchaseNum : 0
+  const marginPct = rateNum > 0 && profitAmt > 0 ? ((profitAmt / rateNum) * 100).toFixed(1) : '0'
+  const customerSavings = mrpNum > rateNum && rateNum > 0 ? mrpNum - rateNum : 0
+  const savingsPct = mrpNum > 0 && customerSavings > 0 ? ((customerSavings / mrpNum) * 100).toFixed(1) : '0'
 
   // Quick preset samples for demo / testing
   const sampleBarcodes = [
@@ -549,7 +569,7 @@ export default function PackagedProductScanner() {
               <Scan className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
                 Packaged Product Scanner
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   Quick Entry
@@ -594,7 +614,7 @@ export default function PackagedProductScanner() {
 
           <Link
             to="/products"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs font-semibold text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-all"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Products Catalog
@@ -614,7 +634,7 @@ export default function PackagedProductScanner() {
                 "{saveSuccessMsg.name}" added to product database!
               </p>
               <p className="text-xs text-emerald-400/80 font-mono">
-                Barcode: {saveSuccessMsg.barcode} • Selling Price: {formatINR(saveSuccessMsg.price)}
+                Barcode: {saveSuccessMsg.barcode} • Rate: {formatINR(saveSuccessMsg.rate)} • MRP: {formatINR(saveSuccessMsg.mrp)}
               </p>
             </div>
           </div>
@@ -662,7 +682,7 @@ export default function PackagedProductScanner() {
                 onChange={(e) => setBarcodeInput(e.target.value)}
                 placeholder="Scan barcode with gun or type e.g. 8901491101837..."
                 disabled={isVerifying}
-                className="w-full pl-13 pr-10 py-4 rounded-2xl bg-slate-950/80 border border-slate-700/80 text-white placeholder:text-slate-500 text-base sm:text-lg font-mono focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all tracking-wider shadow-inner"
+                className="w-full pl-13 pr-10 py-4 rounded-2xl bg-slate-950/80 border border-slate-700/80 text-slate-100 placeholder:text-slate-500 text-base sm:text-lg font-mono focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all tracking-wider shadow-inner"
               />
               {barcodeInput && (
                 <button
@@ -722,7 +742,7 @@ export default function PackagedProductScanner() {
                   setBarcodeInput(item.code)
                   handleLookup(item.code)
                 }}
-                className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/50 hover:bg-slate-700 text-slate-300 font-mono hover:text-white transition-all cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/50 hover:bg-slate-700 text-slate-300 font-mono hover:text-slate-100 transition-all cursor-pointer"
               >
                 {item.label}
               </button>
@@ -762,7 +782,7 @@ export default function PackagedProductScanner() {
                 <span className="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
                   Duplicate Prevented
                 </span>
-                <h2 className="text-2xl font-bold text-white mt-1">
+                <h2 className="text-2xl font-bold text-slate-100 mt-1">
                   Product already exists.
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-400">
@@ -789,7 +809,7 @@ export default function PackagedProductScanner() {
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Product Name
               </span>
-              <p className="text-base font-bold text-white">{existingProduct.name}</p>
+              <p className="text-base font-bold text-slate-100">{existingProduct.name}</p>
               {existingProduct.nameHi && (
                 <p className="text-xs text-slate-400">{existingProduct.nameHi}</p>
               )}
@@ -822,9 +842,15 @@ export default function PackagedProductScanner() {
 
             <div className="space-y-2 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Selling Price:</span>
+                <span className="text-slate-400">Rate (Our Price):</span>
                 <span className="font-bold text-emerald-400 text-sm">
-                  {formatINR(existingProduct.sellingPrice)}
+                  {formatINR(existingProduct.rate ?? existingProduct.sellingPrice)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">MRP:</span>
+                <span className="font-semibold text-slate-300">
+                  {formatINR(existingProduct.mrp ?? existingProduct.rate ?? existingProduct.sellingPrice)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
@@ -863,7 +889,7 @@ export default function PackagedProductScanner() {
             <button
               type="button"
               onClick={resetScanner}
-              className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+              className="text-xs text-slate-400 hover:text-slate-100 underline cursor-pointer"
             >
               Scan another barcode (or press Space)
             </button>
@@ -897,7 +923,7 @@ export default function PackagedProductScanner() {
                     </span>
                   )}
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-100 mt-1">
                   Confirm & Set Product Price
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-400">
@@ -988,7 +1014,7 @@ export default function PackagedProductScanner() {
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     onBlur={() => translateToHindi(formData.name)}
                     placeholder="e.g. Kurkure Masala Munch, Parle-G Biscuits..."
-                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-white text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all ${
+                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all ${
                       formErrors.name ? 'border-rose-500' : 'border-slate-800'
                     }`}
                   />
@@ -1007,7 +1033,7 @@ export default function PackagedProductScanner() {
                     value={formData.nameHi}
                     onChange={(e) => handleInputChange('nameHi', e.target.value)}
                     placeholder="e.g. कुरकुरे मसाला मंच..."
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all"
                   />
                 </div>
 
@@ -1021,7 +1047,7 @@ export default function PackagedProductScanner() {
                     value={formData.brand}
                     onChange={(e) => handleInputChange('brand', e.target.value)}
                     placeholder="e.g. Kurkure, Parle, Britannia, Lay's..."
-                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-white text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all ${
+                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all ${
                       formErrors.brand ? 'border-rose-500' : 'border-slate-800'
                     }`}
                   />
@@ -1040,7 +1066,7 @@ export default function PackagedProductScanner() {
                     value={formData.packSize}
                     onChange={(e) => handleInputChange('packSize', e.target.value)}
                     placeholder="e.g. 50g, 100g, 250ml, 1 Pack..."
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all"
                   />
                 </div>
 
@@ -1052,7 +1078,7 @@ export default function PackagedProductScanner() {
                   <select
                     value={formData.category}
                     onChange={(e) => handleInputChange('category', e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
                   >
                     <option value="packaged">Packaged Goods (General)</option>
                     {categories.map((c) => (
@@ -1071,25 +1097,27 @@ export default function PackagedProductScanner() {
               </div>
 
               {/* ─────────────────────────────────────────────────────────
-                  PRICE SECTION — MANDATORY REQUIREMENT:
-                  "Price/amount must always be entered manually by me."
+                  PRICE SECTION — 3 FIELDS:
+                  1. Purchase Price
+                  2. MRP
+                  3. Rate (Our Price)
                   ───────────────────────────────────────────────────────── */}
               <div className="bg-gradient-to-br from-slate-950 via-slate-950 to-emerald-950/30 border-2 border-emerald-500/30 rounded-2xl p-5 space-y-4 shadow-inner">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                     <Tag className="w-4 h-4" />
-                    Pricing Details (Manual Entry Required)
+                    Product Pricing (Purchase Price, MRP, Rate)
                   </span>
                   <span className="text-[11px] font-semibold text-slate-400">
-                    Always set manually
+                    Amount is charged at Rate (Our Price)
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Purchase Price */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* 1. Purchase Price */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-slate-300">
-                      Purchase Price (₹) <span className="text-rose-400">*</span>
+                      1. Purchase Price (₹) <span className="text-rose-400">*</span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">
@@ -1102,7 +1130,7 @@ export default function PackagedProductScanner() {
                         value={formData.purchasePrice}
                         onChange={(e) => handleInputChange('purchasePrice', e.target.value)}
                         placeholder="0.00"
-                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-white text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${
+                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${
                           formErrors.purchasePrice ? 'border-rose-500' : 'border-slate-700'
                         }`}
                       />
@@ -1114,10 +1142,10 @@ export default function PackagedProductScanner() {
                     )}
                   </div>
 
-                  {/* Selling Price / MRP */}
+                  {/* 2. MRP */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-slate-300">
-                      Selling Price / MRP (₹) <span className="text-rose-400">*</span>
+                      2. MRP (₹) <span className="text-rose-400">*</span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">
@@ -1126,25 +1154,52 @@ export default function PackagedProductScanner() {
                       <input
                         type="number"
                         step="0.01"
-                        value={formData.sellingPrice}
-                        onChange={(e) => handleInputChange('sellingPrice', e.target.value)}
+                        value={formData.mrp}
+                        onChange={(e) => handleInputChange('mrp', e.target.value)}
                         placeholder="0.00"
-                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-emerald-400 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${
-                          formErrors.sellingPrice ? 'border-rose-500' : 'border-slate-700'
+                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${
+                          formErrors.mrp ? 'border-rose-500' : 'border-slate-700'
                         }`}
                       />
                     </div>
-                    {formErrors.sellingPrice && (
+                    {formErrors.mrp && (
                       <p className="text-xs text-rose-400 font-medium">
-                        {formErrors.sellingPrice}
+                        {formErrors.mrp}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 3. Rate (Our Price) */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-300">
+                      3. Rate (Our Price) (₹) <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.rate}
+                        onChange={(e) => handleInputChange('rate', e.target.value)}
+                        placeholder="0.00"
+                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${
+                          formErrors.rate ? 'border-rose-500' : 'border-slate-700'
+                        }`}
+                      />
+                    </div>
+                    {formErrors.rate && (
+                      <p className="text-xs text-rose-400 font-medium">
+                        {formErrors.rate}
                       </p>
                     )}
                   </div>
                 </div>
 
                 {/* Profit & Margin Calculator Pill */}
-                {sellingNum > 0 && (
-                  <div className="flex items-center justify-between bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-xs">
+                {rateNum > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-xs">
                     <div className="flex items-center gap-2">
                       <span className="text-slate-400">Profit Per Unit:</span>
                       <span
@@ -1167,6 +1222,14 @@ export default function PackagedProductScanner() {
                         {marginPct}%
                       </span>
                     </div>
+                    {customerSavings > 0 && (
+                      <div className="flex items-center gap-1.5 text-cyan-400 font-semibold">
+                        <span>Customer Saves:</span>
+                        <span className="bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded text-cyan-300">
+                          {formatINR(customerSavings)} ({savingsPct}%)
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1184,7 +1247,7 @@ export default function PackagedProductScanner() {
                     value={formData.currentStock}
                     onChange={(e) => handleInputChange('currentStock', e.target.value)}
                     placeholder="0"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all"
                   />
                 </div>
 
@@ -1199,7 +1262,7 @@ export default function PackagedProductScanner() {
                     value={formData.minStock}
                     onChange={(e) => handleInputChange('minStock', e.target.value)}
                     placeholder="10"
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all"
                   />
                 </div>
 
@@ -1211,7 +1274,7 @@ export default function PackagedProductScanner() {
                   <select
                     value={formData.gstRate}
                     onChange={(e) => handleInputChange('gstRate', e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
                   >
                     {gstOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -1260,7 +1323,7 @@ export default function PackagedProductScanner() {
       {sessionItems.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
               <Boxes className="w-4 h-4 text-emerald-400" />
               Cataloged in This Session ({sessionItems.length})
             </h3>
@@ -1277,7 +1340,8 @@ export default function PackagedProductScanner() {
                   <th className="py-2.5 px-3">Product Name</th>
                   <th className="py-2.5 px-3">Brand</th>
                   <th className="py-2.5 px-3">Barcode</th>
-                  <th className="py-2.5 px-3 text-right">Selling Price</th>
+                  <th className="py-2.5 px-3 text-right">MRP</th>
+                  <th className="py-2.5 px-3 text-right">Rate (Our Price)</th>
                   <th className="py-2.5 px-3 text-right">Initial Stock</th>
                   <th className="py-2.5 px-3 text-center">Action</th>
                 </tr>
@@ -1286,7 +1350,7 @@ export default function PackagedProductScanner() {
                 {sessionItems.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-2.5 px-3 text-slate-500 font-mono">{item.time}</td>
-                    <td className="py-2.5 px-3 text-white font-semibold flex items-center gap-2">
+                    <td className="py-2.5 px-3 text-slate-100 font-semibold flex items-center gap-2">
                       {item.image && (
                         <img
                           src={item.image}
@@ -1298,8 +1362,11 @@ export default function PackagedProductScanner() {
                     </td>
                     <td className="py-2.5 px-3 text-slate-300">{item.brand}</td>
                     <td className="py-2.5 px-3 font-mono text-emerald-400">{item.barcode}</td>
+                    <td className="py-2.5 px-3 text-right text-slate-400 line-through">
+                      {formatINR(item.mrp ?? item.rate ?? item.sellingPrice)}
+                    </td>
                     <td className="py-2.5 px-3 text-right font-bold text-emerald-400">
-                      {formatINR(item.sellingPrice)}
+                      {formatINR(item.rate ?? item.sellingPrice)}
                     </td>
                     <td className="py-2.5 px-3 text-right text-slate-300">{item.stock} pcs</td>
                     <td className="py-2.5 px-3 text-center">
@@ -1323,14 +1390,14 @@ export default function PackagedProductScanner() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Camera className="w-5 h-5 text-cyan-400" />
                 Camera Barcode Scanner
               </h3>
               <button
                 type="button"
                 onClick={stopCameraScanner}
-                className="text-slate-400 hover:text-white p-1"
+                className="text-slate-400 hover:text-slate-100 p-1"
               >
                 <X className="w-5 h-5" />
               </button>

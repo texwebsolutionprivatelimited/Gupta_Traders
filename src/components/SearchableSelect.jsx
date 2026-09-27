@@ -84,7 +84,7 @@ export default function SearchableSelect({
         onClick={() => setIsOpen(!isOpen)}
         className={`${className} flex items-center justify-between text-left cursor-pointer focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15`}
       >
-        <span className={value ? "text-slate-900 dark:text-slate-100 truncate pr-2" : "text-slate-400 truncate pr-2"}>
+        <span className={value ? "text-slate-100 truncate pr-2" : "text-slate-400 truncate pr-2"}>
           {value || placeholder}
         </span>
         <svg

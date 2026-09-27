@@ -65,6 +65,9 @@ export default function ProductSearch({ onAddToCart }) {
   const [addedId, setAddedId] = useState(null)
   const [barcodeMode, setBarcodeMode] = useState(false)
   const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
   const [categories, setCategories] = useState([{id:'all',name:'All'}])
   const searchRef = useRef(null)
   const barcodeRef = useRef(null)
@@ -101,9 +104,28 @@ export default function ProductSearch({ onAddToCart }) {
   }, [])
 
   useEffect(() => {
-    const load=async()=>{try{const [items,cats]=await Promise.all([listUIProducts(),listCategories()]);setProducts(items.map(p=>({...p,price:p.rate??p.sellingPrice,rate:p.rate??p.sellingPrice,mrp:p.mrp??p.rate??p.sellingPrice,isLoose:p.type==='loose'})));setCategories([{id:'all',name:'All'},...cats.filter(c=>c.status==='active').map(c=>({id:c.slug,name:c.name}))])}catch(error){console.error(error)}}
-    load();const offProducts=subscribeToTable('products',load),offInventory=subscribeToTable('inventory',load),offCategories=subscribeToTable('categories',load);return()=>{offProducts();offInventory();offCategories()}
-  }, [])
+    let active = true
+    let revision = 0
+    const load = async () => {
+      const requestRevision = ++revision
+      setLoading(true)
+      setLoadError('')
+      const [items, cats] = await Promise.allSettled([listUIProducts(), listCategories()])
+      if (!active || requestRevision !== revision) return
+      if (items.status === 'fulfilled') {
+        setProducts(items.value.map(p => ({...p, price:p.rate??p.sellingPrice, rate:p.rate??p.sellingPrice, mrp:p.mrp??p.rate??p.sellingPrice, isLoose:p.type==='loose'})))
+      }
+      if (cats.status === 'fulfilled') {
+        setCategories([{id:'all',name:'All'}, ...cats.value.filter(c=>c.status==='active').map(c=>({id:c.slug,name:c.name}))])
+      }
+      const failure = items.status === 'rejected' ? items.reason : cats.status === 'rejected' ? cats.reason : null
+      setLoadError(failure ? failure.message || 'Unable to load product data.' : '')
+      setLoading(false)
+    }
+    load()
+    const offProducts=subscribeToTable('products',load),offInventory=subscribeToTable('inventory',load),offCategories=subscribeToTable('categories',load)
+    return()=>{active=false;offProducts();offInventory();offCategories()}
+  }, [reloadKey])
 
   const q=query.toLowerCase().trim();const filteredProducts=products.filter(p=>(activeCategory==='all'||p.category===activeCategory)&&(!q||p.name.toLowerCase().includes(q)||p.barcode?.toLowerCase().includes(q)||p.sku?.toLowerCase().includes(q)))
   const lookupBarcode = code => products.find(p=>p.barcode===code)||null
@@ -330,13 +352,21 @@ export default function ProductSearch({ onAddToCart }) {
 
       {/* ─── Product Grid ──────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
-        {filteredProducts.length === 0 ? (
+        {loadError && (
+          <div role="alert" className="mb-3 rounded-xl border border-rose-500/30 bg-slate-900 p-3 text-sm text-slate-200">
+            <p>{loadError}</p>
+            <button type="button" onClick={() => setReloadKey(key => key + 1)} className="mt-2 underline font-semibold">Retry loading</button>
+          </div>
+        )}
+        {loading && products.length === 0 ? (
+          <p role="status" className="p-8 text-center text-slate-400">Loading products...</p>
+        ) : filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="text-slate-600 mb-4 opacity-50">
               <MagnifyingGlassIcon className="w-12 h-12" />
             </div>
-            <p className="text-slate-400 text-lg font-medium">No products found</p>
-            <p className="text-slate-500 text-sm mt-1">Try a different search or category</p>
+            <p className="text-slate-400 text-lg font-medium">{loadError ? 'Product data could not be loaded' : 'No products found'}</p>
+            <p className="text-slate-500 text-sm mt-1">{loadError ? 'Use Retry loading above to try again.' : 'Try a different search or category'}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">

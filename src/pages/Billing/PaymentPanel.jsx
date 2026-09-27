@@ -41,12 +41,34 @@ export default function PaymentPanel({
   const handleApplyDiscount = () => {
     if (!discountValue) return
     const val = parseFloat(discountValue)
-    if (discountType === 'percent') {
-      onBillDiscountChange(Math.round(summary.subtotal * val / 100 * 100) / 100)
-    } else {
-      onBillDiscountChange(val)
+    if (isNaN(val) || val <= 0) {
+      onBillDiscountChange(0)
+      setShowDiscountInput(false)
+      return
     }
+    onBillDiscountChange({
+      type: discountType === 'percent' ? 'percent' : 'fixed',
+      value: val,
+    })
     setShowDiscountInput(false)
+  }
+
+  const handleRemoveDiscount = () => {
+    onBillDiscountChange(0)
+    setDiscountValue('')
+  }
+
+  const handleToggleDiscountInput = () => {
+    if (!showDiscountInput) {
+      if (summary.billDiscountType === 'percent') {
+        setDiscountType('percent')
+        setDiscountValue(summary.billDiscountValue ? String(summary.billDiscountValue) : '')
+      } else if (summary.billDiscountValue > 0) {
+        setDiscountType('flat')
+        setDiscountValue(String(summary.billDiscountValue))
+      }
+    }
+    setShowDiscountInput(prev => !prev)
   }
 
   const handlePayment = () => {
@@ -83,10 +105,11 @@ export default function PaymentPanel({
         {summary.discountAmount > 0 && (
           <div className="flex justify-between text-amber-400">
             <span className="flex items-center gap-1">
-              Discount
+              Discount {summary.billDiscountType === 'percent' && summary.billDiscountValue > 0 ? `(${summary.billDiscountValue}%)` : ''}
               <button
-                onClick={() => onBillDiscountChange(0)}
-                className="text-[10px] text-rose-400 hover:text-rose-300 ml-1"
+                type="button"
+                onClick={handleRemoveDiscount}
+                className="text-[10px] text-rose-400 hover:text-rose-300 ml-1 cursor-pointer"
                 title="Remove discount"
               >
                 ✕
@@ -106,9 +129,13 @@ export default function PaymentPanel({
       <div className="px-4 pb-2 flex gap-2 flex-wrap">
         {/* Discount Button */}
         <button
-          onClick={() => setShowDiscountInput(!showDiscountInput)}
+          onClick={handleToggleDiscountInput}
           disabled={!canCheckout}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+            summary.discountAmount > 0
+              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              : 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
+          }`}
         >
           <TagIcon className="w-4 h-4" /> Discount
         </button>
@@ -160,8 +187,15 @@ export default function PaymentPanel({
       {showDiscountInput && (
         <div className="px-4 pb-3">
           <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-amber-300">Bill Discount (बिल छूट)</span>
+              <button
+                type="button"
+                onClick={() => setShowDiscountInput(false)}
+                className="text-slate-400 hover:text-slate-200 text-xs cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
             <div className="flex gap-2">
               <select
@@ -184,8 +218,9 @@ export default function PaymentPanel({
                 onKeyDown={(e) => { if (e.key === 'Enter') handleApplyDiscount() }}
               />
               <button
+                type="button"
                 onClick={handleApplyDiscount}
-                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm transition-colors"
+                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm transition-colors cursor-pointer"
               >
                 Apply
               </button>

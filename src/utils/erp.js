@@ -5,7 +5,87 @@ export const generateNextSKU=()=>`SKU-${crypto.randomUUID().slice(0,8).toUpperCa
 export const generateNextProductCode=()=>`LC-${crypto.randomUUID().slice(0,8).toUpperCase()}`
 export const generateNextBarcode=type=>type==='loose'?`9${Date.now().toString().slice(-6)}${Math.floor(Math.random()*10000).toString().padStart(4,'0')}`:''
 export function calculateItemGST(price,quantity,gstRate,isInclusive=false){const total=Number(price)*Number(quantity),rate=Number(gstRate||0);if(isInclusive){const base=total/(1+rate/100);return{baseAmount:base,gstAmount:total-base,totalAmount:total}}const gst=total*rate/100;return{baseAmount:total,gstAmount:gst,totalAmount:total+gst}}
-export function calculateBillSummary(items,billDiscount=0,isInclusive=true){let subtotal=0,totalGST=0,itemDiscountTotal=0;items.forEach(item=>{const unitRate=Number((item.rate??item.price??item.sellingPrice)||0),gross=unitRate*Number(item.quantity||0),discount=gross*Number(item.itemDiscount||0)/100,taxable=gross-discount,rate=Number(item.gstRate||0);itemDiscountTotal+=discount;if(isInclusive){const base=taxable/(1+rate/100);subtotal+=base;totalGST+=taxable-base}else{subtotal+=taxable;totalGST+=taxable*rate/100}});const beforeDiscount=subtotal+totalGST,discountAmount=beforeDiscount*Number(billDiscount||0)/100,grandTotal=beforeDiscount-discountAmount;return{subtotal,totalGST,totalCGST:totalGST/2,totalSGST:totalGST/2,itemDiscountTotal,billDiscount:Number(billDiscount||0),billDiscountAmount:discountAmount,discountAmount,grandTotal,roundedTotal:Math.round(grandTotal)}}
+export function calculateBillSummary(items = [], billDiscount = 0, isInclusive = true) {
+  let subtotal = 0, totalGST = 0, itemDiscountTotal = 0;
+
+  (items || []).forEach(item => {
+    const unitRate = Number((item.rate ?? item.price ?? item.sellingPrice) || 0);
+    const qty = Number(item.quantity || 0);
+    const gross = unitRate * qty;
+    const discount = (gross * Number(item.itemDiscount || 0)) / 100;
+    const taxable = gross - discount;
+    const rate = Number(item.gstRate || 0);
+
+    itemDiscountTotal += discount;
+    if (isInclusive) {
+      const base = taxable / (1 + rate / 100);
+      subtotal += base;
+      totalGST += taxable - base;
+    } else {
+      subtotal += taxable;
+      totalGST += (taxable * rate) / 100;
+    }
+  });
+
+  const beforeDiscount = Math.max(0, subtotal + totalGST);
+
+  // Parse billDiscount parameter (can be object, string like '10%', or number)
+  let discountType = 'fixed';
+  let discountValue = 0;
+
+  if (billDiscount && typeof billDiscount === 'object') {
+    const rawType = String(billDiscount.type || billDiscount.discountType || 'fixed').toLowerCase().trim();
+    discountType = (rawType === 'percent' || rawType === 'percentage' || rawType === '%') ? 'percent' : 'fixed';
+    discountValue = Number(billDiscount.value ?? billDiscount.amount ?? billDiscount.discount ?? 0);
+  } else if (typeof billDiscount === 'string') {
+    const str = billDiscount.trim();
+    if (str.endsWith('%')) {
+      discountType = 'percent';
+      discountValue = parseFloat(str);
+    } else {
+      discountType = 'fixed';
+      discountValue = parseFloat(str.replace(/[^0-9.-]/g, ''));
+    }
+  } else if (typeof billDiscount === 'number') {
+    discountType = 'fixed';
+    discountValue = billDiscount;
+  }
+
+  if (isNaN(discountValue) || discountValue <= 0 || beforeDiscount <= 0) {
+    discountValue = 0;
+  }
+
+  let calculatedDiscount = 0;
+  if (discountValue > 0 && beforeDiscount > 0) {
+    if (discountType === 'percent') {
+      calculatedDiscount = (beforeDiscount * discountValue) / 100;
+    } else {
+      calculatedDiscount = discountValue;
+    }
+  }
+
+  // Final discount amount: cannot be negative and cannot exceed beforeDiscount
+  const discountAmount = Math.max(0, Math.min(beforeDiscount, Math.round(calculatedDiscount * 100) / 100));
+
+  // Final grand total: max(0, beforeDiscount - discountAmount)
+  const grandTotal = Math.max(0, Math.round((beforeDiscount - discountAmount) * 100) / 100);
+
+  return {
+    subtotal,
+    beforeDiscount,
+    totalGST,
+    totalCGST: totalGST / 2,
+    totalSGST: totalGST / 2,
+    itemDiscountTotal,
+    billDiscount,
+    billDiscountType: discountType,
+    billDiscountValue: discountValue,
+    billDiscountAmount: discountAmount,
+    discountAmount,
+    grandTotal,
+    roundedTotal: Math.round(grandTotal),
+  };
+}
 export const iconPresets=['🛒','🍚','🌾','🍬','🧴','📦','🥛','⚖️']
 export const colorPresets=['#10b981','#f59e0b','#ef4444','#d97706','#ec4899','#eab308','#f97316','#06b6d4','#8b5cf6','#6366f1','#3b82f6','#dc2626','#14b8a6']
 

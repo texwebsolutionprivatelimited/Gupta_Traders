@@ -82,12 +82,13 @@ export function normalizeBillData(rawBill) {
 
   const rawSummary = rawBill.summary || rawBill.totals || {};
   const calculatedSubtotal = items.reduce((sum, item) => sum + item.amount, 0);
-  const subtotal = Number(rawSummary.subtotal ?? rawBill.subtotal ?? calculatedSubtotal);
+  const beforeDiscount = Number(rawSummary.beforeDiscount ?? (items.length > 0 ? calculatedSubtotal : (rawBill.subtotal ?? calculatedSubtotal)));
   const totalGST = Number(rawSummary.totalGST ?? rawSummary.gst ?? rawBill.tax_amount ?? rawBill.gst ?? rawBill.tax ?? 0);
   const totalCGST = Number(rawSummary.totalCGST ?? rawBill.cgst ?? (totalGST / 2));
   const totalSGST = Number(rawSummary.totalSGST ?? rawBill.sgst ?? (totalGST / 2));
-  const discountAmount = Number(rawSummary.discountAmount ?? rawBill.discount ?? 0);
-  const grandTotal = Number(rawSummary.grandTotal ?? rawBill.total_amount ?? rawBill.total ?? Math.max(0, subtotal + totalGST - discountAmount));
+  const discountAmount = Number(rawSummary.discountAmount ?? rawSummary.discount ?? rawBill.discount ?? 0);
+  const subtotal = rawBill.isGSTInclusive === false ? Number(rawSummary.subtotal ?? rawBill.subtotal ?? calculatedSubtotal) : (beforeDiscount > 0 ? beforeDiscount : Number(rawSummary.subtotal ?? rawBill.subtotal ?? calculatedSubtotal));
+  const grandTotal = Number(rawSummary.grandTotal ?? rawBill.total_amount ?? rawBill.total ?? Math.max(0, (beforeDiscount > 0 ? beforeDiscount : subtotal + totalGST) - discountAmount));
 
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
   const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
@@ -368,6 +369,13 @@ export function generateReceiptHtml(bill) {
     <span class="bold">${summary.subtotal.toFixed(2)}</span>
   </div>
 
+  ${summary.discountAmount > 0 ? `
+    <div class="totals-row">
+      <span>Discount</span>
+      <span class="bold">-${summary.discountAmount.toFixed(2)}</span>
+    </div>
+  ` : ''}
+
   <div class="dash-line"></div>
 
   <!-- Total Qty and Big Bill Amount -->
@@ -584,6 +592,13 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               <span>Sub Total</span>
               <span className="font-black">{norm.summary.subtotal.toFixed(2)}</span>
             </div>
+
+            {norm.summary.discountAmount > 0 && (
+              <div className="flex justify-between text-xs font-extrabold text-black">
+                <span>Discount</span>
+                <span className="font-black">-{norm.summary.discountAmount.toFixed(2)}</span>
+              </div>
+            )}
 
             <div className="border-t-2 border-dashed border-black my-1.5" />
 

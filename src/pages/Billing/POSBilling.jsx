@@ -187,7 +187,7 @@ export default function POSBilling() {
       })
       const matchedCustomer=customerIndex.find(c=>c.id===customerName||c.name.toLowerCase()===customerName.trim().toLowerCase())
       if(Number(amountPaid||0)<summary.grandTotal&&!matchedCustomer)throw new Error('A registered customer is required for credit or partial-payment sales.')
-      const saved=await persistSale({customer_id:matchedCustomer?.id||null,discount:summary.discountAmount,amount_paid:Number(amountPaid||0),payment_method:paymentMode,metadata:{customerName,isGSTInclusive,cashier:cashierName}},items)
+      const saved=await persistSale({customer_id:matchedCustomer?.id||null,discount:summary.discountAmount,amount_paid:Number(amountPaid||0),payment_method:paymentMode,metadata:{customerName,isGSTInclusive,cashier:cashierName,billDiscount}},items)
       const savedTotal = Number(saved?.total_amount)
       const completed={...bill,billNumber:saved.invoice_number,id:saved.id,summary:{...summary,grandTotal:Number.isFinite(savedTotal)?savedTotal:summary.grandTotal}}
       setShowSuccess(completed);setCart([]);setBillDiscount(0);setCustomerName('')

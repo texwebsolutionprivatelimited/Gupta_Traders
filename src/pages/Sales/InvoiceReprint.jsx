@@ -80,12 +80,12 @@ const calculateItem = (item) => {
     const gst = getItemGST(item);
 
     const amount = quantity * price;
-    const gstAmount = (amount * gst) / 100;
+    const gstAmount = gst > 0 ? (amount - amount / (1 + gst / 100)) : 0;
 
     return {
         amount,
         gstAmount,
-        total: amount + gstAmount,
+        total: amount,
     };
 };
 
@@ -96,7 +96,7 @@ const calculateSaleTotals = (sale) => {
         return {
             subtotal: Number(sale?.subtotal) || 0,
             gst: Number(sale?.gst) || 0,
-            total: Number(sale?.total) || 0,
+            total: Number(sale?.total ?? sale?.total_amount) || 0,
         };
     }
 
@@ -135,7 +135,7 @@ const calculateSaleTotals = (sale) => {
         total:
             sale?.total !== undefined
                 ? Number(sale.total) || 0
-                : calculated.total,
+                : (sale?.total_amount !== undefined ? Number(sale.total_amount) || 0 : calculated.total),
     };
 };
 
@@ -246,16 +246,6 @@ function InvoiceTotals({ sale }) {
 
                 <span className="font-medium">
                     {formatCurrency(totals.subtotal)}
-                </span>
-            </div>
-
-            <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400">
-                    GST
-                </span>
-
-                <span className="font-medium">
-                    {formatCurrency(totals.gst)}
                 </span>
             </div>
 
@@ -728,10 +718,6 @@ export default function InvoiceReprint() {
                                                 Price
                                             </th>
 
-                                            <th className="px-4 py-3 text-center text-xs uppercase text-slate-500">
-                                                GST
-                                            </th>
-
                                             <th className="px-4 py-3 text-right text-xs uppercase text-slate-500">
                                                 Total
                                             </th>
@@ -771,10 +757,6 @@ export default function InvoiceReprint() {
                                                                 item
                                                             )
                                                         )}
-                                                    </td>
-
-                                                    <td className="px-4 py-3 text-center">
-                                                        {getItemGST(item)}%
                                                     </td>
 
                                                     <td className="px-4 py-3 text-right font-semibold">
@@ -913,10 +895,6 @@ export default function InvoiceReprint() {
                                         Price
                                     </th>
 
-                                    <th className="px-2 py-3 text-center">
-                                        GST
-                                    </th>
-
                                     <th className="px-2 py-3 text-right">
                                         Total
                                     </th>
@@ -961,10 +939,6 @@ export default function InvoiceReprint() {
                                                 {formatCurrency(
                                                     getItemPrice(item)
                                                 )}
-                                            </td>
-
-                                            <td className="px-2 py-3 text-center">
-                                                {getItemGST(item)}%
                                             </td>
 
                                             <td className="px-2 py-3 text-right">

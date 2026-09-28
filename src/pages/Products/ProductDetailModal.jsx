@@ -48,11 +48,12 @@ export default function ProductDetailModal({ product, isOpen, onClose, onAddToCa
   const isLowStock = !isOutOfStock && stock <= minStock
 
   const sellingPrice = Number(product.rate ?? product.price ?? product.sellingPrice ?? 0)
-  const mrp = Number(product.mrp ?? sellingPrice)
+  const hasManualMrp = product.mrp !== null && product.mrp !== undefined && product.mrp !== '' && Number(product.mrp) > 0
+  const mrp = hasManualMrp ? Number(product.mrp) : null
   const purchasePrice = Number(product.purchasePrice ?? 0)
 
-  const savings = mrp > sellingPrice ? mrp - sellingPrice : 0
-  const savingsPercent = mrp > sellingPrice && mrp > 0 ? Math.round((savings / mrp) * 100) : 0
+  const savings = mrp && mrp > sellingPrice ? mrp - sellingPrice : 0
+  const savingsPercent = mrp && mrp > sellingPrice && mrp > 0 ? Math.round((savings / mrp) * 100) : 0
 
   const margin = sellingPrice > 0 && purchasePrice > 0 ? sellingPrice - purchasePrice : null
   const marginPercent = margin !== null && purchasePrice > 0 ? ((margin / purchasePrice) * 100).toFixed(1) : null
@@ -183,14 +184,14 @@ export default function ProductDetailModal({ product, isOpen, onClose, onAddToCa
                   Maximum Retail Price (MRP)
                 </span>
                 <div className="text-xl font-bold text-slate-200 tabular-nums">
-                  {formatINR(mrp)}
+                  {mrp ? formatINR(mrp) : '— (Not set)'}
                 </div>
-                {mrp > sellingPrice ? (
+                {mrp && mrp > sellingPrice ? (
                   <div className="mt-1 text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 inline-block">
                     Save {formatINR(savings)} ({savingsPercent}% OFF)
                   </div>
                 ) : (
-                  <p className="text-[11px] text-slate-500 mt-1">At MRP price</p>
+                  <p className="text-[11px] text-slate-500 mt-1">{mrp ? 'At MRP price' : 'No MRP specified'}</p>
                 )}
               </div>
 
@@ -304,17 +305,11 @@ export default function ProductDetailModal({ product, isOpen, onClose, onAddToCa
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 {/* HSN Code */}
                 <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 text-xs">
                   <span className="text-slate-400 block">HSN Code:</span>
                   <span className="text-slate-200 font-bold font-mono">{hsn || 'N/A'}</span>
-                </div>
-
-                {/* GST Rate */}
-                <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 text-xs">
-                  <span className="text-slate-400 block">GST Tax Rate:</span>
-                  <span className="text-slate-200 font-bold">{gstRate}% GST</span>
                 </div>
 
                 {/* Category */}

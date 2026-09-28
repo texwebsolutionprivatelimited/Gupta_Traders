@@ -736,10 +736,8 @@ export default function SalesHistory() {
                         item?.price ??
                         0
                     );
-                    const gst = Number(item?.gst) || 0;
                     const amount = quantity * salesPrice;
-                    const gstAmount = (amount * gst) / 100;
-                    const itemTotal = amount + gstAmount;
+                    const itemTotal = amount;
 
                     return (
                       <div
@@ -764,22 +762,13 @@ export default function SalesHistory() {
                             )}
                           </div>
 
-                          <div className="grid grid-cols-3 gap-4 text-right text-sm">
+                          <div className="flex items-center gap-6 text-right text-sm">
                             <div>
                               <p className="text-xs text-slate-500 dark:text-slate-400">
                                 Qty
                               </p>
                               <p className="mt-1 font-semibold text-slate-900 dark:text-slate-400">
                                 {quantity}
-                              </p>
-                            </div>
-
-                            <div>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                GST
-                              </p>
-                              <p className="mt-1 font-semibold text-slate-900 dark:text-red-400">
-                                {gst}%
                               </p>
                             </div>
 
@@ -819,15 +808,6 @@ export default function SalesHistory() {
                   </span>
                   <span className="font-medium text-slate-900 dark:text-slate-400">
                     {formatCurrency(selectedSale.subtotal)}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">
-                    GST
-                  </span>
-                  <span className="font-medium text-slate-900 dark:text-slate-400">
-                    {formatCurrency(selectedSale.gst)}
                   </span>
                 </div>
 

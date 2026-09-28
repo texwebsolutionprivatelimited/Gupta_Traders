@@ -62,18 +62,20 @@ function WeightIcon() {
 }
 
 // ─── Product Search Component ─────────────────────────────────────
-export default function ProductSearch({ onAddToCart }) {
+export default function ProductSearch({ onAddToCart, isParentLoading = false }) {
   const [query, setQuery] = useState('')
-  const [activeCategory, setActiveCategory] = useState('all')
+  const [activeCategory, setActiveCategory] = useState(null)
   const [selectedProductForDetail, setSelectedProductForDetail] = useState(null)
   const [showLooseForm, setShowLooseForm] = useState(false)
   const [addedId, setAddedId] = useState(null)
+  const [addingId, setAddingId] = useState(null)
   const [barcodeMode, setBarcodeMode] = useState(false)
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
+  const isAnyLoading = loading || isParentLoading
   const [loadError, setLoadError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
-  const [categories, setCategories] = useState([{ id: 'all', name: 'All Categories', slug: 'all' }])
+  const [categories, setCategories] = useState([])
   const searchRef = useRef(null)
   const barcodeRef = useRef(null)
   const barcodeBuffer = useRef('')
@@ -122,22 +124,23 @@ export default function ProductSearch({ onAddToCart }) {
           ...p,
           price: p.rate ?? p.sellingPrice,
           rate: p.rate ?? p.sellingPrice,
-          mrp: p.mrp ?? p.rate ?? p.sellingPrice,
+          mrp: (p.mrp && Number(p.mrp) > 0) ? Number(p.mrp) : null,
           brand: p.brand || '',
           isLoose: p.type === 'loose',
         })))
       }
       if (cats.status === 'fulfilled') {
-        setCategories([
-          { id: 'all', name: 'All Categories', slug: 'all', categoryId: 'all' },
-          ...cats.value.filter(c => !c.status || c.status === 'active').map(c => ({
-            id: c.slug || c.id,
-            slug: c.slug,
-            categoryId: c.id,
-            uuid: c.id,
-            name: c.name,
-          })),
-        ])
+        setCategories(
+          cats.value
+            .filter(c => (!c.status || c.status === 'active') && c.id !== 'all' && c.slug !== 'all' && String(c.name || '').toLowerCase().trim() !== 'all categories')
+            .map(c => ({
+              id: c.slug || c.id,
+              slug: c.slug,
+              categoryId: c.id,
+              uuid: c.id,
+              name: c.name,
+            }))
+        )
       }
       const failure = items.status === 'rejected' ? items.reason : cats.status === 'rejected' ? cats.reason : null
       setLoadError(failure ? failure.message || 'Unable to load product data.' : '')
@@ -156,14 +159,14 @@ export default function ProductSearch({ onAddToCart }) {
   }, [reloadKey])
 
   const getCategoryCount = (cat) => {
-    if (cat.id === 'all') return products.length
+    if (!cat || cat.id === 'all') return products.length
     return products.filter(p => isProductInCategory(p, cat)).length
   }
 
   const q = query.toLowerCase().trim()
   const activeCatObj = categories.find(c => c.id === activeCategory || c.slug === activeCategory)
   const filteredProducts = products.filter(p => {
-    const matchesCategory = isProductInCategory(p, activeCatObj)
+    const matchesCategory = !activeCategory || activeCategory === 'all' || !activeCatObj ? true : isProductInCategory(p, activeCatObj)
 
     const matchesQuery = !q ||
       p.name?.toLowerCase().includes(q) ||
@@ -175,25 +178,136 @@ export default function ProductSearch({ onAddToCart }) {
     return matchesCategory && matchesQuery
   })
 
-  const lookupBarcode = code => products.find(p => p.barcode === code) || null
+  const lookupBarcode = code => {
+    if (!code) return null
+    const clean = String(code).trim().toLowerCase()
+    return products.find(p => p.barcode && String(p.barcode).trim().toLowerCase() === clean) || null
+  }
 
-  // Handle barcode scanner input (rapid keystrokes ending with Enter)
+  const lastKeyTimeRef = useRef(0)
+  const scanBufferRef = useRef('')
+  const isScanBurstRef = useRef(false)
+  const scanTimeoutRef = useRef(null)
+
+  const processScannedCode = (rawCode) => {
+    if (!rawCode) return false
+    const clean = String(rawCode).trim()
+    if (!clean) return false
+
+    // 1. Direct barcode match
+    let product = lookupBarcode(clean)
+
+    // 2. Direct SKU match
+    if (!product) {
+      product = products.find(p => p.sku && String(p.sku).trim().toLowerCase() === clean.toLowerCase())
+    }
+
+    // 3. Direct productCode match
+    if (!product) {
+      product = products.find(p => p.productCode && String(p.productCode).trim().toLowerCase() === clean.toLowerCase())
+    }
+
+    // 4. If only 1 product matches in current filtered list or exact name match
+    if (!product && filteredProducts.length === 1) {
+      product = filteredProducts[0]
+    } else if (!product && filteredProducts.length > 0) {
+      const exactMatch = filteredProducts.find(p => p.name.toLowerCase() === clean.toLowerCase())
+      if (exactMatch) product = exactMatch
+    }
+
+    if (product) {
+      handleAddProduct(product)
+      setQuery('')
+      if (searchRef.current) {
+        searchRef.current.value = ''
+        searchRef.current.focus()
+      }
+      isScanBurstRef.current = false
+      scanBufferRef.current = ''
+      return true
+    } else {
+      // Clear input and buffer even if no product was matched, ensuring next scan starts fresh
+      setQuery('')
+      if (searchRef.current) {
+        searchRef.current.value = ''
+        searchRef.current.focus()
+      }
+      isScanBurstRef.current = false
+      scanBufferRef.current = ''
+      return false
+    }
+  }
+
+  // Handle barcode scanner input on the main search bar
+  const handleSearchKeyDown = (e) => {
+    const now = performance.now()
+    const timeDiff = now - lastKeyTimeRef.current
+    lastKeyTimeRef.current = now
+
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      clearTimeout(scanTimeoutRef.current)
+
+      const codeToProcess = (isScanBurstRef.current && scanBufferRef.current.length >= 2
+        ? scanBufferRef.current
+        : (e.target.value || query)).trim()
+
+      isScanBurstRef.current = false
+      scanBufferRef.current = ''
+
+      if (codeToProcess) {
+        processScannedCode(codeToProcess)
+      }
+      return
+    }
+
+    // Hardware scanner character burst detection (< 60ms between characters)
+    if (e.key.length === 1) {
+      if (timeDiff > 120) {
+        // Gap > 120ms: First character of a new scan or manual typing
+        scanBufferRef.current = e.key
+        isScanBurstRef.current = false
+      } else {
+        // Gap <= 120ms: Rapid incoming keystrokes from scanner!
+        scanBufferRef.current += e.key
+        if (scanBufferRef.current.length >= 2) {
+          if (!isScanBurstRef.current) {
+            isScanBurstRef.current = true
+            // New scan has started: REPLACE existing query with this new scan!
+            setQuery(scanBufferRef.current)
+            if (searchRef.current) {
+              searchRef.current.value = scanBufferRef.current
+            }
+          }
+        }
+      }
+
+      // Fallback timer if scanner doesn't emit Enter key
+      clearTimeout(scanTimeoutRef.current)
+      scanTimeoutRef.current = setTimeout(() => {
+        if (isScanBurstRef.current && scanBufferRef.current.length >= 3) {
+          const code = scanBufferRef.current.trim()
+          processScannedCode(code)
+        }
+        isScanBurstRef.current = false
+        scanBufferRef.current = ''
+      }, 70)
+    }
+  }
+
+  // Dedicated scan mode input handler
   const handleBarcodeKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       const barcode = barcodeBuffer.current.trim() || e.target.value.trim()
       if (barcode) {
-        const product = lookupBarcode(barcode)
-        if (product) {
-          handleAddProduct(product)
-        }
+        processScannedCode(barcode)
       }
       barcodeBuffer.current = ''
       e.target.value = ''
       return
     }
 
-    // Buffer rapid input from scanner
     clearTimeout(barcodeTimer.current)
     barcodeBuffer.current += e.key.length === 1 ? e.key : ''
     barcodeTimer.current = setTimeout(() => {
@@ -201,17 +315,79 @@ export default function ProductSearch({ onAddToCart }) {
     }, 200)
   }
 
+  // Global listener: capture barcode scans even if focus is not in the search input
+  useEffect(() => {
+    let globalBuffer = ''
+    let lastGlobalKeyTime = 0
+    let globalTimer = null
+
+    const handleGlobalKeyDown = (e) => {
+      const activeEl = document.activeElement
+      const isSearchInput = activeEl === searchRef.current || activeEl?.id === 'pos-search' || activeEl === barcodeRef.current
+      const isOtherInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT') && !isSearchInput
+
+      // Don't intercept when user is typing in forms/modals
+      if (isOtherInput) return
+
+      const now = performance.now()
+      const diff = now - lastGlobalKeyTime
+      lastGlobalKeyTime = now
+
+      if (e.key === 'Enter') {
+        if (globalBuffer.length >= 3 && diff < 80) {
+          e.preventDefault()
+          const code = globalBuffer.trim()
+          globalBuffer = ''
+          processScannedCode(code)
+          return
+        }
+        globalBuffer = ''
+        return
+      }
+
+      if (e.key.length === 1) {
+        if (diff > 100) {
+          globalBuffer = e.key
+        } else {
+          globalBuffer += e.key
+        }
+
+        clearTimeout(globalTimer)
+        globalTimer = setTimeout(() => {
+          if (globalBuffer.length >= 4 && !isSearchInput) {
+            const code = globalBuffer.trim()
+            processScannedCode(code)
+          }
+          globalBuffer = ''
+        }, 80)
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [products, filteredProducts])
+
   const handleAddProduct = (product) => {
+    setAddingId(product.id)
     onAddToCart({
       ...product,
       rate: product.rate ?? product.price,
       price: product.rate ?? product.price,
-      mrp: product.mrp ?? product.rate ?? product.price,
+      mrp: (product.mrp && Number(product.mrp) > 0) ? Number(product.mrp) : null,
       quantity: product.quantity ?? (product.isLoose ? 1 : 1),
       itemDiscount: 0,
     })
     setAddedId(product.id)
-    setTimeout(() => setAddedId(null), 600)
+    setTimeout(() => {
+      setAddingId(null)
+      setTimeout(() => setAddedId(null), 600)
+    }, 150)
+    // Clear query and refocus so next scan or search starts fresh
+    setQuery('')
+    if (searchRef.current) {
+      searchRef.current.value = ''
+      searchRef.current.focus()
+    }
   }
 
   const handleAddLooseItem = (e) => {
@@ -227,7 +403,7 @@ export default function ProductSearch({ onAddToCart }) {
       brand: 'Loose Item',
       price: parsedPrice,
       rate: parsedPrice,
-      mrp: parsedPrice,
+      mrp: null,
       gstRate: 0,
       category: 'loose',
       unit: looseUnit,
@@ -244,6 +420,11 @@ export default function ProductSearch({ onAddToCart }) {
     setLooseQty('')
     setLooseUnit('kg')
     setShowLooseForm(false)
+    setQuery('')
+    if (searchRef.current) {
+      searchRef.current.value = ''
+      searchRef.current.focus()
+    }
   }
 
   return (
@@ -254,17 +435,37 @@ export default function ProductSearch({ onAddToCart }) {
           {/* Search Input */}
           <div className={`relative flex-1 ${barcodeMode ? 'hidden sm:block' : ''}`}>
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-              <SearchIcon />
+              {isAnyLoading ? (
+                <svg className="animate-spin w-5 h-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+              ) : (
+                <SearchIcon />
+              )}
             </span>
             <input
               ref={searchRef}
               type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search product name, brand, barcode..."
-              className="w-full pl-11 pr-16 py-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 text-base transition-all"
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                if (isScanBurstRef.current && scanBufferRef.current) {
+                  setQuery(scanBufferRef.current)
+                } else {
+                  setQuery(e.target.value)
+                }
+              }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder={isAnyLoading && products.length === 0 ? "Loading products... सामान लोड हो रहा है..." : "Search product name, brand, barcode..."}
+              className="w-full pl-11 pr-24 py-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 text-base transition-all"
               id="pos-search"
             />
+            {isAnyLoading && (
+              <span className="absolute right-12 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 animate-pulse hidden sm:inline">
+                Loading...
+              </span>
+            )}
             <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-500 bg-slate-700/60 px-1.5 py-0.5 rounded border border-slate-600/40">
               F1
             </kbd>
@@ -379,58 +580,60 @@ export default function ProductSearch({ onAddToCart }) {
       </div>
 
       {/* ─── Category Boxes ────────────────────────────── */}
-      <div className="px-4 py-3 border-b border-slate-800/60 bg-slate-950/30">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Categories</span>
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
-              {categories.length} total
-            </span>
-          </div>
-          {activeCategory !== 'all' && (
-            <button
-              onClick={() => setActiveCategory('all')}
-              className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
-            >
-              <span>Reset to All</span>
-              <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded">✕</span>
-            </button>
-          )}
-        </div>
-
-        <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
-          {categories.map(cat => {
-            const count = getCategoryCount(cat)
-            const isActive = activeCategory === cat.id || (cat.slug && activeCategory === cat.slug)
-
-            return (
+      {categories.length > 0 && (
+        <div className="px-4 py-3 border-b border-slate-800/60 bg-slate-950/30">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Categories</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                {categories.length}
+              </span>
+            </div>
+            {activeCategory && activeCategory !== 'all' && (
               <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-left transition-all duration-150 flex-shrink-0 cursor-pointer group
-                  ${isActive
-                    ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/15 border-emerald-500/60 text-emerald-300 shadow-md shadow-emerald-950/50 ring-1 ring-emerald-500/30'
-                    : 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600 hover:text-white'
-                  }
-                `}
-                id={`category-box-${cat.id}`}
+                onClick={() => setActiveCategory(null)}
+                className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 cursor-pointer"
               >
-                <div className={`p-2 rounded-lg transition-colors
-                  ${isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/50 text-slate-400 group-hover:text-slate-200'}
-                `}>
-                  <CategoryIcon categoryId={cat.slug || cat.id} className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold truncate capitalize leading-tight">{cat.name}</p>
-                  <p className={`text-[10px] tabular-nums mt-0.5 ${isActive ? 'text-emerald-400/80 font-medium' : 'text-slate-500'}`}>
-                    {count} {count === 1 ? 'item' : 'items'}
-                  </p>
-                </div>
+                <span>Clear filter</span>
+                <span className="text-[10px] bg-emerald-500/20 px-1.5 py-0.2 rounded">✕</span>
               </button>
-            )
-          })}
+            )}
+          </div>
+
+          <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
+            {categories.map(cat => {
+              const count = getCategoryCount(cat)
+              const isActive = Boolean(activeCategory && (activeCategory === cat.id || (cat.slug && activeCategory === cat.slug)))
+
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(prev => prev === cat.id ? null : cat.id)}
+                  className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-left transition-all duration-150 flex-shrink-0 cursor-pointer group
+                    ${isActive
+                      ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/15 border-emerald-500/60 text-emerald-300 shadow-md shadow-emerald-950/50 ring-1 ring-emerald-500/30'
+                      : 'bg-slate-800/50 border-slate-700/60 text-slate-300 hover:bg-slate-800 hover:border-slate-600 hover:text-white'
+                    }
+                  `}
+                  id={`category-box-${cat.id}`}
+                >
+                  <div className={`p-2 rounded-lg transition-colors
+                    ${isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/50 text-slate-400 group-hover:text-slate-200'}
+                  `}>
+                    <CategoryIcon categoryId={cat.slug || cat.id} className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold truncate capitalize leading-tight">{cat.name}</p>
+                    <p className={`text-[10px] tabular-nums mt-0.5 ${isActive ? 'text-emerald-400/80 font-medium' : 'text-slate-500'}`}>
+                      {count} {count === 1 ? 'item' : 'items'}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ─── Product Grid ──────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
@@ -440,8 +643,67 @@ export default function ProductSearch({ onAddToCart }) {
             <button type="button" onClick={() => setReloadKey(key => key + 1)} className="mt-2 underline font-semibold cursor-pointer">Retry loading</button>
           </div>
         )}
-        {loading && products.length === 0 ? (
-          <p role="status" className="p-8 text-center text-slate-400">Loading products...</p>
+        {/* Sync progress banner if products already loaded */}
+        {isAnyLoading && products.length > 0 && (
+          <div className="mb-3 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-slate-900/60 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-300 shadow-sm animate-pulse">
+            <div className="flex items-center gap-2">
+              <svg className="animate-spin h-3.5 w-3.5 text-emerald-400 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+              <span className="font-semibold">Loading product updates... (सामान अपडेट हो रहा है)</span>
+            </div>
+            <span className="text-[11px] text-slate-400 font-medium">{products.length} products</span>
+          </div>
+        )}
+
+        {isAnyLoading && products.length === 0 ? (
+          <div className="py-8 px-2 flex flex-col items-center justify-center text-center animate-fadeIn">
+            {/* Pulsing Glowing Spinner */}
+            <div className="relative mb-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-950/40">
+                <svg className="animate-spin h-7 w-7 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+              </div>
+              <div className="absolute -inset-1.5 rounded-2xl bg-emerald-500/15 blur-sm -z-10 animate-pulse"></div>
+            </div>
+
+            <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+              Loading Products...
+              <span className="text-[11px] font-medium text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                सामान लोड हो रहा है
+              </span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm">
+              Please wait while product catalog, prices, and stock are loaded...
+            </p>
+
+            {/* Skeleton Grid */}
+            <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 mt-6">
+              {[...Array(8)].map((_, i) => (
+                <div
+                  key={i}
+                  className="p-3.5 rounded-xl border border-slate-800/80 bg-slate-900/60 flex flex-col justify-between h-44 animate-pulse"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between items-center">
+                      <div className="h-3.5 w-16 bg-slate-800 rounded"></div>
+                      <div className="h-3 w-12 bg-slate-800/60 rounded"></div>
+                    </div>
+                    <div className="h-4 w-5/6 bg-slate-800 rounded"></div>
+                    <div className="h-3 w-3/5 bg-slate-800/50 rounded"></div>
+                    <div className="h-5 w-20 bg-slate-800 rounded mt-2"></div>
+                  </div>
+                  <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                    <div className="h-4 w-16 bg-slate-800/60 rounded-full"></div>
+                    <div className="h-7 w-7 bg-slate-800 rounded-lg"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="text-slate-600 mb-4 opacity-50">
@@ -471,10 +733,22 @@ export default function ProductSearch({ onAddToCart }) {
                   id={`product-${product.id}`}
                   title="Click to view details (Name, Brand, Stock)"
                 >
+                  {/* Adding micro-loader overlay */}
+                  {addingId === product.id && (
+                    <div className="absolute inset-0 rounded-xl bg-slate-950/75 backdrop-blur-[2px] flex flex-col items-center justify-center z-10 animate-fadeIn">
+                      <svg className="animate-spin h-6 w-6 text-emerald-400 mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                      </svg>
+                      <span className="text-[11px] font-bold text-emerald-300">Adding...</span>
+                    </div>
+                  )}
+
                   {/* Added animation overlay */}
-                  {addedId === product.id && (
-                    <div className="absolute inset-0 rounded-xl bg-emerald-500/10 flex items-center justify-center z-10">
+                  {addedId === product.id && addingId !== product.id && (
+                    <div className="absolute inset-0 rounded-xl bg-emerald-500/15 backdrop-blur-[1px] flex flex-col items-center justify-center z-10 animate-scaleIn">
                       <span className="text-emerald-400 text-2xl font-bold">✓</span>
+                      <span className="text-[11px] font-bold text-emerald-300">Added!</span>
                     </div>
                   )}
 
@@ -545,7 +819,14 @@ export default function ProductSearch({ onAddToCart }) {
                       title="Quick Add 1 Unit"
                       aria-label={`Add ${product.name} to cart`}
                     >
-                      <FaPlus className="w-3.5 h-3.5" />
+                      {addingId === product.id ? (
+                        <svg className="animate-spin w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                      ) : (
+                        <FaPlus className="w-3.5 h-3.5" />
+                      )}
                     </button>
                   </div>
                 </div>

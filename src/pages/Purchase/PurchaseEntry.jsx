@@ -90,12 +90,13 @@ export default function PurchaseEntry() {
 
   const calculateItem = (item) => {
     const amount = item.quantity * item.purchasePrice;
-    const gstAmount = (amount * item.gst) / 100;
+    const gstRate = Number(item.gst || 0);
+    const gstAmount = gstRate > 0 ? (amount - amount / (1 + gstRate / 100)) : 0;
 
     return {
       amount,
       gstAmount,
-      total: amount + gstAmount,
+      total: amount,
     };
   };
 
@@ -147,7 +148,35 @@ export default function PurchaseEntry() {
       return;
     }
 
-    try{const supplierRow=remoteSuppliers.find(s=>s.companyName===supplier||s.id===supplier);if(!supplierRow)throw new Error('Select a valid supplier');const rpcItems=items.map(item=>{const p=remoteProducts.find(x=>x.name===item.product||x.id===item.product);if(!p)throw new Error(`Product not found: ${item.product}`);return{product_id:p.id,quantity:Number(item.quantity),unit_price:Number(item.purchasePrice),tax_rate:Number(item.gst)}});await completePurchase({supplier_id:supplierRow.id,supplier_invoice_number:billNo||null,purchase_date:purchaseDate,amount_paid:paymentMode==='Credit'?0:totals.total,payment_method:paymentMode,payment_reference:utrNo,notes},rpcItems);alert('Purchase saved successfully!');navigate('/purchase/history')}catch(error){alert(error.message)}
+    try{
+      const supplierRow = remoteSuppliers.find(s => s.companyName === supplier || s.id === supplier);
+      if (!supplierRow) throw new Error('Select a valid supplier');
+      const rpcItems = items.map(item => {
+        const p = remoteProducts.find(x => x.name === item.product || x.id === item.product);
+        if (!p) throw new Error(`Product not found: ${item.product}`);
+        const gst = Number(item.gst || 0);
+        const basePrice = gst > 0 ? (Number(item.purchasePrice) / (1 + gst / 100)) : Number(item.purchasePrice);
+        return {
+          product_id: p.id,
+          quantity: Number(item.quantity),
+          unit_price: basePrice,
+          tax_rate: gst
+        };
+      });
+      await completePurchase({
+        supplier_id: supplierRow.id,
+        supplier_invoice_number: billNo || null,
+        purchase_date: purchaseDate,
+        amount_paid: paymentMode === 'Credit' ? 0 : totals.total,
+        payment_method: paymentMode,
+        payment_reference: utrNo,
+        notes
+      }, rpcItems);
+      alert('Purchase saved successfully!');
+      navigate('/purchase/history');
+    } catch(error){
+      alert(error.message);
+    }
   };
 
   return (
@@ -427,7 +456,6 @@ export default function PurchaseEntry() {
 
               <div className="space-y-4">
                 <SummaryRow label="Subtotal" value={totals.subtotal} />
-                <SummaryRow label="GST" value={totals.gst} />
                 <SummaryRow
                   label="Total Items"
                   value={items.length}
@@ -485,15 +513,8 @@ export default function PurchaseEntry() {
                 <strong>Purchase Price:</strong> ₹{selectedItem.purchasePrice}
               </p>
               <p>
-                <strong>GST Rate:</strong> {selectedItem.gst}%
-              </p>
-              <p>
                 <strong>Amount:</strong> ₹
                 {calculateItem(selectedItem).amount.toFixed(2)}
-              </p>
-              <p>
-                <strong>GST Amount:</strong> ₹
-                {calculateItem(selectedItem).gstAmount.toFixed(2)}
               </p>
               <p className="font-bold text-emerald-600 dark:text-emerald-400">
                 <strong>Total:</strong> ₹
@@ -568,25 +589,7 @@ export default function PurchaseEntry() {
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium">GST %</label>
-                <select
-                  value={selectedItem.gst}
-                  onChange={(e) =>
-                    setSelectedItem((prev) => ({
-                      ...prev,
-                      gst: Number(e.target.value),
-                    }))
-                  }
-                  className="input-field"
-                >
-                  <option value="0">0%</option>
-                  <option value="5">5%</option>
-                  <option value="12">12%</option>
-                  <option value="18">18%</option>
-                  <option value="28">28%</option>
-                </select>
-              </div>
+
             </div>
 
             <div className="mt-6 flex gap-3">

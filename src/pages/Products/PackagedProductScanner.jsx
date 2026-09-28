@@ -92,10 +92,6 @@ function playAudioFeedback(type = 'success', enabled = true) {
 
 export default function PackagedProductScanner() {
   const { role } = useAuth()
-  if (role === 'cashier') {
-    return <Navigate to="/pos" replace />
-  }
-
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const initialBarcodeFromUrl = searchParams.get('barcode') || ''
@@ -380,15 +376,17 @@ export default function PackagedProductScanner() {
     if (!formData.purchasePrice || Number(formData.purchasePrice) <= 0) {
       errs.purchasePrice = 'Enter valid purchase price (₹)'
     }
-    if (!formData.mrp || Number(formData.mrp) <= 0) {
-      errs.mrp = 'Enter valid MRP (₹)'
+    if (formData.mrp !== '' && formData.mrp !== null && formData.mrp !== undefined) {
+      const mrpNum = Number(formData.mrp)
+      if (isNaN(mrpNum) || mrpNum <= 0) {
+        errs.mrp = 'Enter valid MRP or leave blank'
+      } else if (formData.rate && Number(formData.rate) > mrpNum) {
+        errs.rate = 'Rate cannot exceed MRP'
+      }
     }
     if (!formData.rate || Number(formData.rate) <= 0) {
       errs.rate = 'Enter valid Rate (Our Price) (₹)'
     } else {
-      if (formData.mrp && Number(formData.rate) > Number(formData.mrp)) {
-        errs.rate = 'Rate cannot exceed MRP'
-      }
       if (formData.purchasePrice && Number(formData.rate) < Number(formData.purchasePrice)) {
         errs.rate = 'Rate should be ≥ purchase price'
       }
@@ -410,6 +408,9 @@ export default function PackagedProductScanner() {
     setIsSaving(true)
 
     try {
+      const hasManualMrp = formData.mrp !== '' && formData.mrp !== null && formData.mrp !== undefined && !isNaN(Number(formData.mrp)) && Number(formData.mrp) > 0
+      const cleanMrp = hasManualMrp ? Number(formData.mrp) : null
+
       // Structure payload matching existing database schema
       const payload = {
         name: formData.name.trim(),
@@ -422,7 +423,7 @@ export default function PackagedProductScanner() {
         barcode: barcodeInput.trim(),
         sku: generateNextSKU(),
         purchasePrice: Number(formData.purchasePrice),
-        mrp: Number(formData.mrp),
+        mrp: cleanMrp,
         rate: Number(formData.rate),
         sellingPrice: Number(formData.rate), // Kept for 100% database & backend compatibility
         gstRate: Number(formData.gstRate),
@@ -435,7 +436,7 @@ export default function PackagedProductScanner() {
           scanned_entry: true,
           added_via: 'packaged_product_scanner',
           external_source: fetchedMetadata?.source || null,
-          mrp: Number(formData.mrp),
+          ...(cleanMrp !== null ? { mrp: cleanMrp } : {}),
           rate: Number(formData.rate),
         },
       }
@@ -486,7 +487,7 @@ export default function PackagedProductScanner() {
   const rateNum = Number(formData.rate) || 0
   const profitAmt = rateNum > 0 ? rateNum - purchaseNum : 0
   const marginPct = rateNum > 0 && profitAmt > 0 ? ((profitAmt / rateNum) * 100).toFixed(1) : '0'
-  const customerSavings = mrpNum > rateNum && rateNum > 0 ? mrpNum - rateNum : 0
+  const customerSavings = mrpNum > 0 && mrpNum > rateNum && rateNum > 0 ? mrpNum - rateNum : 0
   const savingsPct = mrpNum > 0 && customerSavings > 0 ? ((customerSavings / mrpNum) * 100).toFixed(1) : '0'
 
   // Quick preset samples for demo / testing
@@ -557,6 +558,10 @@ export default function PackagedProductScanner() {
       streamRef.current = null
     }
     setShowCameraScanner(false)
+  }
+
+  if (role === 'cashier') {
+    return <Navigate to="/pos" replace />
   }
 
   return (
@@ -850,7 +855,7 @@ export default function PackagedProductScanner() {
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400">MRP:</span>
                 <span className="font-semibold text-slate-300">
-                  {formatINR(existingProduct.mrp ?? existingProduct.rate ?? existingProduct.sellingPrice)}
+                  {existingProduct.mrp && Number(existingProduct.mrp) > 0 ? formatINR(existingProduct.mrp) : '—'}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
@@ -1145,7 +1150,7 @@ export default function PackagedProductScanner() {
                   {/* 2. MRP */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-slate-300">
-                      2. MRP (₹) <span className="text-rose-400">*</span>
+                      2. MRP (₹) <span className="text-slate-400 font-normal text-xs">(Optional)</span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">
@@ -1156,7 +1161,7 @@ export default function PackagedProductScanner() {
                         step="0.01"
                         value={formData.mrp}
                         onChange={(e) => handleInputChange('mrp', e.target.value)}
-                        placeholder="0.00"
+                        placeholder="Optional"
                         className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${
                           formErrors.mrp ? 'border-rose-500' : 'border-slate-700'
                         }`}
@@ -1234,8 +1239,8 @@ export default function PackagedProductScanner() {
                 )}
               </div>
 
-              {/* Stock & Tax Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Stock Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Initial Opening Stock */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
@@ -1264,24 +1269,6 @@ export default function PackagedProductScanner() {
                     placeholder="10"
                     className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all"
                   />
-                </div>
-
-                {/* GST Rate */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                    GST Rate (%)
-                  </label>
-                  <select
-                    value={formData.gstRate}
-                    onChange={(e) => handleInputChange('gstRate', e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all cursor-pointer"
-                  >
-                    {gstOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
@@ -1362,8 +1349,8 @@ export default function PackagedProductScanner() {
                     </td>
                     <td className="py-2.5 px-3 text-slate-300">{item.brand}</td>
                     <td className="py-2.5 px-3 font-mono text-emerald-400">{item.barcode}</td>
-                    <td className="py-2.5 px-3 text-right text-slate-400 line-through">
-                      {formatINR(item.mrp ?? item.rate ?? item.sellingPrice)}
+                    <td className="py-2.5 px-3 text-right text-slate-400">
+                      {item.mrp && Number(item.mrp) > 0 ? formatINR(item.mrp) : '—'}
                     </td>
                     <td className="py-2.5 px-3 text-right font-bold text-emerald-400">
                       {formatINR(item.rate ?? item.sellingPrice)}

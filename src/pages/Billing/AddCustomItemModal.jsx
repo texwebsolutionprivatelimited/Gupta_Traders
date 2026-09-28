@@ -120,42 +120,23 @@ export default function AddCustomItemModal({ isOpen = true, onClose, onAddToCart
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Unit Type
-              </label>
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-full px-3 py-2 sm:py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm text-slate-900 dark:text-slate-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
-              >
-                <option value="Pcs">Pcs (नग)</option>
-                <option value="kg">Kg (किलोग्राम)</option>
-                <option value="g">Gram (ग्राम)</option>
-                <option value="Meter">Meter (मीटर)</option>
-                <option value="Ltr">Liter (लीटर)</option>
-                <option value="Packet">Packet (पैकेट)</option>
-                <option value="Box">Box (डिब्बा)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                GST Rate (%)
-              </label>
-              <select
-                value={gstRate}
-                onChange={(e) => setGstRate(e.target.value)}
-                className="w-full px-3 py-2 sm:py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm text-slate-900 dark:text-slate-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
-              >
-                <option value={0}>0% (Exempted)</option>
-                <option value={5}>5%</option>
-                <option value={12}>12%</option>
-                <option value={18}>18%</option>
-                <option value={28}>28%</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Unit Type
+            </label>
+            <select
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              className="w-full px-3 py-2 sm:py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm text-slate-900 dark:text-slate-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+            >
+              <option value="Pcs">Pcs (नग)</option>
+              <option value="kg">Kg (किलोग्राम)</option>
+              <option value="g">Gram (ग्राम)</option>
+              <option value="Meter">Meter (मीटर)</option>
+              <option value="Ltr">Liter (लीटर)</option>
+              <option value="Packet">Packet (पैकेट)</option>
+              <option value="Box">Box (डिब्बा)</option>
+            </select>
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">

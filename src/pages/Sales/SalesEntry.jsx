@@ -90,12 +90,13 @@ export default function SalesEntry() {
 
   const calculateItem = (item) => {
     const amount = item.quantity * item.salesPrice;
-    const gstAmount = (amount * item.gst) / 100;
+    const gstRate = Number(item.gst || 0);
+    const gstAmount = gstRate > 0 ? (amount - amount / (1 + gstRate / 100)) : 0;
 
     return {
       amount,
       gstAmount,
-      total: amount + gstAmount,
+      total: amount,
     };
   };
 
@@ -147,7 +148,7 @@ export default function SalesEntry() {
       return;
     }
 
-    try{const customerRow=remoteCustomers.find(c=>c.name===customer||c.id===customer);const rpcItems=items.map(item=>{const p=remoteProducts.find(x=>x.name===item.product||x.id===item.product);if(!p)throw new Error(`Product not found: ${item.product}`);return{product_id:p.id,quantity:Number(item.quantity),unit_price:Number(item.salesPrice),tax_rate:Number(item.gst)}});await completeSale({invoice_number:invoiceNo||undefined,sale_date:invoiceDate,customer_id:customerRow?.id||null,amount_paid:paymentMode==='Credit'?0:totals.total,payment_method:paymentMode,payment_reference:utrNo,notes},rpcItems);alert('Sale saved successfully!');navigate('/sales/history')}catch(error){alert(error.message)}
+    try{const customerRow=remoteCustomers.find(c=>c.name===customer||c.id===customer);const rpcItems=items.map(item=>{const p=remoteProducts.find(x=>x.name===item.product||x.id===item.product);if(!p)throw new Error(`Product not found: ${item.product}`);const gst=Number(item.gst||0);const basePrice=gst>0?(Number(item.salesPrice)/(1+gst/100)):Number(item.salesPrice);return{product_id:p.id,quantity:Number(item.quantity),unit_price:basePrice,tax_rate:gst,display_price:Number(item.salesPrice),is_gst_inclusive:true}});await completeSale({invoice_number:invoiceNo||undefined,sale_date:invoiceDate,customer_id:customerRow?.id||null,amount_paid:paymentMode==='Credit'?0:totals.total,payment_method:paymentMode,payment_reference:utrNo,notes},rpcItems);alert('Sale saved successfully!');navigate('/sales/history')}catch(error){alert(error.message)}
   };
 
   return (
@@ -429,7 +430,6 @@ export default function SalesEntry() {
 
               <div className="space-y-4">
                 <SummaryRow label="Subtotal" value={totals.subtotal} />
-                <SummaryRow label="GST" value={totals.gst} />
                 <SummaryRow
                   label="Total Items"
                   value={items.length}
@@ -487,15 +487,8 @@ export default function SalesEntry() {
                 <strong>Sales Price:</strong> ₹{selectedItem.salesPrice}
               </p>
               <p>
-                <strong>GST Rate:</strong> {selectedItem.gst}%
-              </p>
-              <p>
                 <strong>Amount:</strong> ₹
                 {calculateItem(selectedItem).amount.toFixed(2)}
-              </p>
-              <p>
-                <strong>GST Amount:</strong> ₹
-                {calculateItem(selectedItem).gstAmount.toFixed(2)}
               </p>
               <p className="font-bold text-emerald-600 dark:text-emerald-400">
                 <strong>Total:</strong> ₹
@@ -570,25 +563,7 @@ export default function SalesEntry() {
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium">GST %</label>
-                <select
-                  value={selectedItem.gst}
-                  onChange={(e) =>
-                    setSelectedItem((prev) => ({
-                      ...prev,
-                      gst: Number(e.target.value),
-                    }))
-                  }
-                  className="input-field"
-                >
-                  <option value="0">0%</option>
-                  <option value="5">5%</option>
-                  <option value="12">12%</option>
-                  <option value="18">18%</option>
-                  <option value="28">28%</option>
-                </select>
-              </div>
+
             </div>
 
             <div className="mt-6 flex gap-3">

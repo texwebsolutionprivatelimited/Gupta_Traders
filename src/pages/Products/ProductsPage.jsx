@@ -256,7 +256,7 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
   const initialForm = isEditing ? {
     ...defaultForm,
     ...product,
-    mrp: product.mrp !== undefined && product.mrp !== null ? product.mrp : (product.sellingPrice || ''),
+    mrp: product.mrp !== undefined && product.mrp !== null && product.mrp !== '' && Number(product.mrp) > 0 ? String(product.mrp) : '',
     rate: product.rate !== undefined && product.rate !== null ? product.rate : (product.sellingPrice || ''),
   } : defaultForm
 
@@ -305,9 +305,15 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
     if (!form.name.trim()) newErrors.name = 'Product name is required'
     if (type === 'packaged' && !form.brand.trim()) newErrors.brand = 'Brand is required'
     if (!form.purchasePrice || Number(form.purchasePrice) <= 0) newErrors.purchasePrice = 'Enter valid purchase price'
-    if (!form.mrp || Number(form.mrp) <= 0) newErrors.mrp = 'Enter valid MRP'
+    if (form.mrp !== '' && form.mrp !== null && form.mrp !== undefined) {
+      const mrpNum = Number(form.mrp)
+      if (isNaN(mrpNum) || mrpNum <= 0) {
+        newErrors.mrp = 'Enter valid MRP or leave blank'
+      } else if (Number(form.rate) > mrpNum) {
+        newErrors.rate = 'Rate (Our Price) cannot exceed MRP'
+      }
+    }
     if (!form.rate || Number(form.rate) <= 0) newErrors.rate = 'Enter valid Rate (Our Price)'
-    if (Number(form.rate) > Number(form.mrp)) newErrors.rate = 'Rate (Our Price) cannot exceed MRP'
     if (Number(form.rate) < Number(form.purchasePrice)) newErrors.rate = 'Rate should be ≥ purchase price'
     if (!form.currentStock && form.currentStock !== 0) newErrors.currentStock = 'Enter current stock'
     setErrors(newErrors)
@@ -323,7 +329,8 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
       return
     }
     const cleanRate = Number(form.rate)
-    const cleanMrp = Number(form.mrp)
+    const hasManualMrp = form.mrp !== '' && form.mrp !== null && form.mrp !== undefined && !isNaN(Number(form.mrp)) && Number(form.mrp) > 0
+    const cleanMrp = hasManualMrp ? Number(form.mrp) : null
     const cleanPurchase = Number(form.purchasePrice)
     onSave({
       ...form,
@@ -345,7 +352,7 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
   const profit = form.purchasePrice && form.rate
     ? (Number(form.rate) - Number(form.purchasePrice)).toFixed(2)
     : null
-  const customerSavings = form.mrp && form.rate && Number(form.mrp) > Number(form.rate)
+  const customerSavings = form.mrp && Number(form.mrp) > 0 && form.rate && Number(form.mrp) > Number(form.rate)
     ? (Number(form.mrp) - Number(form.rate)).toFixed(2)
     : null
 
@@ -466,13 +473,12 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
                 helpText="Actual cost paid to purchase"
               />
               <Field
-                label="2. MRP"
+                label="2. MRP (Optional)"
                 field="mrp"
                 type="number"
-                placeholder="0.00"
+                placeholder="Optional"
                 prefix="₹"
-                required
-                helpText="Maximum Retail Price"
+                helpText="Maximum Retail Price (leave blank if not applicable)"
               />
               <Field
                 label="3. Rate (Our Price)"
@@ -485,42 +491,42 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 items-center">
-              <Field label="GST Rate" field="gstRate" options={gstOptions} />
+            {(profit !== null || customerSavings !== null) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 items-center">
+                {/* Profit indicator */}
+                {profit !== null && (
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${Number(profit) >= 0
+                      ? 'bg-emerald-500/15 text-emerald-400'
+                      : 'bg-rose-500/15 text-rose-400'
+                      }`}>
+                      {Number(profit) >= 0 ? '↑' : '↓'}
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-500 font-medium">Profit per unit</p>
+                      <p className={`text-sm font-bold ${Number(profit) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        ₹{profit}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-              {/* Profit indicator */}
-              {profit !== null && (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${Number(profit) >= 0
-                    ? 'bg-emerald-500/15 text-emerald-400'
-                    : 'bg-rose-500/15 text-rose-400'
-                    }`}>
-                    {Number(profit) >= 0 ? '↑' : '↓'}
+                {/* Customer Savings indicator */}
+                {customerSavings !== null && (
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold bg-cyan-500/15 text-cyan-400">
+                      🏷️
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-500 font-medium">Customer Savings</p>
+                      <p className="text-sm font-bold text-cyan-400">
+                        ₹{customerSavings} ({((Number(customerSavings) / Number(form.mrp)) * 100).toFixed(1)}% off)
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[11px] text-slate-500 font-medium">Profit per unit</p>
-                    <p className={`text-sm font-bold ${Number(profit) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      ₹{profit}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Customer Savings indicator */}
-              {customerSavings !== null && (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/40">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold bg-cyan-500/15 text-cyan-400">
-                    🏷️
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-slate-500 font-medium">Customer Savings</p>
-                    <p className="text-sm font-bold text-cyan-400">
-                      ₹{customerSavings} ({((Number(customerSavings) / Number(form.mrp)) * 100).toFixed(1)}% off)
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Section 4: Stock */}
@@ -618,9 +624,6 @@ function ProductCard({ product, type, onEdit, onDelete }) {
             {product.packSize}
           </span>
         )}
-        <span className="px-2.5 py-1 rounded-lg bg-violet-500/10 text-xs font-medium text-violet-400 border border-violet-500/20">
-          GST {product.gstRate}%
-        </span>
       </div>
 
       {/* Price row */}
@@ -631,7 +634,7 @@ function ProductCard({ product, type, onEdit, onDelete }) {
         </div>
         <div>
           <p className="text-[10px] text-slate-500 font-medium mb-0.5">MRP</p>
-          <p className="text-xs font-bold text-slate-400 line-through opacity-80">{formatINR(product.mrp || product.rate || product.sellingPrice)}</p>
+          <p className="text-xs font-bold text-slate-400 opacity-80">{product.mrp && Number(product.mrp) > 0 ? formatINR(product.mrp) : '—'}</p>
         </div>
         <div>
           <p className="text-[10px] text-slate-500 font-medium mb-0.5">Rate</p>
@@ -684,7 +687,6 @@ function ProductTable({ products, type, onEdit, onDelete }) {
               <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Purchase ₹</th>
               <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">MRP ₹</th>
               <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Rate (Our Price) ₹</th>
-              <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">GST</th>
               <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Stock</th>
               <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
             </tr>
@@ -728,16 +730,14 @@ function ProductTable({ products, type, onEdit, onDelete }) {
                     <span className="text-sm font-medium text-slate-300">{formatINR(product.purchasePrice)}</span>
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <span className="text-sm font-medium text-slate-400 line-through opacity-80">{formatINR(product.mrp || product.rate || product.sellingPrice)}</span>
+                    <span className="text-sm font-medium text-slate-400 opacity-80">
+                      {product.mrp && Number(product.mrp) > 0 ? formatINR(product.mrp) : '—'}
+                    </span>
                   </td>
                   <td className="py-3 px-4 text-right">
                     <span className="text-sm font-bold text-emerald-400">{formatINR(product.rate || product.sellingPrice)}</span>
                   </td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="px-2 py-0.5 rounded-md bg-violet-500/10 text-xs font-medium text-violet-400">
-                      {product.gstRate}%
-                    </span>
-                  </td>
+
                   <td className="py-3 px-4 text-center">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold ${isLowStock
                       ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
@@ -802,6 +802,7 @@ export default function ProductsPage() {
   const [allProducts, setAllProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -852,6 +853,7 @@ export default function ProductsPage() {
 
   // ─── Load products on tab/filter change ───────────────
   const loadProducts = async (query, tab, catFilter) => {
+    setLoading(true)
     try {
       const [results, rawCategories] = await Promise.all([
         listUIProducts({ search: query || '' }),
@@ -866,6 +868,7 @@ export default function ProductsPage() {
       setAllProducts(filtered)
       setProducts(tabResults)
     } catch(error) { setToast({ message: error.message, type: 'error' }) }
+    finally { setLoading(false) }
   }
 
   // Called from event handlers (after add/edit/delete)
@@ -1166,12 +1169,30 @@ export default function ProductsPage() {
 
       {/* ── Product List / Table ───────────────────── */}
       <div className="bg-slate-900/40 border border-slate-800/40 rounded-2xl p-4 sm:p-6">
-        <ProductTable
-          products={paginatedProducts}
-          type={activeTab}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
+        {loading && products.length === 0 ? (
+          <div className="py-16 text-center animate-fadeIn">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-950/40">
+              <svg className="animate-spin h-7 w-7 text-emerald-400" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+            </div>
+            <h3 className="text-base font-bold text-slate-100 flex items-center justify-center gap-2">
+              Loading Products...
+              <span className="text-xs font-normal text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                सामान लोड हो रहा है
+              </span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">Please wait while product catalog and stock are loaded...</p>
+          </div>
+        ) : (
+          <ProductTable
+            products={paginatedProducts}
+            type={activeTab}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        )}
 
         {/* ── Pagination Controls ───────────────────── */}
         {totalPages > 1 && (

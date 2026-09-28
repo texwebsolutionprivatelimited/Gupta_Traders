@@ -223,8 +223,8 @@ export default function SalesReturn() {
         const itemDiscount = Number(item.itemDiscount || 0);
 
         const lineNet = price * qty * (1 - itemDiscount / 100);
-        const lineTax = (lineNet * gstRate) / 100;
-        const lineTotal = lineNet + lineTax;
+        const lineTax = gstRate > 0 ? (lineNet - lineNet / (1 + gstRate / 100)) : 0;
+        const lineTotal = lineNet;
 
         subtotal += lineNet;
         gst += lineTax;
@@ -275,10 +275,9 @@ export default function SalesReturn() {
       const state = selectedItems[item.id];
       if (state?.selected && state.quantity > 0) {
         const price = Number(item.price || item.salesPrice || 0);
-        const gstRate = Number(item.gst || item.tax_rate || 0);
         const itemDiscount = Number(item.itemDiscount || 0);
         const lineNet = price * state.quantity * (1 - itemDiscount / 100);
-        const lineTotal = lineNet + (lineNet * gstRate) / 100;
+        const lineTotal = lineNet;
 
         returnItemsPayload.push({
           sale_item_id: item.id,
@@ -630,13 +629,12 @@ export default function SalesReturn() {
                         const available = item.returnableQuantity ?? item.quantity ?? 1;
                         const isFullyTakenBack = available <= 0;
                         const price = Number(item.price || item.salesPrice || 0);
-                        const gstRate = Number(item.gst || 0);
                         const discount = Number(item.itemDiscount || 0);
 
                         const currentQty = itemState.quantity || 0;
                         const lineRefund =
                           itemState.selected && currentQty > 0
-                            ? currentQty * price * (1 - discount / 100) * (1 + gstRate / 100)
+                            ? currentQty * price * (1 - discount / 100)
                             : 0;
 
                         return (
@@ -663,7 +661,7 @@ export default function SalesReturn() {
                                 {item.name || item.product}
                               </div>
                               <div className="text-xs text-slate-500">
-                                Unit: {item.unit || "Pcs"} • GST: {gstRate}%
+                                Unit: {item.unit || "Pcs"}
                                 {discount > 0 && ` • Disc: -${discount}%`}
                               </div>
                             </td>
@@ -828,15 +826,9 @@ export default function SalesReturn() {
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-500 dark:text-slate-400">
-                        <span>Taxable Subtotal Refund</span>
+                        <span>Refund Subtotal</span>
                         <span className="font-semibold text-slate-800 dark:text-slate-200">
                           {formatINR(refundTotals.subtotal)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-slate-500 dark:text-slate-400">
-                        <span>GST Refund</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">
-                          {formatINR(refundTotals.gst)}
                         </span>
                       </div>
 

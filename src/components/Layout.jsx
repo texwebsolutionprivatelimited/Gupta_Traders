@@ -4,6 +4,7 @@ import { formatINR } from '../utils/erp'
 import { listCategories, listUICustomers, listUIProducts, listUISales, listUISuppliers } from '../services/erpService'
 import Footer from './footer'
 import guptaTradersLogo from '../assets/gupta traders logo.png'
+import GSTReportModal from './GSTReportModal'
 import { useReport } from '../context/ReportContext'
 import { useExpense } from '../context/ExpenseContext'
 import { useAuth } from '../context/AuthContext'
@@ -452,7 +453,7 @@ function getAIAnswer(query, {products=[],suppliers=[],customers=[],bills=[]}={})
         icon: prod.type === 'packaged' ? '📦' : '⚖️',
         name: prod.name,
         lines: [
-          { label: 'Selling Price (MRP)', value: formatINR(prod.sellingPrice), color: 'text-emerald-400 font-bold' },
+          { label: 'Rate (Our Price)', value: formatINR(prod.rate || prod.sellingPrice), color: 'text-emerald-400 font-bold' },
           { label: 'Purchase Cost', value: formatINR(prod.purchasePrice), color: 'text-slate-400' },
           { label: 'Current Inventory', value: `${prod.currentStock} ${prod.unit}`, color: isLowStock ? 'text-rose-400 font-bold animate-pulse' : 'text-slate-200 font-semibold' },
           { label: 'Product Brand', value: prod.brand || 'General', color: 'text-blue-400' },
@@ -1051,6 +1052,7 @@ export default function Layout() {
   useEffect(()=>{Promise.all([listUICustomers(),listUISuppliers()]).then(([customers,suppliers])=>{setLayoutCustomers(customers);setLayoutSuppliers(suppliers)}).catch(console.error)},[])
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [gstModalOpen, setGstModalOpen] = useState(false)
   const exportMenuRef = useRef(null)
   const [historyType, setHistoryType] = useState('sales')
   const [timeframe, setTimeframe] = useState('weekly')
@@ -1255,7 +1257,7 @@ export default function Layout() {
         item.minStock || 0,
         item.unit || "-",
         '₹' + Number(item.purchasePrice || item.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
-        '₹' + Number(item.sellingPrice || item.mrp || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+        '₹' + Number(item.sellingPrice || item.rate || item.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
         item.gstRate !== undefined ? `${item.gstRate}%` : "0%"
       ])
 
@@ -1892,6 +1894,16 @@ export default function Layout() {
               </div>
             )}
 
+            {/* Dedicated GST Report & Export */}
+            <button
+              onClick={() => setGstModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 text-xs font-semibold transition-all cursor-pointer"
+              title="GST Report: CSV / PDF Export"
+            >
+              <FaBalanceScale className="text-xs" />
+              <span>GST: CSV / PDF</span>
+            </button>
+
             {/* Global Export Menu */}
             <div ref={exportMenuRef} className="relative">
               <button
@@ -2034,6 +2046,9 @@ export default function Layout() {
         {/* ── Footer ─────────────────────────────────────── */}
         <Footer />
       </div>
+
+      {/* Dedicated GST Report Modal */}
+      <GSTReportModal isOpen={gstModalOpen} onClose={() => setGstModalOpen(false)} />
     </div>
   )
 }

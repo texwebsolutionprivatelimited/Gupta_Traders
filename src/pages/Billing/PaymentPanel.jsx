@@ -2,13 +2,11 @@ import { useState } from 'react'
 import { formatINR, calculateBillSummary } from '../../utils/erp'
 import {
   FaTag as TagIcon,
-  FaChartBar as ChartIcon,
   FaPause as PauseIcon,
   FaClipboard as ClipboardIcon,
   FaPrint as PrinterIcon,
   FaMoneyBillWave as CashIcon,
   FaMobileAlt as PhoneIcon,
-  FaCreditCard as CreditCardIcon,
   FaCheckCircle as CheckCircleIcon,
 } from 'react-icons/fa'
 
@@ -18,18 +16,22 @@ export default function PaymentPanel({
   billDiscount,
   onBillDiscountChange,
   isGSTInclusive,
-  onToggleGSTMode,
   onCompleteSale,
   onHoldBill,
   heldBillsCount,
   onShowHeldBills,
   onShowReprint,
 }) {
-  const [paymentMode, setPaymentMode] = useState(null) // 'cash' | 'upi' | 'card'
+  const [paymentMode, setPaymentMode] = useState(null) // 'cash' | 'upi'
   const [amountTendered, setAmountTendered] = useState('')
   const [showDiscountInput, setShowDiscountInput] = useState(false)
   const [discountType, setDiscountType] = useState('flat') // 'flat' | 'percent'
   const [discountValue, setDiscountValue] = useState('')
+
+  // Cash + UPI Split Payment Modal State
+  const [showSplitModal, setShowSplitModal] = useState(false)
+  const [splitCash, setSplitCash] = useState('')
+  const [splitUpi, setSplitUpi] = useState('')
 
   const summary = calculateBillSummary(cartItems, billDiscount, isGSTInclusive)
   const canCheckout = cartItems.length > 0
@@ -89,6 +91,55 @@ export default function PaymentPanel({
     setAmountTendered('')
   }
 
+  const handleOpenSplitModal = () => {
+    if (!canCheckout) return
+    const total = summary.grandTotal
+    setSplitCash('')
+    setSplitUpi(String(total.toFixed(2)))
+    setShowSplitModal(true)
+  }
+
+  const handleCashChange = (val) => {
+    setSplitCash(val)
+    if (val === '') {
+      setSplitUpi(String(summary.grandTotal.toFixed(2)))
+      return
+    }
+    const num = parseFloat(val)
+    if (!isNaN(num)) {
+      const remaining = Math.max(0, Number((summary.grandTotal - num).toFixed(2)))
+      setSplitUpi(String(remaining))
+    }
+  }
+
+  const handleUpiChange = (val) => {
+    setSplitUpi(val)
+    if (val === '') {
+      setSplitCash(String(summary.grandTotal.toFixed(2)))
+      return
+    }
+    const num = parseFloat(val)
+    if (!isNaN(num)) {
+      const remaining = Math.max(0, Number((summary.grandTotal - num).toFixed(2)))
+      setSplitCash(String(remaining))
+    }
+  }
+
+  const handleConfirmSplit = (e) => {
+    if (e && e.preventDefault) e.preventDefault()
+    const cashNum = parseFloat(splitCash) || 0
+    const upiNum = parseFloat(splitUpi) || 0
+    const totalCollected = Number((cashNum + upiNum).toFixed(2))
+    if (totalCollected <= 0) return
+
+    onCompleteSale('cash_upi', totalCollected, {
+      cashAmount: cashNum,
+      upiAmount: upiNum,
+    })
+    setShowSplitModal(false)
+    setPaymentMode(null)
+  }
+
   return (
     <div className="flex flex-col border-t border-slate-700/60 bg-slate-900/80">
       {/* ─── Bill Summary ──────────────────────────── */}
@@ -98,19 +149,6 @@ export default function PaymentPanel({
           <span className="font-semibold text-slate-200">{formatINR(summary.subtotal)}</span>
         </div>
 
-        {/* GST Breakdown */}
-        {summary.totalGST > 0 && (
-          <>
-            <div className="flex justify-between text-slate-500 text-xs">
-              <span>{isGSTInclusive ? 'CGST (Included)' : 'CGST'}</span>
-              <span>{formatINR(summary.totalCGST)}</span>
-            </div>
-            <div className="flex justify-between text-slate-500 text-xs">
-              <span>{isGSTInclusive ? 'SGST (Included)' : 'SGST'}</span>
-              <span>{formatINR(summary.totalSGST)}</span>
-            </div>
-          </>
-        )}
 
         {/* Discount */}
         {summary.discountAmount > 0 && (
@@ -151,13 +189,6 @@ export default function PaymentPanel({
           <TagIcon className="w-4 h-4" /> {summary.discountAmount > 0 ? `Discount: -${formatINR(summary.discountAmount)}` : 'Add Discount'}
         </button>
 
-        {/* GST Toggle */}
-        <button
-          onClick={onToggleGSTMode}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all"
-        >
-          <ChartIcon className="w-4 h-4" /> GST: {isGSTInclusive ? 'Inclusive' : 'Exclusive'}
-        </button>
 
         {/* Hold Button */}
         <button
@@ -301,13 +332,18 @@ export default function PaymentPanel({
               <span className="text-[9px] text-violet-500/60">यूपीआई</span>
             </button>
             <button
-              onClick={() => setPaymentMode('card')}
+              onClick={handleOpenSplitModal}
               disabled={!canCheckout}
-              className="flex flex-col items-center gap-1 p-3 rounded-xl bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500/20 hover:border-blue-500/40 transition-all font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex flex-col items-center gap-1 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/40 transition-all font-semibold disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              title="Cash + UPI Split Payment"
             >
-              <CreditCardIcon className="w-6 h-6 text-blue-400" />
-              <span className="text-xs mt-1">Card</span>
-              <span className="text-[9px] text-blue-500/60">कार्ड</span>
+              <div className="flex items-center gap-1">
+                <CashIcon className="w-5 h-5 text-emerald-400" />
+                <span className="text-xs font-black text-cyan-300">+</span>
+                <PhoneIcon className="w-4 h-4 text-violet-400" />
+              </div>
+              <span className="text-xs mt-1 font-bold">Cash+UPI</span>
+              <span className="text-[9px] text-cyan-400/70">नकद + ऑनलाइन</span>
             </button>
           </div>
         ) : (
@@ -318,17 +354,15 @@ export default function PaymentPanel({
                 <span className="flex-shrink-0">
                   {paymentMode === 'cash' ? (
                     <CashIcon className="w-5 h-5 text-emerald-400" />
-                  ) : paymentMode === 'upi' ? (
-                    <PhoneIcon className="w-5 h-5 text-violet-400" />
                   ) : (
-                    <CreditCardIcon className="w-5 h-5 text-blue-400" />
+                    <PhoneIcon className="w-5 h-5 text-violet-400" />
                   )}
                 </span>
                 <span className="text-sm font-bold text-slate-200 capitalize">{paymentMode} Payment</span>
               </div>
               <button
                 onClick={() => setPaymentMode(null)}
-                className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1 rounded-lg hover:bg-slate-800/40 transition-all"
+                className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1 rounded-lg hover:bg-slate-800/40 transition-all cursor-pointer"
               >
                 ← Back
               </button>
@@ -356,14 +390,14 @@ export default function PaymentPanel({
                     <button
                       key={amt}
                       onClick={() => setAmountTendered(String(amt))}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/40 text-slate-300 text-xs font-medium hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-400 transition-all"
+                      className="px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/40 text-slate-300 text-xs font-medium hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-400 transition-all cursor-pointer"
                     >
                       ₹{amt}
                     </button>
                   ))}
                   <button
                     onClick={() => setAmountTendered(String(Math.ceil(summary.grandTotal)))}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition-all"
+                    className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition-all cursor-pointer"
                   >
                     Exact ₹{Math.ceil(summary.grandTotal)}
                   </button>
@@ -392,25 +426,14 @@ export default function PaymentPanel({
               </div>
             )}
 
-            {/* Card: Confirmation */}
-            {paymentMode === 'card' && (
-              <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 text-center space-y-2">
-                <p className="text-3xl font-black text-blue-300">{formatINR(summary.grandTotal)}</p>
-                <p className="text-sm text-blue-400">Has the card payment been approved?</p>
-                <p className="text-xs text-slate-500">क्या कार्ड पेमेंट स्वीकृत हुआ?</p>
-              </div>
-            )}
-
             {/* Complete Sale Button */}
             <button
               onClick={handlePayment}
               disabled={paymentMode === 'cash' && amountTendered && changeAmount < 0}
-              className={`w-full py-4 rounded-xl font-bold text-lg text-white transition-all shadow-lg active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2
+              className={`w-full py-4 rounded-xl font-bold text-lg text-white transition-all shadow-lg active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer
                 ${paymentMode === 'cash'
                   ? 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 shadow-emerald-500/20'
-                  : paymentMode === 'upi'
-                    ? 'bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 shadow-violet-500/20'
-                    : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-blue-500/20'
+                  : 'bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 shadow-violet-500/20'
                 }`}
             >
               <CheckCircleIcon className="w-6 h-6" /> Complete Sale — {formatINR(summary.grandTotal)}
@@ -418,6 +441,211 @@ export default function PaymentPanel({
           </div>
         )}
       </div>
+
+      {/* ─── Cash + UPI Split Payment Modal Popup ─────────────────── */}
+      {showSplitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowSplitModal(false)}>
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/70">
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-1 p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/25">
+                  <CashIcon className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-black text-cyan-300">+</span>
+                  <PhoneIcon className="w-3.5 h-3.5 text-violet-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Cash + UPI Split Payment</h3>
+                  <p className="text-[11px] text-slate-400">नकद और ऑनलाइन यूपीआई दोनों से भुगतान</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSplitModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmSplit} className="p-6 space-y-4">
+              {/* Grand Total Highlight */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-950 to-slate-900 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Payable</span>
+                  <p className="text-[11px] text-slate-500">कुल बिल राशि</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-black text-emerald-400 tabular-nums">
+                    {formatINR(summary.grandTotal)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Input 1: Cash Amount */}
+              <div className="space-y-1.5">
+                <label className="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <span className="flex items-center gap-1.5 text-emerald-400">
+                    <CashIcon className="w-4 h-4" /> 1. Cash Collected (नकद राशि)
+                  </span>
+                  <span className="text-[11px] font-normal text-slate-500">Cash received</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-base">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={splitCash}
+                    onChange={(e) => handleCashChange(e.target.value)}
+                    placeholder="0.00"
+                    autoFocus
+                    className="w-full pl-8 pr-4 py-3 rounded-xl bg-slate-950 border border-emerald-500/40 text-emerald-300 text-lg font-bold focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Input 2: Online / UPI Amount */}
+              <div className="space-y-1.5">
+                <label className="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <span className="flex items-center gap-1.5 text-violet-400">
+                    <PhoneIcon className="w-4 h-4" /> 2. Online / UPI Pay (ऑनलाइन / UPI)
+                  </span>
+                  <span className="text-[11px] font-normal text-slate-500">UPI paid</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-base">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={splitUpi}
+                    onChange={(e) => handleUpiChange(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-4 py-3 rounded-xl bg-slate-950 border border-violet-500/40 text-violet-300 text-lg font-bold focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-semibold text-slate-400">Quick Split Presets:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const half = Number((summary.grandTotal / 2).toFixed(2))
+                      setSplitCash(String(half))
+                      setSplitUpi(String(Number((summary.grandTotal - half).toFixed(2))))
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold cursor-pointer"
+                  >
+                    50% Cash / 50% UPI
+                  </button>
+                  {summary.grandTotal > 100 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSplitCash('100')
+                        setSplitUpi(String(Math.max(0, Number((summary.grandTotal - 100).toFixed(2)))))
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold cursor-pointer"
+                    >
+                      ₹100 Cash + Rest UPI
+                    </button>
+                  )}
+                  {summary.grandTotal > 500 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSplitCash('500')
+                        setSplitUpi(String(Math.max(0, Number((summary.grandTotal - 500).toFixed(2)))))
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold cursor-pointer"
+                    >
+                      ₹500 Cash + Rest UPI
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSplitCash(String(summary.grandTotal.toFixed(2)))
+                      setSplitUpi('0')
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold cursor-pointer"
+                  >
+                    All Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSplitCash('0')
+                      setSplitUpi(String(summary.grandTotal.toFixed(2)))
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold cursor-pointer"
+                  >
+                    All UPI
+                  </button>
+                </div>
+              </div>
+
+              {/* Live Summary Calculation & Match Indicator */}
+              {(() => {
+                const cashNum = parseFloat(splitCash) || 0
+                const upiNum = parseFloat(splitUpi) || 0
+                const totalCollected = Number((cashNum + upiNum).toFixed(2))
+                const diff = Number((totalCollected - summary.grandTotal).toFixed(2))
+
+                return (
+                  <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+                    <div className="flex justify-between text-xs text-slate-300 font-semibold">
+                      <span>Cash: ₹{cashNum.toFixed(2)} + UPI: ₹{upiNum.toFixed(2)}</span>
+                      <span className="text-slate-100 font-bold">Total: ₹{totalCollected.toFixed(2)}</span>
+                    </div>
+
+                    {diff === 0 && (
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
+                        <CheckCircleIcon className="w-3.5 h-3.5" />
+                        <span>Exact bill amount matched! (पूरा हिसाब बराबर)</span>
+                      </div>
+                    )}
+                    {diff > 0 && (
+                      <div className="flex items-center justify-between text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
+                        <span>Extra Cash Received (वापसी):</span>
+                        <span>Return Change: ₹{diff.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {diff < 0 && (
+                      <div className="flex items-center justify-between text-xs font-bold text-rose-400 bg-rose-500/10 px-3 py-1.5 rounded-xl border border-rose-500/20">
+                        <span>Shortfall (कम राशि):</span>
+                        <span>Short by: ₹{Math.abs(diff).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSplitModal(false)}
+                  className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all cursor-pointer"
+                >
+                  Cancel (रद्द करें)
+                </button>
+                <button
+                  type="submit"
+                  disabled={(parseFloat(splitCash) || 0) + (parseFloat(splitUpi) || 0) <= 0}
+                  className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm transition-all shadow-lg shadow-cyan-500/25 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CheckCircleIcon className="w-4 h-4" /> Confirm & Complete
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

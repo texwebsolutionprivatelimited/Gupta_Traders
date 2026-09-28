@@ -12,8 +12,9 @@ import {
 } from '../../utils/erp'
 import { completeSale as persistSale, deleteHeldBill as removeHeldBill, listHeldBills, listUICustomers, listUIProducts, saveHeldBill, subscribeToTable } from '../../services/erpService'
 import { useAuth } from '../../context/AuthContext'
-import { FaShoppingCart as CartIcon, FaPlus, FaBarcode, FaHistory } from 'react-icons/fa'
+import { FaShoppingCart as CartIcon, FaPlus, FaBarcode, FaHistory, FaBalanceScale } from 'react-icons/fa'
 import guptaTradersLogo from '../../assets/gupta traders logo.png'
+import GSTReportModal from '../../components/GSTReportModal'
 
 // ─── Main POS Billing Page ──────────────────────────────────────
 export default function POSBilling() {
@@ -23,7 +24,27 @@ export default function POSBilling() {
   const [cart, setCart] = useState([])
   const [productIndex,setProductIndex]=useState([])
   const [customerIndex,setCustomerIndex]=useState([])
-  useEffect(()=>{const load=()=>listUIProducts().then(rows=>setProductIndex(rows.map(p=>({...p,price:p.rate??p.sellingPrice,rate:p.rate??p.sellingPrice,mrp:p.mrp??p.rate??p.sellingPrice,stock:p.currentStock,isLoose:p.type==='loose'})))).catch(console.error);load();return subscribeToTable('products',load)},[])
+  const [isProductsLoading, setIsProductsLoading] = useState(true)
+
+  useEffect(() => {
+    setIsProductsLoading(true)
+    const load = () => listUIProducts().then(rows => {
+      setProductIndex(rows.map(p => ({
+        ...p,
+        price: p.rate ?? p.sellingPrice,
+        rate: p.rate ?? p.sellingPrice,
+        mrp: p.mrp ? Number(p.mrp) : null,
+        stock: p.currentStock,
+        isLoose: p.type === 'loose'
+      })))
+      setIsProductsLoading(false)
+    }).catch(err => {
+      console.error(err)
+      setIsProductsLoading(false)
+    })
+    load()
+    return subscribeToTable('products', load)
+  }, [])
   useEffect(()=>{listUICustomers().then(setCustomerIndex).catch(console.error)},[])
   const [billDiscount, setBillDiscount] = useState(0)
   const [isGSTInclusive, setIsGSTInclusive] = useState(true)
@@ -44,6 +65,7 @@ export default function POSBilling() {
   // Modals
   const [showHeldBills, setShowHeldBills] = useState(false)
   const [showReprint, setShowReprint] = useState(false)
+  const [showGstModal, setShowGstModal] = useState(false)
   const [showReceipt, setShowReceipt] = useState(null) // bill object
   const [showSuccess, setShowSuccess] = useState(null) // bill object
   const [showMobileCart, setShowMobileCart] = useState(false)
@@ -135,12 +157,19 @@ export default function POSBilling() {
   const deleteHeldBill = useCallback(async (billId) => { try{await removeHeldBill(billId);setHeldBills(prev=>prev.filter(b=>b.id!==billId))}catch(e){window.alert(e.message)} }, [])
 
   // ─── Complete Sale ──────────────────────────────────────────
-  const completeSale = useCallback(async (paymentMode, amountPaid) => {
+  const completeSale = useCallback(async (paymentMode, amountPaid, splitDetails = null) => {
     const summary = calculateBillSummary(cart, billDiscount, isGSTInclusive)
     const userProfile = (() => {
       try { return JSON.parse(localStorage.getItem('user_profile') || '{}') } catch { return {} }
     })()
     const cashierName = userProfile?.full_name || userProfile?.name || (role === 'cashier' ? 'Cashier' : 'Admin')
+
+    const cashAmount = splitDetails?.cashAmount !== undefined
+      ? Number(splitDetails.cashAmount || 0)
+      : (paymentMode === 'cash' ? Number(amountPaid || summary.grandTotal) : 0)
+    const upiAmount = splitDetails?.upiAmount !== undefined
+      ? Number(splitDetails.upiAmount || 0)
+      : (paymentMode === 'upi' ? Number(amountPaid || summary.grandTotal) : 0)
 
     const bill = {
       items: cart.map(x => {
@@ -163,6 +192,9 @@ export default function POSBilling() {
       isGSTInclusive,
       paymentMode,
       amountPaid: Number(amountPaid || 0),
+      splitDetails,
+      cashAmount,
+      upiAmount,
       customerName,
       timestamp: new Date().toISOString(),
     }
@@ -173,23 +205,62 @@ export default function POSBilling() {
         const quantity=Number(x.quantity)
         const unitRate=Number(x.rate??x.price??x.sellingPrice??0)
         const discount=Number(x.itemDiscount||0)
-        const taxableUnitPrice=isGSTInclusive ? unitRate*(1-discount/100)/(1+rateTax/100) : unitRate
+        const taxableUnitPrice = rateTax > 0 ? (unitRate * (1 - discount / 100) / (1 + rateTax / 100)) : (unitRate * (1 - discount / 100))
         return {
           ...(x.isCustomItem ? {is_custom:true,product_name:x.name,unit:x.unit} : {product_id:x.supabase_id||x.id}),
           quantity,
-          unit_price:taxableUnitPrice,
-          discount:isGSTInclusive ? 0 : quantity*unitRate*discount/100,
-          tax_rate:rateTax,
-          display_price:unitRate,
-          item_discount_percent:discount,
-          is_gst_inclusive:isGSTInclusive,
+          unit_price: taxableUnitPrice,
+          discount: 0,
+          tax_rate: rateTax,
+          display_price: unitRate,
+          item_discount_percent: discount,
+          is_gst_inclusive: true,
         }
       })
       const matchedCustomer=customerIndex.find(c=>c.id===customerName||c.name.toLowerCase()===customerName.trim().toLowerCase())
       if(Number(amountPaid||0)<summary.grandTotal&&!matchedCustomer)throw new Error('A registered customer is required for credit or partial-payment sales.')
-      const saved=await persistSale({customer_id:matchedCustomer?.id||null,discount:summary.discountAmount,amount_paid:Number(amountPaid||0),payment_method:paymentMode,metadata:{customerName,isGSTInclusive,cashier:cashierName,billDiscount}},items)
+      const saved=await persistSale({
+        customer_id:matchedCustomer?.id||null,
+        discount:summary.discountAmount,
+        paid_amount:Number(amountPaid||0),
+        amount_paid:Number(amountPaid||0),
+        payment_method:paymentMode,
+        cashAmount,
+        upiAmount,
+        splitDetails,
+        payment_reference: splitDetails ? `Cash: ₹${cashAmount} + UPI: ₹${upiAmount}` : undefined,
+        notes: splitDetails ? JSON.stringify({ cashAmount, upiAmount, splitDetails, mode: 'cash_upi' }) : undefined,
+        metadata:{
+          customerName,
+          isGSTInclusive,
+          cashier:cashierName,
+          billDiscount,
+          splitDetails,
+          cashAmount,
+          upiAmount,
+        }
+      },items)
       const savedTotal = Number(saved?.total_amount)
-      const completed={...bill,billNumber:saved.invoice_number,id:saved.id,summary:{...summary,grandTotal:Number.isFinite(savedTotal)?savedTotal:summary.grandTotal}}
+      const completed={
+        ...bill,
+        billNumber:saved.invoice_number,
+        id:saved.id,
+        summary:{...summary,grandTotal:Number.isFinite(savedTotal)?savedTotal:summary.grandTotal},
+        cashAmount,
+        upiAmount,
+        splitDetails: splitDetails || { cashAmount, upiAmount },
+        paymentMode: paymentMode || 'cash_upi',
+        isSplitPayment: Boolean(paymentMode === 'cash_upi' || (cashAmount > 0 && upiAmount > 0)),
+        metadata: {
+          customerName,
+          isGSTInclusive,
+          cashier: cashierName,
+          billDiscount,
+          splitDetails: splitDetails || { cashAmount, upiAmount },
+          cashAmount,
+          upiAmount,
+        }
+      }
       setShowSuccess(completed);setCart([]);setBillDiscount(0);setCustomerName('')
     } catch(e) { window.alert(e.message) }
   }, [cart, billDiscount, isGSTInclusive, customerName, customerIndex, role])
@@ -472,6 +543,16 @@ export default function POSBilling() {
             <kbd className="hidden lg:inline text-[9px] bg-cyan-500/20 px-1 py-0.2 rounded border border-cyan-500/30 font-mono ml-0.5">F4</kbd>
           </button>
 
+          {/* Dedicated GST: CSV / PDF Button */}
+          <button
+            onClick={() => setShowGstModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-medium transition-all shadow-sm cursor-pointer"
+            title="GST Report: CSV / PDF"
+          >
+            <FaBalanceScale className="w-3 h-3 text-blue-400" />
+            <span className="hidden sm:inline">GST: CSV / PDF</span>
+          </button>
+
           {/* Quick Scanner Button - hidden for Cashier */}
           {!isCashier && (
             <Link
@@ -482,6 +563,22 @@ export default function POSBilling() {
               <FaBarcode className="w-3 h-3" />
               <span className="hidden sm:inline">Quick Scanner</span>
             </Link>
+          )}
+
+          {/* Products Loading / Synced Badge */}
+          {isProductsLoading ? (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse">
+              <svg className="animate-spin h-3.5 w-3.5 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+              <span>Loading Products...</span>
+            </div>
+          ) : (
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-slate-800/80 text-slate-300 border-slate-700/60">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span>{productIndex.length} Products</span>
+            </div>
           )}
 
           {/* Scanner Sync Badge */}
@@ -544,7 +641,7 @@ export default function POSBilling() {
       <div className="flex-1 flex overflow-hidden">
         {/* ── Left: Product Search Area ──────────────── */}
         <div className={`flex-1 flex flex-col border-r border-slate-800/60 min-w-0 ${showMobileCart ? 'hidden lg:flex' : 'flex'}`}>
-          <ProductSearch onAddToCart={addToCart} />
+          <ProductSearch onAddToCart={addToCart} isParentLoading={isProductsLoading} />
         </div>
 
         {/* ── Right: Cart + Payment ─────────────────── */}
@@ -645,6 +742,14 @@ export default function POSBilling() {
             triggerToast("success", `Custom Item Added`, `${customItem.name} • ₹${customItem.price}`)
           }}
           onClose={() => setShowCustomItemModal(false)}
+        />
+      )}
+
+      {/* Dedicated GST Report Modal */}
+      {showGstModal && (
+        <GSTReportModal
+          isOpen={showGstModal}
+          onClose={() => setShowGstModal(false)}
         />
       )}
 

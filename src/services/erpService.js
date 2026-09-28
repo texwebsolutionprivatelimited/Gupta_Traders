@@ -22,31 +22,125 @@ export async function getCurrentProfile() {
   return { ...data, name: data.full_name, status: data.is_active ? 'active' : 'inactive', role: data.role.name.toLowerCase(), email: user.email }
 }
 
-export async function listCategories() {
-  const { data, error } = await supabase.from('categories').select('*').is('deleted_at', null).order('sort_order').order('name')
-  fail(error, 'Unable to load categories'); return data
+// ─── High Performance In-Memory Caching & Request Deduplication ───
+const productCache = new Map()
+const productInFlight = new Map()
+const PRODUCT_CACHE_TTL_MS = 60 * 1000 // 60 seconds
+
+let categoriesCache = null
+let categoriesTimestamp = 0
+let categoriesInFlight = null
+const CATEGORIES_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+export function invalidateCache(scope = 'all') {
+  if (scope === 'all' || scope === 'products' || scope === 'inventory') {
+    productCache.clear()
+  }
+  if (scope === 'all' || scope === 'categories') {
+    categoriesCache = null
+    categoriesTimestamp = 0
+  }
 }
+
+export async function listCategories({ forceRefresh = false } = {}) {
+  const now = Date.now()
+  if (!forceRefresh && categoriesCache && (now - categoriesTimestamp < CATEGORIES_CACHE_TTL_MS)) {
+    return categoriesCache
+  }
+  if (!forceRefresh && categoriesInFlight) {
+    return categoriesInFlight
+  }
+
+  categoriesInFlight = (async () => {
+    const { data, error } = await supabase.from('categories').select('*').is('deleted_at', null).order('sort_order').order('name')
+    fail(error, 'Unable to load categories')
+    categoriesCache = data
+    categoriesTimestamp = Date.now()
+    return data
+  })()
+
+  try {
+    return await categoriesInFlight
+  } finally {
+    categoriesInFlight = null
+  }
+}
+
 export async function createCategory(values) {
   const row = { slug: values.slug || values.id || values.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''), name: values.name.trim(), description: values.description || '', icon: values.icon || null, color: values.color || null, image_url: values.image || values.image_url || null, status: values.status || 'active', sort_order: values.sortOrder || 0 }
-  const { data, error } = await supabase.from('categories').insert(row).select().single(); fail(error, 'Unable to create category'); return data
+  const { data, error } = await supabase.from('categories').insert(row).select().single()
+  fail(error, 'Unable to create category')
+  invalidateCache('categories')
+  return data
 }
-export async function updateCategory(id, values) { const row = { ...values }; if ('image' in row) { row.image_url = row.image; delete row.image } if (row.sortOrder !== undefined) { row.sort_order = row.sortOrder; delete row.sortOrder } const { data, error } = await supabase.from('categories').update(row).eq('id', id).select().single(); fail(error, 'Unable to update category'); return data }
-export async function removeCategory(id) { return softDeleteEntity('category', id) }
+
+export async function updateCategory(id, values) {
+  const row = { ...values }
+  if ('image' in row) { row.image_url = row.image; delete row.image }
+  if (row.sortOrder !== undefined) { row.sort_order = row.sortOrder; delete row.sortOrder }
+  const { data, error } = await supabase.from('categories').update(row).eq('id', id).select().single()
+  fail(error, 'Unable to update category')
+  invalidateCache('categories')
+  return data
+}
+
+export async function removeCategory(id) {
+  const res = await softDeleteEntity('category', id)
+  invalidateCache('categories')
+  return res
+}
 
 const productSelect = '*, category:categories(*), inventory(quantity,reserved_quantity,updated_at)'
-export async function listProducts({ search = '', categoryId, status = 'active' } = {}) {
-  let query = supabase.from('products').select(productSelect).is('deleted_at', null).order('name')
-  if (status) query = query.eq('status', status)
-  if (categoryId) query = query.eq('category_id', categoryId)
-  if (search.trim()) { const q = search.trim().replace(/[,%()]/g, ' '); query = query.or(`name.ilike.%${q}%,hindi_name.ilike.%${q}%,barcode.ilike.%${q}%,sku.ilike.%${q}%,brand.ilike.%${q}%`) }
-  const { data, error } = await query; fail(error, 'Unable to load products'); return data
+
+export async function listProducts({ search = '', categoryId, status = 'active', forceRefresh = false } = {}) {
+  const cacheKey = JSON.stringify({ search: search.trim().toLowerCase(), categoryId: categoryId || null, status: status || null })
+  const now = Date.now()
+
+  if (!forceRefresh) {
+    const cached = productCache.get(cacheKey)
+    if (cached && (now - cached.timestamp < PRODUCT_CACHE_TTL_MS)) {
+      return cached.data
+    }
+    if (productInFlight.has(cacheKey)) {
+      return productInFlight.get(cacheKey)
+    }
+  }
+
+  const queryPromise = (async () => {
+    let query = supabase.from('products').select(productSelect).is('deleted_at', null).order('name')
+    if (status) query = query.eq('status', status)
+    if (categoryId) query = query.eq('category_id', categoryId)
+    if (search.trim()) {
+      const q = search.trim().replace(/[,%()]/g, ' ')
+      query = query.or(`name.ilike.%${q}%,hindi_name.ilike.%${q}%,barcode.ilike.%${q}%,sku.ilike.%${q}%,brand.ilike.%${q}%`)
+    }
+    const { data, error } = await query
+    fail(error, 'Unable to load products')
+    productCache.set(cacheKey, { data, timestamp: Date.now() })
+    return data
+  })()
+
+  productInFlight.set(cacheKey, queryPromise)
+  try {
+    return await queryPromise
+  } finally {
+    productInFlight.delete(cacheKey)
+  }
 }
+
 export function productToUI(row) {
   const inv = Array.isArray(row.inventory) ? row.inventory[0] : row.inventory;
   const rawRate = row.rate !== undefined && row.rate !== null ? row.rate : (row.selling_price !== undefined ? row.selling_price : 0);
   const rate = Number(rawRate || 0);
-  const rawMrp = row.mrp !== undefined && row.mrp !== null ? row.mrp : (row.metadata?.mrp !== undefined ? row.metadata.mrp : (rate || 0));
-  const mrp = Number(rawMrp || rate || 0);
+
+  // Manual MRP: Only present if explicitly set and > 0.
+  // By default, MRP is blank/null for all existing products. NEVER use 0 or rate as fake MRP!
+  const rawMrp = (row.mrp !== undefined && row.mrp !== null && row.mrp !== '')
+    ? row.mrp
+    : (row.metadata?.mrp !== undefined && row.metadata?.mrp !== null && row.metadata?.mrp !== '' ? row.metadata.mrp : null);
+  const parsedMrp = rawMrp !== null && !isNaN(Number(rawMrp)) && Number(rawMrp) > 0 ? Number(rawMrp) : null;
+  const mrp = parsedMrp; // null if not manually specified
+
   const purchasePrice = Number(row.purchase_price || 0);
 
   return {
@@ -64,7 +158,7 @@ export function productToUI(row) {
     packSize: row.pack_size || '',
     unit: row.unit,
     purchasePrice,
-    mrp: mrp || rate,
+    mrp: mrp, // null/blank by default, never 0 or fake rate
     rate,
     sellingPrice: rate, // backward compatibility
     gstRate: Number(row.gst_rate || 0),
@@ -83,12 +177,24 @@ export function productToUI(row) {
     updatedAt: row.updated_at
   };
 }
-export async function listUIProducts(filters = {}) { return (await listProducts(filters)).map(productToUI) }
+
+export async function listUIProducts(filters = {}) {
+  return (await listProducts(filters)).map(productToUI)
+}
 
 export async function findProductByBarcode(barcode) {
   if (!barcode) return null
   const clean = String(barcode).trim()
   if (!clean) return null
+
+  // Fast-path: Check in-memory products cache first
+  for (const entry of productCache.values()) {
+    if (Array.isArray(entry.data)) {
+      const found = entry.data.find(p => p.barcode && String(p.barcode).trim() === clean && !p.deleted_at)
+      if (found) return productToUI(found)
+    }
+  }
+
   const { data, error } = await supabase
     .from('products')
     .select(productSelect)
@@ -140,6 +246,7 @@ export async function createProduct(values) {
     const { error: stockError } = await supabase.rpc('change_stock', { p_product_id: data.id, p_delta: stock, p_type: 'opening', p_reason: 'Opening stock' })
     fail(stockError, 'Product created but opening stock failed')
   }
+  invalidateCache('products')
   return data
 }
 export async function updateProduct(id, values) {
@@ -170,23 +277,34 @@ export async function updateProduct(id, values) {
     }
   }
 
+  invalidateCache('products')
   const { data: refetched, error: refetchError } = await supabase.from('products').select(productSelect).eq('id', id).single()
   fail(refetchError, 'Unable to reload updated product details')
-  return refetched
+  return productToUI(refetched)
 }
-export async function removeProduct(id) { return softDeleteEntity('product', id) }
+export async function removeProduct(id) {
+  const res = await softDeleteEntity('product', id)
+  invalidateCache('products')
+  return res
+}
 function mapProduct(v, partial = false) {
   const rateVal = v.rate !== undefined && v.rate !== '' ? v.rate : (v.sellingPrice !== undefined && v.sellingPrice !== '' ? v.sellingPrice : v.selling_price);
-  const mrpVal = v.mrp !== undefined && v.mrp !== '' ? v.mrp : (v.metadata?.mrp !== undefined ? v.metadata.mrp : rateVal);
   const cleanRate = rateVal !== undefined ? Number(rateVal ?? 0) : undefined;
-  const cleanMrp = mrpVal !== undefined ? Number(mrpVal ?? cleanRate ?? 0) : undefined;
 
-  const existingMeta = (v.metadata && typeof v.metadata === 'object') ? v.metadata : {};
-  const metadata = {
-    ...existingMeta,
-    ...(cleanMrp !== undefined ? { mrp: cleanMrp } : {}),
-    ...(cleanRate !== undefined ? { rate: cleanRate } : {}),
-  };
+  // Manual MRP: Only present if explicitly set and > 0.
+  // If blank or not provided, remove it from metadata so it stays null/blank!
+  const hasManualMrp = v.mrp !== undefined && v.mrp !== null && v.mrp !== '' && !isNaN(Number(v.mrp)) && Number(v.mrp) > 0;
+  const cleanMrp = hasManualMrp ? Number(v.mrp) : null;
+
+  const existingMeta = (v.metadata && typeof v.metadata === 'object') ? { ...v.metadata } : {};
+  if (cleanMrp !== null) {
+    existingMeta.mrp = cleanMrp;
+  } else {
+    delete existingMeta.mrp;
+  }
+  if (cleanRate !== undefined) {
+    existingMeta.rate = cleanRate;
+  }
 
   const row = {
     product_code: v.productCode === undefined ? undefined : (v.productCode ? v.productCode : null),
@@ -209,18 +327,70 @@ function mapProduct(v, partial = false) {
     hsn_code: v.hsnCode,
     description: v.description,
     status: v.status === undefined ? undefined : (v.status || 'active'),
-    metadata: metadata
+    metadata: existingMeta
   }
   if (partial) Object.keys(row).forEach(k => row[k] === undefined && delete row[k]); return row
 }
 
-export async function adjustStock(productId, delta, type = 'adjustment', reason = '') { const { data, error } = await supabase.rpc('change_stock', { p_product_id: productId, p_delta: Number(delta), p_type: type, p_reason: reason }); fail(error, 'Unable to update stock'); return data }
+export async function adjustStock(productId, delta, type = 'adjustment', reason = '') {
+  const { data, error } = await supabase.rpc('change_stock', { p_product_id: productId, p_delta: Number(delta), p_type: type, p_reason: reason });
+  fail(error, 'Unable to update stock');
+  invalidateCache('products');
+  return data
+}
 export async function listInventoryMovements() { const { data, error } = await supabase.from('stock_movements').select('*, product:products(name,sku,barcode)').order('created_at', { ascending: false }).limit(1000); fail(error, 'Unable to load inventory ledger'); return data }
-export async function setMinimumStock(productId, minimum) { const { data, error } = await supabase.from('products').update({ minimum_stock: Number(minimum) }).eq('id', productId).select().single(); fail(error, 'Unable to update minimum stock'); return data }
-export async function completeSale(sale, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_sale', { p_sale: sale, p_items: items }); fail(error, 'Unable to complete sale'); const { data: saved, error: loadError } = await supabase.from('sales').select('id,invoice_number,subtotal,tax_amount,total_amount,paid_amount,due_amount').eq('id', data.id).single(); fail(loadError, 'Sale completed but its totals could not be loaded'); return saved }
-export async function completePurchase(purchase, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_purchase', { p_purchase: purchase, p_items: items }); fail(error, 'Unable to complete purchase'); return data }
-export async function completeSalesReturn(ret, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_sales_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete sales return'); return data }
-export async function completePurchaseReturn(ret, items) { const { data, error } = await supabase.rpc('complete_purchase_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete purchase return'); return data }
+export async function setMinimumStock(productId, minimum) { const { data, error } = await supabase.from('products').update({ minimum_stock: Number(minimum) }).eq('id', productId).select().single(); fail(error, 'Unable to update minimum stock'); invalidateCache('products'); return data }
+export async function completeSale(sale, items) {
+  await requireSession();
+  const paidVal = sale.paid_amount ?? sale.amount_paid ?? sale.total_amount;
+  const splitData = sale.splitDetails || sale.metadata?.splitDetails;
+  const cashVal = sale.cashAmount ?? sale.metadata?.cashAmount ?? splitData?.cashAmount;
+  const upiVal = sale.upiAmount ?? sale.metadata?.upiAmount ?? splitData?.upiAmount;
+
+  const salePayload = {
+    ...sale,
+    paid_amount: paidVal,
+    amount_paid: paidVal,
+    payment_reference: sale.payment_reference || (sale.payment_method === 'cash_upi' && (cashVal !== undefined || upiVal !== undefined)
+      ? `Cash: ₹${cashVal || 0} + UPI: ₹${upiVal || 0}`
+      : sale.payment_reference),
+    notes: sale.notes || (sale.payment_method === 'cash_upi'
+      ? JSON.stringify({ cashAmount: cashVal, upiAmount: upiVal, splitDetails: splitData })
+      : sale.notes),
+  };
+
+  const { data, error } = await supabase.rpc('complete_sale', { p_sale: salePayload, p_items: items });
+  fail(error, 'Unable to complete sale');
+  invalidateCache('products');
+
+  try {
+    const metaToSave = {
+      ...(sale.metadata || {}),
+      splitDetails: splitData || (cashVal !== undefined ? { cashAmount: cashVal, upiAmount: upiVal } : undefined),
+      cashAmount: cashVal,
+      upiAmount: upiVal,
+    };
+    await supabase.from('sales').update({
+      metadata: metaToSave,
+      paid_amount: Number(paidVal || 0),
+      payment_reference: salePayload.payment_reference || null,
+      notes: salePayload.notes || null,
+    }).eq('id', data.id);
+  } catch (updateErr) {
+    console.warn('Could not update metadata on sales row:', updateErr);
+  }
+
+  const { data: saved, error: loadError } = await supabase
+    .from('sales')
+    .select('id,invoice_number,subtotal,tax_amount,total_amount,paid_amount,due_amount,payment_method,payment_reference,notes,metadata')
+    .eq('id', data.id)
+    .single();
+  fail(loadError, 'Sale completed but its totals could not be loaded');
+  return saved;
+}
+export async function completePurchase(purchase, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_purchase', { p_purchase: purchase, p_items: items }); fail(error, 'Unable to complete purchase'); invalidateCache('products'); return data }
+export async function completeSalesReturn(ret, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_sales_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete sales return'); invalidateCache('products'); return data }
+export async function completePurchaseReturn(ret, items) { const { data, error } = await supabase.rpc('complete_purchase_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete purchase return'); invalidateCache('products'); return data }
 
 export async function listSalesReturns() {
   const { data, error } = await supabase
@@ -295,6 +465,29 @@ export async function listUISales() {
     if (isFullyReturned || s.status === 'returned') computedStatus = 'Returned';
     else if (isPartiallyReturned || s.status === 'partially_returned') computedStatus = 'Partially Returned';
 
+    const rawMeta = (typeof s.metadata === 'object' && s.metadata !== null)
+      ? s.metadata
+      : (typeof s.metadata === 'string' ? (() => { try { return JSON.parse(s.metadata); } catch { return {}; } })() : {});
+
+    let parsedNotes = {};
+    if (typeof s.notes === 'string' && s.notes.trim().startsWith('{')) {
+      try { parsedNotes = JSON.parse(s.notes); } catch {}
+    }
+    if (typeof s.payment_reference === 'string' && s.payment_reference.trim().startsWith('{')) {
+      try { parsedNotes = { ...parsedNotes, ...JSON.parse(s.payment_reference) }; } catch {}
+    }
+
+    const meta = { ...parsedNotes, ...rawMeta };
+    let cashAmount = meta.cashAmount ?? meta.splitDetails?.cashAmount;
+    let upiAmount = meta.upiAmount ?? meta.splitDetails?.upiAmount;
+
+    if ((cashAmount === undefined || upiAmount === undefined) && s.payment_reference) {
+      const cashM = String(s.payment_reference).match(/Cash[:\s]*₹?\s*([\d.]+)/i);
+      const upiM = String(s.payment_reference).match(/UPI[:\s]*₹?\s*([\d.]+)/i);
+      if (cashM) cashAmount = parseFloat(cashM[1]);
+      if (upiM) upiAmount = parseFloat(upiM[1]);
+    }
+
     return {
       id: s.id,
       date: s.sale_date,
@@ -313,6 +506,14 @@ export async function listUISales() {
       rawStatus: s.status,
       payment: totalRefunded >= Number(s.total_amount) ? 'Refunded' : s.payment_status === 'paid' ? 'Paid' : 'Pending',
       paymentMode: s.payment_method,
+      amountPaid: Number(s.paid_amount ?? s.amount_paid ?? s.total_amount),
+      paid_amount: Number(s.paid_amount ?? s.amount_paid ?? s.total_amount),
+      metadata: meta,
+      splitDetails: (cashAmount !== undefined && upiAmount !== undefined) ? { cashAmount, upiAmount } : meta.splitDetails,
+      cashAmount,
+      upiAmount,
+      paymentReference: s.payment_reference,
+      payment_reference: s.payment_reference,
       notes: s.notes,
       createdAt: s.created_at,
       returns: saleReturns,
@@ -437,7 +638,19 @@ export async function saveBusinessSettings(values) {
   return data;
 }
 
-export function subscribeToTable(table, onChange) { const channel = supabase.channel(`erp:${table}:${Math.random().toString(36).slice(2)}`).on('postgres_changes', { event: '*', schema: 'public', table }, onChange).subscribe(); return () => supabase.removeChannel(channel) }
+export function subscribeToTable(table, onChange) {
+  const channel = supabase.channel(`erp:${table}:${Math.random().toString(36).slice(2)}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
+      if (table === 'products' || table === 'inventory' || table === 'stock_movements') {
+        invalidateCache('products');
+      } else if (table === 'categories') {
+        invalidateCache('categories');
+      }
+      onChange(payload);
+    })
+    .subscribe();
+  return () => supabase.removeChannel(channel);
+}
 export async function softDeleteEntity(entityType, id) { const { error } = await supabase.rpc('soft_delete_entity', { p_entity_type: entityType, p_id: id }); fail(error, `Unable to move ${entityType} to trash`) }
 export async function listTrash() { const { data, error } = await supabase.from('trash_items').select('*').order('deleted_at', { ascending: false }); fail(error, 'Unable to load trash'); return data }
 export async function restoreTrashItem(entityType, id) { const { error } = await supabase.rpc('restore_entity', { p_entity_type: entityType, p_id: id }); fail(error, 'Unable to restore item') }

@@ -118,17 +118,17 @@ export function calculateBillSummary(items = [], billDiscount = 0, isInclusive =
 
     itemsTotal += taxable;
     itemDiscountTotal += discount;
-    if (isInclusive) {
+    if (rate > 0) {
       const base = taxable / (1 + rate / 100);
       subtotal += base;
       totalGST += taxable - base;
     } else {
       subtotal += taxable;
-      totalGST += (taxable * rate) / 100;
     }
   });
 
-  const beforeDiscount = Math.max(0, isInclusive ? itemsTotal : (subtotal + totalGST));
+  // Normal ERP workflow: GST never added on top of MRP / selling price
+  const beforeDiscount = Math.max(0, itemsTotal);
   const applicableSubtotal = beforeDiscount;
 
   // Parse billDiscount parameter (can be object, string like '10%', or number)
@@ -177,7 +177,7 @@ export function calculateBillSummary(items = [], billDiscount = 0, isInclusive =
   const grandTotal = Math.max(0, Math.round((beforeDiscount - discountAmount) * 100) / 100);
 
   return {
-    subtotal: isInclusive ? itemsTotal : subtotal,
+    subtotal: itemsTotal,
     taxableBase: subtotal,
     itemsTotal,
     beforeDiscount,

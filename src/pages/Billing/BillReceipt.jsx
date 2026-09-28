@@ -19,22 +19,55 @@ const mapUnitToShort = (unit) => {
 
 const escapeReceiptText = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
+export const formatReceiptQty = (qty) => {
+  const num = Number(qty || 0);
+  return String(Math.round(num));
+};
+
 // ─── Universal Bill Normalizer ────────────────────────────────────
 export function normalizeBillData(rawBill) {
   if (!rawBill) return null;
 
   const storeSettings = getStoredBusinessSettings();
-  const storeName = 'GUPTA TRADER & SUPERSTORE';
-  const storeAddress = rawBill.storeAddress || rawBill.address || storeSettings.address;
-  const storePhone = rawBill.storePhone || rawBill.phone || storeSettings.phone;
-  const storeGstin = rawBill.storeGstin || rawBill.gstin || storeSettings.gstin;
-  const returnPolicy = rawBill.returnPolicy || storeSettings.receiptFooter || 'Items sold after 10 days will not be returned';
+  const storeName = storeSettings.shop?.shopName || 'GUPTA TRADER & SUPERSTORE';
+  const storeAddress = rawBill.storeAddress || rawBill.address || storeSettings.shop?.address || storeSettings.address || 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)';
+  const storePhone = rawBill.storePhone || rawBill.phone || storeSettings.shop?.phone || storeSettings.phone || '9876543210';
+  const storeGstin = rawBill.storeGstin || rawBill.gstin || storeSettings.gst?.gstin || storeSettings.gstin || '09ABCDE1234F1Z5';
+  const returnPolicy = rawBill.returnPolicy || storeSettings.invoice?.footer || storeSettings.receiptFooter || 'Items sold after 10 days will not be returned';
 
   const billNumber = rawBill.billNumber || rawBill.invoice_number || rawBill.invoice || rawBill.billNo || rawBill.id || '—';
   const customerName = rawBill.customerName || (typeof rawBill.customer === 'string' ? rawBill.customer : rawBill.customer?.name) || rawBill.partyName || '';
   const cashier = rawBill.cashier || rawBill.cashierName || rawBill.user || rawBill.created_by || rawBill.username || 'Admin';
   const paymentMode = String(rawBill.paymentMode || rawBill.payment_method || rawBill.paymentMethod || rawBill.payment || 'cash');
   const amountPaid = Number(rawBill.amountPaid ?? rawBill.paid_amount ?? rawBill.paidAmount ?? rawBill.paid ?? 0);
+
+  const rawMeta = (typeof rawBill.metadata === 'object' && rawBill.metadata !== null)
+    ? rawBill.metadata
+    : (typeof rawBill.metadata === 'string' ? (() => { try { return JSON.parse(rawBill.metadata); } catch { return {}; } })() : {});
+
+  let rawNotes = {};
+  if (typeof rawBill.notes === 'string' && rawBill.notes.trim().startsWith('{')) {
+    try { rawNotes = JSON.parse(rawBill.notes); } catch {}
+  }
+  if (typeof rawBill.payment_reference === 'string' && rawBill.payment_reference.trim().startsWith('{')) {
+    try { rawNotes = { ...rawNotes, ...JSON.parse(rawBill.payment_reference) }; } catch {}
+  }
+
+  const rawSplit = rawBill.splitDetails || rawBill.splitPayment || rawMeta.splitDetails || rawMeta.splitPayment || rawNotes.splitDetails || rawNotes.splitPayment || {};
+
+  const cleanMode = paymentMode.toLowerCase().replace(/[\s\-_]+/g, '');
+  const isSplitPayment = cleanMode === 'cashupi' || cleanMode === 'split' || cleanMode.includes('cashupi') || cleanMode.includes('split') || (rawSplit.cashAmount !== undefined && rawSplit.upiAmount !== undefined) || (rawBill.cashAmount !== undefined && rawBill.upiAmount !== undefined && Number(rawBill.cashAmount) > 0 && Number(rawBill.upiAmount) > 0);
+
+  let cashAmount = Number(rawBill.cashAmount ?? rawBill.cash_amount ?? rawMeta.cashAmount ?? rawMeta.cash_amount ?? rawSplit.cashAmount ?? rawSplit.cash_amount ?? rawNotes.cashAmount ?? rawNotes.cash_amount ?? (cleanMode === 'cash' ? (amountPaid || 0) : 0));
+  let upiAmount = Number(rawBill.upiAmount ?? rawBill.upi_amount ?? rawMeta.upiAmount ?? rawMeta.upi_amount ?? rawSplit.upiAmount ?? rawSplit.upi_amount ?? rawNotes.upiAmount ?? rawNotes.upi_amount ?? (cleanMode === 'upi' ? (amountPaid || 0) : 0));
+
+  if (isSplitPayment && cashAmount === 0 && upiAmount === 0) {
+    const textRef = `${rawBill.payment_reference || ''} ${rawBill.notes || ''} ${rawBill.paymentReference || ''}`;
+    const cashM = textRef.match(/Cash[:\s]*₹?\s*([\d.]+)/i);
+    const upiM = textRef.match(/UPI[:\s]*₹?\s*([\d.]+)/i);
+    if (cashM) cashAmount = parseFloat(cashM[1]) || 0;
+    if (upiM) upiAmount = parseFloat(upiM[1]) || 0;
+  }
 
   const rawDate = rawBill.timestamp || rawBill.sale_date || rawBill.date || rawBill.createdAt || rawBill.created_at;
   const timestamp = rawDate ? new Date(rawDate) : new Date();
@@ -46,17 +79,17 @@ export function normalizeBillData(rawBill) {
 
   const items = rawItems.map((item, idx) => {
     const name = item.name || item.product_name || item.product || item.title || item.itemName || `Item #${idx + 1}`;
-    const quantity = Number(item.quantity ?? item.qty ?? item.originalQuantity ?? 1);
+    // Requirement: Quantity on receipt must ALWAYS be whole numbers only: 1, 2, 3, 4... Never 1.000, 2.000
+    const rawQ = Number(item.quantity ?? item.qty ?? item.originalQuantity ?? 1);
+    const quantity = Math.max(1, Math.round(rawQ));
     const rate = Number(item.rate ?? item.price ?? item.selling_price ?? item.sellingPrice ?? item.unit_price ?? item.unitPrice ?? 0);
-    const rawMrp = Number(item.mrp ?? item.metadata?.mrp ?? 0);
-    const mrp = rawMrp > 0 ? rawMrp : rate;
     const unit = item.unit || item.loose_unit || item.looseUnit || '';
     const itemDiscount = Number(item.itemDiscount ?? item.discount ?? item.discount_percent ?? item.item_discount_percent ?? 0);
-    // CRITICAL: Amount MUST use Rate (Our Price). Amount = Rate * Quantity. NEVER use MRP.
+    // Amount = Rate * Quantity. Rate (Our Price) is preserved.
     const amount = Number((rate * quantity).toFixed(2));
     const lineTotal = itemDiscount > 0 ? Number((amount * (1 - itemDiscount / 100)).toFixed(2)) : amount;
 
-    const returnedQuantity = Number(item.returnedQuantity ?? (item.returns || []).reduce((sum, r) => sum + Number(r.quantity || 0), 0) ?? 0);
+    const returnedQuantity = Math.round(Number(item.returnedQuantity ?? (item.returns || []).reduce((sum, r) => sum + Number(r.quantity || 0), 0) ?? 0));
     const returnableQuantity = Math.max(0, quantity - returnedQuantity);
     const isReturned = returnedQuantity > 0 && returnableQuantity === 0;
     const isPartiallyReturned = returnedQuantity > 0 && returnableQuantity > 0;
@@ -66,7 +99,6 @@ export function normalizeBillData(rawBill) {
       sr: idx + 1,
       name,
       quantity,
-      mrp,
       rate,
       price: rate,
       amount,
@@ -91,14 +123,15 @@ export function normalizeBillData(rawBill) {
   const grandTotal = Number(rawSummary.grandTotal ?? rawBill.total_amount ?? rawBill.total ?? Math.max(0, (beforeDiscount > 0 ? beforeDiscount : subtotal + totalGST) - discountAmount));
 
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-  const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
-  const totalSavings = Math.max(0, mrpTotal - grandTotal);
-  const savingsPct = mrpTotal > 0 && totalSavings > 0 ? ((totalSavings / mrpTotal) * 100).toFixed(2) : '0.00';
   const wordsAmount = numberToWordsINR(grandTotal);
 
   const returns = rawBill.returns || [];
   const totalRefunded = Number(rawBill.totalRefunded ?? returns.reduce((sum, r) => sum + Number(r.total_amount || 0), 0) ?? 0);
   const hasReturns = totalRefunded > 0 || returns.length > 0 || items.some(i => i.returnedQuantity > 0);
+
+  const actualPaid = amountPaid > 0 ? amountPaid : grandTotal;
+  const changeDue = actualPaid > grandTotal ? Number((actualPaid - grandTotal).toFixed(2)) : 0;
+  const balanceDue = actualPaid < grandTotal ? Number((grandTotal - actualPaid).toFixed(2)) : 0;
 
   return {
     ...rawBill,
@@ -111,13 +144,16 @@ export function normalizeBillData(rawBill) {
     customerName,
     cashier,
     paymentMode,
-    amountPaid: amountPaid > 0 ? amountPaid : grandTotal,
+    isSplitPayment,
+    cashAmount,
+    upiAmount,
+    splitDetails: { cashAmount, upiAmount },
+    amountPaid: actualPaid,
+    changeDue,
+    balanceDue,
     timestamp,
     items,
     totalQuantity,
-    mrpTotal,
-    totalSavings,
-    savingsPct,
     wordsAmount,
     summary: {
       subtotal,
@@ -312,22 +348,18 @@ export function generateReceiptHtml(bill) {
     ${norm.customerName ? `<span>Cust: ${escapeReceiptText(norm.customerName)}</span>` : ''}
   </div>
 
-  <!-- Product Table: Sr | Product | Qty | MRP | Rate | Amount -->
+  <!-- Product Table: Product | Qty | Rate | Amount -->
   <table class="items-table">
     <colgroup>
-      <col style="width: 7%;" />
-      <col style="width: 41%;" />
-      <col style="width: 13%;" />
-      <col style="width: 13%;" />
-      <col style="width: 13%;" />
-      <col style="width: 13%;" />
+      <col style="width: 50%;" />
+      <col style="width: 14%;" />
+      <col style="width: 18%;" />
+      <col style="width: 18%;" />
     </colgroup>
     <thead>
       <tr>
-        <th style="text-align: left;">Sr</th>
         <th style="text-align: left; padding-left: 2px;">Product</th>
         <th style="text-align: right;">Qty</th>
-        <th style="text-align: right;">MRP</th>
         <th style="text-align: right;">Rate</th>
         <th style="text-align: right;">Amount</th>
       </tr>
@@ -335,21 +367,17 @@ export function generateReceiptHtml(bill) {
     <tbody>
       ${items.map(item => `
         <tr>
-          <td style="text-align: left;">${item.sr}</td>
-          <td style="text-align: left; word-break: break-word; padding-left: 2px;">
-            <div style="font-weight: 800;">${escapeReceiptText(item.name)}</div>
+          <td style="text-align: left; word-break: break-word; padding-left: 2px; padding-right: 4px;">
+            <div style="font-weight: 800; font-size: 12px; line-height: 1.25;">${escapeReceiptText(item.name)}</div>
             ${item.itemDiscount > 0 ? `<div style="font-size: 9px; font-weight: normal; color: #444;">Disc: -${(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>` : ''}
             ${item.returnedQuantity > 0 ? `
               <div style="font-size: 9px; font-weight: 900; color: #b91c1c !important;">
-                [TAKEN BACK: -${item.returnedQuantity}${escapeReceiptText(mapUnitToShort(item.unit))}]
+                [TAKEN BACK: -${formatReceiptQty(item.returnedQuantity)}${escapeReceiptText(mapUnitToShort(item.unit))}]
               </div>
             ` : ''}
           </td>
           <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
-            ${item.quantity.toFixed(3)}
-          </td>
-          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
-            ${item.mrp.toFixed(2)}
+            ${formatReceiptQty(item.quantity)}
           </td>
           <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
             ${item.rate.toFixed(2)}
@@ -382,7 +410,7 @@ export function generateReceiptHtml(bill) {
   <!-- Total Qty and Big Bill Amount -->
   <div class="big-total-row">
     <span style="font-size: 11px; font-weight: 700;">
-      Total Qty: ${norm.totalQuantity.toFixed(3)} &nbsp; Amt:
+      Total Qty: ${formatReceiptQty(norm.totalQuantity)} &nbsp; Amt:
     </span>
     <span>${summary.grandTotal.toFixed(2)}</span>
   </div>
@@ -397,19 +425,35 @@ export function generateReceiptHtml(bill) {
     <span>Tender:</span>
     <span>${norm.amountPaid.toFixed(2)}</span>
   </div>
-  <div class="totals-row">
-    <span>Pay Mode: ${escapeReceiptText(norm.paymentMode.toUpperCase())}:</span>
-    <span>${summary.grandTotal.toFixed(2)}</span>
-  </div>
-
-  <!-- MRP Total, Bill Total and Savings -->
-  <div class="totals-row" style="margin-top: 2px;">
-    <span>MRP Total: ${norm.mrpTotal.toFixed(2)}</span>
-    <span>Bill Total: ${summary.grandTotal.toFixed(2)}</span>
-  </div>
-  ${norm.totalSavings > 0 ? `
+  ${norm.isSplitPayment ? `
     <div class="totals-row bold">
-      <span>Your Savings Rs. ${norm.totalSavings.toFixed(2)} i.e.${norm.savingsPct}%</span>
+      <span>Pay Mode: CASH + UPI:</span>
+      <span>${summary.grandTotal.toFixed(2)}</span>
+    </div>
+    <div class="totals-row" style="padding-left: 10px; font-size: 11px;">
+      <span>• Cash Paid:</span>
+      <span>₹${norm.cashAmount.toFixed(2)}</span>
+    </div>
+    <div class="totals-row" style="padding-left: 10px; font-size: 11px;">
+      <span>• Online/UPI Paid:</span>
+      <span>₹${norm.upiAmount.toFixed(2)}</span>
+    </div>
+  ` : `
+    <div class="totals-row">
+      <span>Pay Mode: ${escapeReceiptText(norm.paymentMode.toUpperCase())}:</span>
+      <span>${summary.grandTotal.toFixed(2)}</span>
+    </div>
+  `}
+  ${norm.changeDue > 0 ? `
+    <div class="totals-row">
+      <span>Change:</span>
+      <span class="bold">${norm.changeDue.toFixed(2)}</span>
+    </div>
+  ` : ''}
+  ${norm.balanceDue > 0 ? `
+    <div class="totals-row">
+      <span>Balance Due:</span>
+      <span class="bold">${norm.balanceDue.toFixed(2)}</span>
     </div>
   ` : ''}
 
@@ -558,46 +602,40 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               </div>
             </div>
 
-            {/* Product Table: Sr | Product | Qty | MRP | Rate | Amount */}
+            {/* Product Table: Product | Qty | Rate | Amount */}
             <div className="pt-0.5">
               <table className="w-full text-xs font-bold border-collapse" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '41%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '50%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '18%' }} />
                 </colgroup>
                 <thead>
                   <tr className="border-t border-b border-dashed border-black text-black">
-                    <th className="text-left py-1 font-black">Sr</th>
                     <th className="text-left py-1 px-1 font-black">Product</th>
-                    <th className="text-right py-1 font-black">Qty</th>
-                    <th className="text-right py-1 font-black">MRP</th>
-                    <th className="text-right py-1 font-black">Rate</th>
-                    <th className="text-right py-1 font-black">Amount</th>
+                    <th className="text-right py-1 px-1 font-black">Qty</th>
+                    <th className="text-right py-1 px-1 font-black">Rate</th>
+                    <th className="text-right py-1 px-1 font-black">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {norm.items.map((item) => (
-                    <tr key={item.sr} className="align-top leading-tight">
-                      <td className="text-left py-0.5 font-bold text-black">{item.sr}</td>
+                  {norm.items.map((item, idx) => (
+                    <tr key={item.id || item.cartId || idx} className="align-top leading-tight">
                       <td className="text-left py-0.5 px-1 break-words font-bold text-black">
-                        <div>{item.name}</div>
+                        <div className="text-[12px] leading-snug">{item.name}</div>
                         {item.itemDiscount > 0 && (
                           <div className="text-[10px] font-normal text-slate-700">Disc: -{(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>
                         )}
                         {item.returnedQuantity > 0 && (
                           <div className="text-[9px] font-black text-rose-700">
-                            [TAKEN BACK: -{item.returnedQuantity}{mapUnitToShort(item.unit)}]
+                            [TAKEN BACK: -{formatReceiptQty(item.returnedQuantity)}{mapUnitToShort(item.unit)}]
                           </div>
                         )}
                       </td>
-                      <td className="text-right py-0.5 whitespace-nowrap font-bold text-black tabular-nums">{item.quantity.toFixed(3)}</td>
-                      <td className="text-right py-0.5 whitespace-nowrap font-bold text-black tabular-nums">{item.mrp.toFixed(2)}</td>
-                      <td className="text-right py-0.5 whitespace-nowrap font-bold text-black tabular-nums">{item.rate.toFixed(2)}</td>
-                      <td className="text-right py-0.5 whitespace-nowrap font-black text-black tabular-nums">{item.amount.toFixed(2)}</td>
+                      <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{formatReceiptQty(item.quantity)}</td>
+                      <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{item.rate.toFixed(2)}</td>
+                      <td className="text-right py-0.5 px-1 whitespace-nowrap font-black text-black tabular-nums">{item.amount.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -623,7 +661,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
 
             {/* Total Qty & Large Bill Total */}
             <div className="flex justify-between items-baseline pt-0.5 text-black">
-              <span className="text-xs font-bold">Total Qty: {norm.totalQuantity.toFixed(3)} &nbsp; Amt:</span>
+              <span className="text-xs font-bold">Total Qty: {formatReceiptQty(norm.totalQuantity)} &nbsp; Amt:</span>
               <span className="text-xl font-black">{norm.summary.grandTotal.toFixed(2)}</span>
             </div>
 
@@ -638,21 +676,37 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
                 <span>Tender:</span>
                 <span>{norm.amountPaid.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Pay Mode: {norm.paymentMode.toUpperCase()}:</span>
-                <span>{norm.summary.grandTotal.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* MRP Total, Bill Total & Savings */}
-            <div className="space-y-0.5 text-xs pt-1 border-t border-dotted border-black font-bold text-black">
-              <div className="flex justify-between">
-                <span>MRP Total: {norm.mrpTotal.toFixed(2)}</span>
-                <span>Bill Total: {norm.summary.grandTotal.toFixed(2)}</span>
-              </div>
-              {norm.totalSavings > 0 && (
-                <div className="flex justify-between font-black text-black">
-                  <span>Your Savings Rs. ${norm.totalSavings.toFixed(2)} i.e.${norm.savingsPct}%</span>
+              {norm.isSplitPayment ? (
+                <>
+                  <div className="flex justify-between font-black text-black">
+                    <span>Pay Mode: CASH + UPI:</span>
+                    <span>{norm.summary.grandTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between pl-3 text-[11px] font-semibold text-slate-800">
+                    <span>• Cash Paid:</span>
+                    <span>₹{norm.cashAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between pl-3 text-[11px] font-semibold text-slate-800">
+                    <span>• Online/UPI Paid:</span>
+                    <span>₹{norm.upiAmount.toFixed(2)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between">
+                  <span>Pay Mode: {norm.paymentMode.toUpperCase()}:</span>
+                  <span>{norm.summary.grandTotal.toFixed(2)}</span>
+                </div>
+              )}
+              {norm.changeDue > 0 && (
+                <div className="flex justify-between">
+                  <span>Change:</span>
+                  <span className="font-black">{norm.changeDue.toFixed(2)}</span>
+                </div>
+              )}
+              {norm.balanceDue > 0 && (
+                <div className="flex justify-between">
+                  <span>Balance Due:</span>
+                  <span className="font-black">{norm.balanceDue.toFixed(2)}</span>
                 </div>
               )}
             </div>
@@ -780,8 +834,9 @@ export function ReprintDrawer({ onClose, onSelectBill }) {
       if (filterMode === 'upi') {
         return (bill.paymentMode || '').toLowerCase() === 'upi'
       }
-      if (filterMode === 'card') {
-        return (bill.paymentMode || '').toLowerCase() === 'card'
+      if (filterMode === 'cash_upi') {
+        const pm = (bill.paymentMode || '').toLowerCase()
+        return pm === 'cash_upi' || pm === 'cash+upi' || pm === 'split' || Boolean(bill.isSplitPayment)
       }
 
       return true
@@ -845,7 +900,7 @@ export function ReprintDrawer({ onClose, onSelectBill }) {
               { id: 'yesterday', label: 'Yesterday' },
               { id: 'cash', label: 'Cash' },
               { id: 'upi', label: 'UPI' },
-              { id: 'card', label: 'Card' },
+              { id: 'cash_upi', label: 'Cash + UPI' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -906,9 +961,11 @@ export function ReprintDrawer({ onClose, onSelectBill }) {
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           : (bill.paymentMode || '').toLowerCase() === 'upi'
                             ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
-                            : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                            : (bill.paymentMode || '').toLowerCase() === 'cash_upi' || (bill.paymentMode || '').toLowerCase() === 'cash+upi'
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                       }`}>
-                        {bill.paymentMode || 'CASH'}
+                        {(bill.paymentMode || '').toLowerCase() === 'cash_upi' ? 'Cash + UPI' : (bill.paymentMode || 'CASH')}
                       </span>
                       {bill.hasReturns && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
@@ -958,6 +1015,10 @@ export function ReprintDrawer({ onClose, onSelectBill }) {
 
 // ─── Sale Success Animation ──────────────────────────────────────
 export function SaleSuccessOverlay({ bill, onDone }) {
+  const isSplit = bill.paymentMode === 'cash_upi' || bill.paymentMode === 'cash+upi' || Boolean(bill.isSplitPayment) || (Number(bill.cashAmount || 0) > 0 && Number(bill.upiAmount || 0) > 0);
+  const cashPaid = Number(bill.cashAmount ?? bill.splitDetails?.cashAmount ?? 0);
+  const upiPaid = Number(bill.upiAmount ?? bill.splitDetails?.upiAmount ?? 0);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-md animate-fadeIn transition-all p-4">
       {/* Centered Solid Card Box */}
@@ -973,11 +1034,18 @@ export function SaleSuccessOverlay({ bill, onDone }) {
           </p>
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
             Bill #{bill.billNumber} •{' '}
-            <span className="capitalize">{bill.paymentMode} Payment</span>
+            <span>{isSplit ? 'Cash + UPI Split' : `${bill.paymentMode} Payment`}</span>
           </p>
+          {isSplit && (
+            <div className="flex items-center justify-center gap-3 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700">
+              <span className="text-emerald-600 dark:text-emerald-400">Cash: ₹{cashPaid.toFixed(2)}</span>
+              <span className="text-slate-400 dark:text-slate-600">•</span>
+              <span className="text-violet-600 dark:text-violet-400">UPI: ₹{upiPaid.toFixed(2)}</span>
+            </div>
+          )}
           <p className="text-xs text-slate-500 dark:text-slate-400">bikli safal! Dhanyawad!</p>
         </div>
 

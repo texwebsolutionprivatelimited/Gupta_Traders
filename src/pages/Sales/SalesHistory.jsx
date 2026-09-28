@@ -315,13 +315,22 @@ export default function SalesHistory() {
             </p>
           </div>
 
-          <Link
-            to="/sales"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600"
-          >
-            <SalesIcon />
-            New Sale
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              to="/sales/return"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-600"
+            >
+              <ReturnIcon />
+              Sales Return
+            </Link>
+            <Link
+              to="/sales"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600"
+            >
+              <SalesIcon />
+              New Sale
+            </Link>
+          </div>
         </div>
 
         {/* SUMMARY CARDS */}

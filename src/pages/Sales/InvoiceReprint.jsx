@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { listUISales, subscribeToTable } from '../../services/erpService'
-import { printThermalReceipt } from '../Billing/BillReceipt'
+import { printThermalReceipt, formatItemReceiptName } from '../Billing/BillReceipt'
 
 const formatCurrency = (value = 0) =>
     new Intl.NumberFormat("en-IN", {
@@ -918,9 +918,14 @@ export default function InvoiceReprint() {
                                         >
                                             <td className="px-2 py-3">
                                                 <div>
-                                                    {item.product ||
-                                                        item.name ||
-                                                        "Product"}
+                                                    {formatItemReceiptName(
+                                                        item.product ||
+                                                            item.name ||
+                                                            "Product",
+                                                        item.packSize ||
+                                                            item.pack_size ||
+                                                            item.product?.pack_size
+                                                    )}
                                                 </div>
                                                 {Number(item.returnedQuantity || 0) > 0 && (
                                                     <div className="text-[11px] font-bold text-rose-600">

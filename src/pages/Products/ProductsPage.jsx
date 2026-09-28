@@ -887,8 +887,13 @@ export default function ProductsPage() {
     }
     const unsubscribeProducts=subscribeToTable('products',handleUpdate)
     const unsubscribeInventory=subscribeToTable('inventory',handleUpdate)
+    window.addEventListener('inventory-updated', handleUpdate)
+    window.addEventListener('erp:inventory_change', handleUpdate)
     return () => {
-      unsubscribeProducts();unsubscribeInventory()
+      unsubscribeProducts();
+      unsubscribeInventory();
+      window.removeEventListener('inventory-updated', handleUpdate);
+      window.removeEventListener('erp:inventory_change', handleUpdate);
     }
   }, [searchQuery, activeTab, categoryFilter])
 

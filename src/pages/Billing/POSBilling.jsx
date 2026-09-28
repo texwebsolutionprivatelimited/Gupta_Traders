@@ -5,22 +5,64 @@ import Cart from './Cart'
 import PaymentPanel from './PaymentPanel'
 import HoldBill from './HoldBill'
 import AddCustomItemModal from './AddCustomItemModal'
-import { ReceiptPreview, ReprintDrawer, SaleSuccessOverlay } from './BillReceipt'
+import { ReceiptPreview, ReprintDrawer, SaleSuccessOverlay, formatItemReceiptName } from './BillReceipt'
 import {
   calculateBillSummary,
   formatINR,
 } from '../../utils/erp'
 import { completeSale as persistSale, deleteHeldBill as removeHeldBill, listHeldBills, listUICustomers, listUIProducts, saveHeldBill, subscribeToTable } from '../../services/erpService'
 import { useAuth } from '../../context/AuthContext'
-import { FaShoppingCart as CartIcon, FaPlus, FaBarcode, FaHistory, FaBalanceScale } from 'react-icons/fa'
+import { FaShoppingCart as CartIcon, FaPlus, FaHistory } from 'react-icons/fa'
 import guptaTradersLogo from '../../assets/gupta traders logo.png'
-import GSTReportModal from '../../components/GSTReportModal'
 
 // ─── Main POS Billing Page ──────────────────────────────────────
 export default function POSBilling() {
   const { role } = useAuth()
   const isCashier = role === 'cashier'
   const [searchParams] = useSearchParams()
+  // ─── Theme State & Synchronization ─────────────────────────
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('theme')
+      if (saved) return saved
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    } catch {
+      return 'dark'
+    }
+  })
+
+  useEffect(() => {
+    try {
+      const root = window.document.documentElement
+      if (theme === 'light') {
+        root.classList.add('light')
+      } else {
+        root.classList.remove('light')
+      }
+      localStorage.setItem('theme', theme)
+      window.dispatchEvent(new CustomEvent('erp:theme_changed', { detail: { theme } }))
+    } catch (e) {}
+  }, [theme])
+
+  useEffect(() => {
+    const handleThemeChange = (e) => {
+      const newTheme = e.detail?.theme || localStorage.getItem('theme')
+      if (newTheme && newTheme !== theme) {
+        setTheme(newTheme)
+      }
+    }
+    window.addEventListener('erp:theme_changed', handleThemeChange)
+    window.addEventListener('storage', handleThemeChange)
+    return () => {
+      window.removeEventListener('erp:theme_changed', handleThemeChange)
+      window.removeEventListener('storage', handleThemeChange)
+    }
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'))
+  }
+
   const [cart, setCart] = useState([])
   const [productIndex,setProductIndex]=useState([])
   const [customerIndex,setCustomerIndex]=useState([])
@@ -65,7 +107,6 @@ export default function POSBilling() {
   // Modals
   const [showHeldBills, setShowHeldBills] = useState(false)
   const [showReprint, setShowReprint] = useState(false)
-  const [showGstModal, setShowGstModal] = useState(false)
   const [showReceipt, setShowReceipt] = useState(null) // bill object
   const [showSuccess, setShowSuccess] = useState(null) // bill object
   const [showMobileCart, setShowMobileCart] = useState(false)
@@ -174,10 +215,12 @@ export default function POSBilling() {
     const bill = {
       items: cart.map(x => {
         const rate = Number(x.rate ?? x.price ?? x.sellingPrice ?? 0)
-        const mrp = Number(x.mrp ?? rate)
+        const hasExplicitMrp = x.mrp !== null && x.mrp !== undefined && x.mrp !== '' && !isNaN(Number(x.mrp)) && Number(x.mrp) > 0
+        const mrp = hasExplicitMrp ? Number(x.mrp) : null
         return {
           ...x,
           name: x.name || x.product_name || x.product || 'Item',
+          packSize: x.packSize || x.pack_size || '',
           mrp,
           rate,
           price: rate,
@@ -206,6 +249,8 @@ export default function POSBilling() {
         const unitRate=Number(x.rate??x.price??x.sellingPrice??0)
         const discount=Number(x.itemDiscount||0)
         const taxableUnitPrice = rateTax > 0 ? (unitRate * (1 - discount / 100) / (1 + rateTax / 100)) : (unitRate * (1 - discount / 100))
+        const hasExplicitMrp = x.mrp !== null && x.mrp !== undefined && x.mrp !== '' && !isNaN(Number(x.mrp)) && Number(x.mrp) > 0
+        const mrp = hasExplicitMrp ? Number(x.mrp) : null
         return {
           ...(x.isCustomItem ? {is_custom:true,product_name:x.name,unit:x.unit} : {product_id:x.supabase_id||x.id}),
           quantity,
@@ -213,6 +258,7 @@ export default function POSBilling() {
           discount: 0,
           tax_rate: rateTax,
           display_price: unitRate,
+          mrp,
           item_discount_percent: discount,
           is_gst_inclusive: true,
         }
@@ -427,7 +473,8 @@ export default function POSBilling() {
       const prod = productIndex.find(p=>p.barcode===cleanCode)
       if (prod) {
         addToCart(prod)
-        triggerToast("success", `Scanned: ${prod.name}`, `Added to cart • ₹${prod.price}`)
+        const displayName = formatItemReceiptName(prod.name, prod.packSize || prod.pack_size)
+        triggerToast("success", `Scanned: ${displayName}`, `Added to cart • ₹${prod.price}`)
         playScanBeep(true)
       } else {
         triggerToast(
@@ -477,7 +524,7 @@ export default function POSBilling() {
   const summary = calculateBillSummary(cart, billDiscount, isGSTInclusive)
 
   return (
-    <div className="h-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden">
+    <div className="h-screen h-[100dvh] flex flex-col bg-slate-950 text-slate-100 overflow-hidden overscroll-none">
       {/* ─── Top Header Bar ─────────────────────────────── */}
       <header className="h-14 flex-shrink-0 border-b border-slate-800/60 bg-slate-950/95 backdrop-blur-xl flex items-center justify-between px-4 z-20">
         {/* Left: Back + Title */}
@@ -492,22 +539,21 @@ export default function POSBilling() {
             <span className="hidden sm:inline">Dashboard</span>
           </Link>
           <div className="h-6 w-px bg-slate-800/60 hidden sm:block" />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <img
               src={guptaTradersLogo}
-              alt="Gupta Traders Logo"
-              className="w-7 h-7 object-contain rounded-lg shadow-md border border-slate-800/80 bg-slate-900/50 p-0.5 flex-shrink-0"
+              alt="Gupta Traders"
+              className="w-8 h-8 object-contain rounded-xl shadow-md border border-slate-800/80 bg-slate-900/60 p-0.5 flex-shrink-0"
             />
-            <div>
-              <h1 className="text-sm font-bold text-slate-100 leading-tight">POS Billing</h1>
-              <p className="text-[10px] text-slate-500 hidden sm:block">Gupta Traders • बिलिंग काउंटर</p>
-            </div>
+            <span className="text-sm font-bold text-slate-100 whitespace-nowrap tracking-wide font-gupta">
+              Gupta Traders
+            </span>
           </div>
         </div>
 
         {/* Center: Customer Name */}
         <div className="hidden md:flex items-center gap-2">
-          <span className="text-xs text-slate-500">Customer:</span>
+          <span className="text-xs text-slate-500 font-medium">Customer:</span>
           <input
             type="text"
             value={customerName}
@@ -519,7 +565,7 @@ export default function POSBilling() {
         </div>
 
         {/* Right: Quick Info + Shortcuts + Custom Item */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {/* Add Custom Item Button */}
           <button
             onClick={() => setShowCustomItemModal(true)}
@@ -542,44 +588,6 @@ export default function POSBilling() {
             <span className="hidden sm:inline">Reprint</span>
             <kbd className="hidden lg:inline text-[9px] bg-cyan-500/20 px-1 py-0.2 rounded border border-cyan-500/30 font-mono ml-0.5">F4</kbd>
           </button>
-
-          {/* Dedicated GST: CSV / PDF Button */}
-          <button
-            onClick={() => setShowGstModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-medium transition-all shadow-sm cursor-pointer"
-            title="GST Report: CSV / PDF"
-          >
-            <FaBalanceScale className="w-3 h-3 text-blue-400" />
-            <span className="hidden sm:inline">GST: CSV / PDF</span>
-          </button>
-
-          {/* Quick Scanner Button - hidden for Cashier */}
-          {!isCashier && (
-            <Link
-              to="/packaged-scanner"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium transition-all shadow-sm"
-              title="Scan & Quick-Add New Packaged Product"
-            >
-              <FaBarcode className="w-3 h-3" />
-              <span className="hidden sm:inline">Quick Scanner</span>
-            </Link>
-          )}
-
-          {/* Products Loading / Synced Badge */}
-          {isProductsLoading ? (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse">
-              <svg className="animate-spin h-3.5 w-3.5 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-              </svg>
-              <span>Loading Products...</span>
-            </div>
-          ) : (
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-slate-800/80 text-slate-300 border-slate-700/60">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span>{productIndex.length} Products</span>
-            </div>
-          )}
 
           {/* Scanner Sync Badge */}
           <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${scannerStatus.connected && scannerStatus.erpConnected
@@ -629,6 +637,24 @@ export default function POSBilling() {
             <CartIcon className="w-4 h-4" />
             {cart.length > 0 && (
               <span className="text-xs">{cart.length} • {formatINR(summary.grandTotal)}</span>
+            )}
+          </button>
+
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer"
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            id="pos-theme-toggle"
+          >
+            {theme === 'dark' ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m0 13.5V21m8.966-8.966h-2.25m-13.5 0H3m15.364 6.364l-1.591-1.591M6.75 6.75L5.159 5.159m12.728 0l-1.591 1.591M6.75 17.25l-1.591 1.591M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998z" />
+              </svg>
             )}
           </button>
 
@@ -745,13 +771,7 @@ export default function POSBilling() {
         />
       )}
 
-      {/* Dedicated GST Report Modal */}
-      {showGstModal && (
-        <GSTReportModal
-          isOpen={showGstModal}
-          onClose={() => setShowGstModal(false)}
-        />
-      )}
+
 
       {/* ─── Scan Intercept Toast Alert ──────────────── */}
       {toast && (

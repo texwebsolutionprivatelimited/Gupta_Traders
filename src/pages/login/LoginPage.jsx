@@ -24,13 +24,31 @@ export default function LoginPage() {
   })
 
   useEffect(() => {
-    const root = window.document.documentElement
-    if (theme === 'light') {
-      root.classList.add('light')
-    } else {
-      root.classList.remove('light')
+    try {
+      const root = window.document.documentElement
+      if (theme === 'light') {
+        root.classList.add('light')
+      } else {
+        root.classList.remove('light')
+      }
+      localStorage.setItem('theme', theme)
+      window.dispatchEvent(new CustomEvent('erp:theme_changed', { detail: { theme } }))
+    } catch (e) {}
+  }, [theme])
+
+  useEffect(() => {
+    const handleThemeChange = (e) => {
+      const newTheme = e.detail?.theme || localStorage.getItem('theme')
+      if (newTheme && newTheme !== theme) {
+        setTheme(newTheme)
+      }
     }
-    localStorage.setItem('theme', theme)
+    window.addEventListener('erp:theme_changed', handleThemeChange)
+    window.addEventListener('storage', handleThemeChange)
+    return () => {
+      window.removeEventListener('erp:theme_changed', handleThemeChange)
+      window.removeEventListener('storage', handleThemeChange)
+    }
   }, [theme])
 
   useEffect(() => {
@@ -122,8 +140,8 @@ export default function LoginPage() {
         </div>
 
         {/* Role Quick-Select Tabs */}
-        <div className="mb-6 bg-slate-950/40 p-1 rounded-xl border border-slate-800/60 grid grid-cols-3 gap-1">
-          {['Admin', 'Manager', 'Cashier'].map((role) => (
+        <div className="mb-6 bg-slate-950/40 p-1 rounded-xl border border-slate-800/60 grid grid-cols-2 gap-1">
+          {['Admin', 'Cashier'].map((role) => (
             <button
               key={role}
               type="button"
@@ -142,7 +160,7 @@ export default function LoginPage() {
         {/* Central Form Title */}
         <div className="mb-5 text-center">
           <h2 className="text-xl font-extrabold text-slate-100 tracking-tight">
-            {activeTab === 'Admin' ? 'Admin / Owner Portal' : activeTab === 'Manager' ? 'Manager Portal' : 'Cashier Terminal'}
+            {activeTab === 'Admin' ? 'Admin / Owner Portal' : 'Cashier Terminal'}
           </h2>
           <p className="text-[11px] text-slate-500 mt-1 font-medium">
             Fill authorization to view designated panels.

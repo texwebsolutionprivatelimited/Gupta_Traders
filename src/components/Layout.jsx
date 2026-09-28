@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { formatINR } from '../utils/erp'
 import { listCategories, listUICustomers, listUIProducts, listUISales, listUISuppliers } from '../services/erpService'
 import Footer from './footer'
@@ -23,8 +23,17 @@ import {
   FaSearch,
   FaDownload,
   FaFilePdf,
-  FaFileExcel
+  FaFileExcel,
+  FaBell,
+  FaUndoAlt,
+  FaBoxOpen
 } from 'react-icons/fa'
+import {
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  clearAllNotifications
+} from '../services/notificationService'
 
 // Emoji map for category icons fallback
 const emojiToFaMap = {
@@ -122,8 +131,8 @@ const navItems = [
     ),
   },
   {
-    label: 'Sales',
-    path: '/sales',
+    label: 'Sales History',
+    path: '/sales/history',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
@@ -137,15 +146,6 @@ const navItems = [
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.143-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Customers',
-    path: '/customers',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
       </svg>
     ),
   },
@@ -231,37 +231,6 @@ function getAIAnswer(query, {products=[],suppliers=[],customers=[],bills=[]}={})
       else if (bal < 0) totalAdvances += Math.abs(bal)
     })
     return { totalPayables, totalAdvances }
-  }
-
-  const getReceivableStats = () => {
-    let totalReceivables = 0
-    let totalAdvances = 0
-    customers.forEach(c => {
-      const bal = Number(c.outstandingBalance) || 0
-      if (bal > 0) totalReceivables += bal
-      else if (bal < 0) totalAdvances += Math.abs(bal)
-    })
-    return { totalReceivables, totalAdvances }
-  }
-
-  // 0. Customer Receivables Summary
-  if (q.includes('receivable') || q.includes('customer owe') || q.includes('customer due') || q.includes('customer outstanding') || q.includes('client owe')) {
-    const isSpecificCustomer = customers.some(c => q.includes(c.name.toLowerCase()))
-    if (!isSpecificCustomer) {
-      const { totalReceivables, totalAdvances } = getReceivableStats()
-      return {
-        type: 'summary',
-        title: 'ERP Customer Receivables summary',
-        icon: '👥',
-        lines: [
-          { label: 'Total Customer Receivables', value: formatINR(totalReceivables), color: 'text-rose-400 font-bold' },
-          { label: 'Total Customer Advances Held', value: formatINR(totalAdvances), color: 'text-emerald-400' },
-          { label: 'Net Receivable Amount', value: formatINR(totalReceivables - totalAdvances), color: 'text-slate-200' },
-        ],
-        actionText: 'View Customers Directory',
-        actionPath: '/customers'
-      }
-    }
   }
 
   // 1. Total Payables / Owed Balance
@@ -540,21 +509,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       }
       setSupResults(sups)
 
-      let custs = []
-      try {
-        const allCusts = searchData.customers
-        custs = allCusts.filter(c =>
-          c.name.toLowerCase().includes(valLower) ||
-          (c.phone && c.phone.includes(valLower)) ||
-          (c.email && c.email.toLowerCase().includes(valLower)) ||
-          (c.city && c.city.toLowerCase().includes(valLower)) ||
-          (c.gstin && c.gstin.toLowerCase().includes(valLower))
-        )
-      } catch (e) {
-        console.error(e)
-      }
-      setCustResults(custs)
-
       let cats = []
       try {
         const allCats = searchData.categories
@@ -581,13 +535,12 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       setBillResults(bills)
 
       const actions = [
-        { label: 'POS Billing', path: '/pos', desc: 'Create new customer invoices', keyword: 'pos billing sales checkout invoice print' },
+        { label: 'POS Billing', path: '/pos', desc: 'Create new invoices', keyword: 'pos billing sales checkout invoice print' },
         { label: 'Products Directory', path: '/products', desc: 'Manage inventory catalogs', keyword: 'products items barcode sku' },
         { label: 'Categories Manager', path: '/categories', desc: 'Organize products by departments', keyword: 'categories sections departments' },
         { label: 'Inventory Stock Control', path: '/inventory', desc: 'Physical audit and inward/outward logs', keyword: 'inventory stock warehouse logs audit reconcile adjustment' },
         { label: 'Suppliers & Vendors', path: '/suppliers', desc: 'Manage payables, ledgers, and vendor details', keyword: 'suppliers vendors payables purchase ledger company' },
-        { label: 'Customers & Debtors', path: '/customers', desc: 'Manage credit limits, payments, and client ledgers', keyword: 'customers clients credit accounts receivable debtor' },
-        { label: 'Sales History', path: '/sales', desc: 'Track sales records and transactions', keyword: 'sales bills transaction invoices' },
+        { label: 'Sales History', path: '/sales/history', desc: 'Track sales records and transactions', keyword: 'sales bills transaction invoices history' },
         { label: 'Expenses Tracker', path: '/expenses', desc: 'Log and monitor utility, rent, and other costs', keyword: 'expenses cost pay spend bill cash' },
         { label: 'Business Reports', path: '/reports', desc: 'Detailed financial statements & charts', keyword: 'reports profit analysis tax balance sheet analytics gst' },
         { label: 'Settings & Config', path: '/settings', desc: 'App customization, backup & business profile', keyword: 'settings backup theme configurations' },
@@ -607,7 +560,6 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       matchedActions.slice(0, 3).forEach(act => selectables.push({ type: 'action', data: act }))
       prods.slice(0, 4).forEach(prod => selectables.push({ type: 'product', data: prod }))
       sups.slice(0, 4).forEach(sup => selectables.push({ type: 'supplier', data: sup }))
-      custs.slice(0, 4).forEach(cust => selectables.push({ type: 'customer', data: cust }))
       cats.slice(0, 4).forEach(cat => selectables.push({ type: 'category', data: cat }))
       bills.slice(0, 3).forEach(bill => selectables.push({ type: 'bill', data: bill }))
       setSelectableItems(selectables)
@@ -1058,6 +1010,71 @@ export default function Layout() {
   const [timeframe, setTimeframe] = useState('weekly')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+
+  // ── Notification Bell State & Sync ──────────────────────────────
+  const [notifications, setNotifications] = useState([])
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0)
+  const [notifMenuOpen, setNotifMenuOpen] = useState(false)
+  const notifMenuRef = useRef(null)
+
+  useEffect(() => {
+    const syncNotifs = () => {
+      const all = getNotifications()
+      setNotifications(all)
+      setUnreadNotifCount(all.filter(n => !n.read).length)
+    }
+    syncNotifs()
+
+    const handleUpdate = () => syncNotifs()
+    window.addEventListener('erp:notifications_updated', handleUpdate)
+    window.addEventListener('storage', handleUpdate)
+    return () => {
+      window.removeEventListener('erp:notifications_updated', handleUpdate)
+      window.removeEventListener('storage', handleUpdate)
+    }
+  }, [])
+
+  useEffect(() => {
+    function handleClickOutsideNotif(event) {
+      if (notifMenuRef.current && !notifMenuRef.current.contains(event.target)) {
+        setNotifMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutsideNotif)
+    return () => document.removeEventListener('mousedown', handleClickOutsideNotif)
+  }, [])
+
+  const handleNotificationClick = (notif) => {
+    markNotificationAsRead(notif.id)
+    setNotifMenuOpen(false)
+    if (notif.targetUrl) {
+      navigate(notif.targetUrl)
+    }
+  }
+
+  const handleMarkAllNotificationsRead = (e) => {
+    e.stopPropagation()
+    markAllNotificationsAsRead()
+  }
+
+  const handleClearNotifications = (e) => {
+    e.stopPropagation()
+    clearAllNotifications()
+  }
+
+  const formatNotifTime = (isoString) => {
+    if (!isoString) return ''
+    const date = new Date(isoString)
+    const diffSec = Math.floor((Date.now() - date.getTime()) / 1000)
+    if (diffSec < 60) return 'Just now'
+    const diffMin = Math.floor(diffSec / 60)
+    if (diffMin < 60) return `${diffMin}m ago`
+    const diffHr = Math.floor(diffMin / 60)
+    if (diffHr < 24) return `${diffHr}h ago`
+    const diffDay = Math.floor(diffHr / 24)
+    if (diffDay < 7) return `${diffDay}d ago`
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+  }
 
   useEffect(() => {
     function handleClickOutsideExport(event) {
@@ -1604,9 +1621,10 @@ export default function Layout() {
     setExportMenuOpen(false)
   }
 
+  const location = useLocation()
   const { profile, signOut } = useAuth()
   const userName = profile?.name || 'ERP User'
-  const userRole = profile?.role === 'admin' ? 'Admin' : profile?.role === 'manager' ? 'Manager' : 'Cashier'
+  const userRole = profile?.role === 'admin' ? 'Admin' : 'Cashier'
   const userTitle = profile?.title || userRole
 
   const initials = userName
@@ -1616,36 +1634,13 @@ export default function Layout() {
     .slice(0, 2)
     .toUpperCase()
 
-  const filteredNavItems = navItems.map(item => {
-    if (item.path === '/sales' && userRole === 'Cashier') {
-      return { ...item, label: 'Sales History' }
-    }
-    return item
-  }).filter((item) => {
+  const filteredNavItems = navItems.filter((item) => {
     if (userRole === 'Admin') return true
-
-    if (userRole === 'Manager') {
-      const allowedPaths = [
-        '/',
-        '/pos',
-        '/products',
-        '/packaged-scanner',
-        '/inventory',
-        '/purchase',
-        '/sales',
-        '/suppliers',
-        '/customers',
-        '/reports',
-        '/trash'
-      ]
-      return item.type === 'divider' || allowedPaths.includes(item.path)
-    }
 
     if (userRole === 'Cashier') {
       const allowedPaths = [
         '/pos',
-        '/customers',
-        '/sales'
+        '/sales/history'
       ]
       return item.type === 'divider' || allowedPaths.includes(item.path)
     }
@@ -1658,11 +1653,8 @@ export default function Layout() {
     if (item.type === 'divider') {
       const hasContentAfter = filteredNavItems.slice(index + 1).some(nextItem => {
         if (nextItem.type === 'divider') return false
-        if (userRole === 'Manager') {
-          return ['/', '/pos', '/products', '/packaged-scanner', '/inventory', '/purchase', '/sales', '/suppliers', '/customers', '/reports'].includes(nextItem.path)
-        }
         if (userRole === 'Cashier') {
-          return ['/pos', '/customers', '/sales'].includes(nextItem.path)
+          return ['/pos', '/sales/history'].includes(nextItem.path)
         }
         return true
       })
@@ -1693,19 +1685,41 @@ export default function Layout() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
   const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('theme')
-    if (saved) return saved
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    try {
+      const saved = localStorage.getItem('theme')
+      if (saved) return saved
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    } catch {
+      return 'dark'
+    }
   })
 
   useEffect(() => {
-    const root = window.document.documentElement
-    if (theme === 'light') {
-      root.classList.add('light')
-    } else {
-      root.classList.remove('light')
+    try {
+      const root = window.document.documentElement
+      if (theme === 'light') {
+        root.classList.add('light')
+      } else {
+        root.classList.remove('light')
+      }
+      localStorage.setItem('theme', theme)
+      window.dispatchEvent(new CustomEvent('erp:theme_changed', { detail: { theme } }))
+    } catch (e) {}
+  }, [theme])
+
+  useEffect(() => {
+    const handleThemeChange = (e) => {
+      const newTheme = e.detail?.theme || localStorage.getItem('theme')
+      if (newTheme && newTheme !== theme) {
+        setTheme(newTheme)
+      }
     }
-    localStorage.setItem('theme', theme)
+    window.addEventListener('erp:theme_changed', handleThemeChange)
+    window.addEventListener('storage', handleThemeChange)
+    return () => {
+      window.removeEventListener('erp:theme_changed', handleThemeChange)
+      window.removeEventListener('storage', handleThemeChange)
+    }
   }, [theme])
 
   const toggleTheme = () => {
@@ -1713,7 +1727,7 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
+    <div className="h-screen h-[100dvh] bg-slate-950 text-slate-100 flex overflow-hidden">
       {/* ─── Mobile Overlay ────────────────────────────────── */}
       {mobileSidebarOpen && (
         <div
@@ -1725,7 +1739,7 @@ export default function Layout() {
       {/* ─── Sidebar ──────────────────────────────────────── */}
       <aside
         className={`
-          fixed lg:sticky top-0 left-0 z-50 h-screen
+          fixed lg:static top-0 left-0 z-50 h-full shrink-0
           flex flex-col
           bg-slate-950/95 backdrop-blur-2xl
           border-r border-slate-800/60
@@ -1765,53 +1779,59 @@ export default function Layout() {
               )
             }
 
+            const isSalesRoute = item.path === '/sales/history' && location.pathname.startsWith('/sales')
+
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
                 end={item.path === '/'}
                 onClick={() => setMobileSidebarOpen(false)}
-                className={({ isActive }) =>
-                  `group flex items-center gap-3 rounded-xl transition-all duration-200 relative
+                className={({ isActive }) => {
+                  const active = isActive || isSalesRoute
+                  return `group flex items-center gap-3 rounded-xl transition-all duration-200 relative
                    ${sidebarOpen ? 'px-3 py-2.5' : 'px-0 py-2.5 justify-center'}
-                   ${isActive
+                   ${active
                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm shadow-emerald-500/5'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
                   }
-                   ${item.highlight && !isActive ? '!text-amber-400 hover:!text-amber-300 hover:!bg-amber-500/10' : ''}
+                   ${item.highlight && !active ? '!text-amber-400 hover:!text-amber-300 hover:!bg-amber-500/10' : ''}
                   `
-                }
+                }}
               >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-emerald-400" />
-                    )}
+                {({ isActive }) => {
+                  const active = isActive || isSalesRoute
+                  return (
+                    <>
+                      {active && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-emerald-400" />
+                      )}
 
-                    <span className={`flex-shrink-0 transition-colors ${isActive ? 'text-emerald-400' : ''}`}>
-                      {item.icon}
-                    </span>
-
-                    {sidebarOpen && (
-                      <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
-                        {item.label}
+                      <span className={`flex-shrink-0 transition-colors ${active ? 'text-emerald-400' : ''}`}>
+                        {item.icon}
                       </span>
-                    )}
 
-                    {item.highlight && sidebarOpen && (
-                      <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">
-                        POS
-                      </span>
-                    )}
+                      {sidebarOpen && (
+                        <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
+                          {item.label}
+                        </span>
+                      )}
 
-                    {!sidebarOpen && (
-                      <div className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-xs font-medium whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl border border-slate-700/60 z-[60] pointer-events-none">
-                        {item.label}
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 bg-slate-800 border-l border-b border-slate-700/60 rotate-45" />
-                      </div>
-                    )}
-                  </>
-                )}
+                      {item.highlight && sidebarOpen && (
+                        <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                          POS
+                        </span>
+                      )}
+
+                      {!sidebarOpen && (
+                        <div className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-xs font-medium whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl border border-slate-700/60 z-[60] pointer-events-none">
+                          {item.label}
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 bg-slate-800 border-l border-b border-slate-700/60 rotate-45" />
+                        </div>
+                      )}
+                    </>
+                  )
+                }}
               </NavLink>
             )
           })}
@@ -1830,9 +1850,9 @@ export default function Layout() {
       </aside>
 
       {/* ─── Main Content Area ────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* ── Top Bar ────────────────────────────────────── */}
-        <header className="sticky top-0 z-30 h-16 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 lg:px-8">
+        <header className="shrink-0 z-30 h-16 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 lg:px-8">
           {mobileSearchOpen && (
             <div className="absolute inset-0 bg-slate-950 flex items-center px-4 gap-2 z-50 animate-fadeIn">
               <button
@@ -1894,17 +1914,20 @@ export default function Layout() {
               </div>
             )}
 
-            {/* Dedicated GST Report & Export */}
-            <button
-              onClick={() => setGstModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 text-xs font-semibold transition-all cursor-pointer"
-              title="GST Report: CSV / PDF Export"
-            >
-              <FaBalanceScale className="text-xs" />
-              <span>GST: CSV / PDF</span>
-            </button>
+            {/* Dedicated GST Report & Export — hidden for Cashier */}
+            {userRole !== 'Cashier' && (
+              <button
+                onClick={() => setGstModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 text-xs font-semibold transition-all cursor-pointer"
+                title="GST Report: CSV / PDF Export"
+              >
+                <FaBalanceScale className="text-xs" />
+                <span>GST: CSV / PDF</span>
+              </button>
+            )}
 
-            {/* Global Export Menu */}
+            {/* Global Export Menu — hidden for Cashier */}
+            {userRole !== 'Cashier' && (
             <div ref={exportMenuRef} className="relative">
               <button
                 onClick={() => setExportMenuOpen(!exportMenuOpen)}
@@ -1997,6 +2020,121 @@ export default function Layout() {
                 </div>
               )}
             </div>
+            )}
+
+            {/* Notification Bell */}
+            <div ref={notifMenuRef} className="relative">
+              <button
+                id="header-notification-bell"
+                type="button"
+                onClick={() => setNotifMenuOpen(!notifMenuOpen)}
+                className={`relative p-2 rounded-xl transition-all cursor-pointer ${
+                  notifMenuOpen
+                    ? 'bg-slate-800 text-emerald-400'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                }`}
+                title={unreadNotifCount > 0 ? `${unreadNotifCount} unread notification${unreadNotifCount > 1 ? 's' : ''}` : 'Notifications'}
+                aria-label="Notifications"
+              >
+                <FaBell className="w-4 h-4 sm:w-5 sm:h-5" />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center border-2 border-slate-950 shadow-md animate-pulse">
+                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Dropdown Panel */}
+              {notifMenuOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fadeIn text-left">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/80">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">Notifications</span>
+                      {unreadNotifCount > 0 && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                          {unreadNotifCount} unread
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {unreadNotifCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllNotificationsRead}
+                          className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                      {notifications.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearNotifications}
+                          className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer ml-1"
+                          title="Clear all notifications"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Notification List */}
+                  <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-800/60">
+                    {notifications.length === 0 ? (
+                      <div className="py-8 text-center px-4 space-y-2">
+                        <div className="w-10 h-10 mx-auto rounded-full bg-slate-800/60 flex items-center justify-center text-slate-500">
+                          <FaBell className="w-4 h-4 opacity-50" />
+                        </div>
+                        <p className="text-xs font-semibold text-slate-400">No notifications yet</p>
+                        <p className="text-[11px] text-slate-500">Stock updates from sales returns will appear here.</p>
+                      </div>
+                    ) : (
+                      notifications.map(notif => (
+                        <div
+                          key={notif.id}
+                          onClick={() => handleNotificationClick(notif)}
+                          className={`p-3.5 transition-colors cursor-pointer flex gap-3 items-start group ${
+                            notif.read ? 'hover:bg-slate-800/40 bg-slate-900/40' : 'bg-slate-800/50 hover:bg-slate-800/80 border-l-2 border-emerald-500'
+                          }`}
+                        >
+                          <div className={`p-2 rounded-xl flex-shrink-0 mt-0.5 ${
+                            notif.type === 'sales_return'
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+                          }`}>
+                            {notif.type === 'sales_return' ? <FaUndoAlt className="w-3.5 h-3.5" /> : <FaBoxOpen className="w-3.5 h-3.5" />}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <h4 className={`text-xs font-bold truncate ${notif.read ? 'text-slate-300' : 'text-slate-100'}`}>
+                                {notif.title}
+                              </h4>
+                              <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                                {formatNotifTime(notif.createdAt)}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                              {notif.message}
+                            </p>
+                            <div className="flex items-center justify-between mt-2 pt-1">
+                              <span className="text-[10px] font-semibold text-emerald-400 group-hover:underline flex items-center gap-1">
+                                View in Inventory &rarr;
+                              </span>
+                              {!notif.read && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Profile Menu */}
             <div ref={userMenuRef} className="relative">
@@ -2039,12 +2177,14 @@ export default function Layout() {
         </header>
 
         {/* ── Main Outlet Content ────────────────────────── */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main id="main-content" className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto overscroll-contain">
           <Outlet />
         </main>
 
         {/* ── Footer ─────────────────────────────────────── */}
-        <Footer />
+        <div className="shrink-0">
+          <Footer />
+        </div>
       </div>
 
       {/* Dedicated GST Report Modal */}

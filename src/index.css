@@ -438,3 +438,36 @@ html.light textarea::placeholder {
   font-weight: 800;
   letter-spacing: 0.02em;
 }
+
+/* ─── Stop Background Scroll in Whole ERP ────────────────────── */
+html,
+body,
+#root {
+  overscroll-behavior: none;
+}
+
+/* Stop background scroll when ANY modal/dialog is open anywhere in the ERP */
+body.modal-open,
+html.modal-open,
+body:has(.fixed.inset-0:not(.pointer-events-none)),
+body:has([role="dialog"]) {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none;
+}
+
+/* Lock main and page scroll behind active modals */
+body.modal-open #main-content,
+body.modal-open main,
+body:has(.fixed.inset-0:not(.pointer-events-none)) #main-content,
+body:has(.fixed.inset-0:not(.pointer-events-none)) main,
+body:has([role="dialog"]) #main-content,
+body:has([role="dialog"]) main {
+  overflow: hidden !important;
+}
+
+/* Modal overlays contain their own scroll without scroll-chaining */
+.fixed.inset-0,
+[role="dialog"] {
+  overscroll-behavior: contain !important;
+}

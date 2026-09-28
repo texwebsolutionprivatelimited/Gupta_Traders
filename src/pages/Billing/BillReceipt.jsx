@@ -19,6 +19,25 @@ const mapUnitToShort = (unit) => {
 
 const escapeReceiptText = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
+export function formatItemReceiptName(name, packSize) {
+  const cleanName = String(name || '').trim();
+  const rawPack = String(packSize || '').trim();
+  if (!rawPack) return cleanName;
+
+  // Clean pack size prefix if needed (e.g. "per kg" -> "kg")
+  const cleanPack = rawPack.replace(/^per\s+/i, '').trim();
+  if (!cleanPack) return cleanName;
+
+  // If name already contains the pack size, avoid duplicating
+  const lowerName = cleanName.toLowerCase();
+  const lowerPack = cleanPack.toLowerCase();
+  if (lowerName.includes(lowerPack)) {
+    return cleanName;
+  }
+
+  return `${cleanName} — ${cleanPack}`;
+}
+
 export const formatReceiptQty = (qty) => {
   const num = Number(qty || 0);
   return String(Math.round(num));
@@ -78,7 +97,9 @@ export function normalizeBillData(rawBill) {
         : [];
 
   const items = rawItems.map((item, idx) => {
-    const name = item.name || item.product_name || item.product || item.title || item.itemName || `Item #${idx + 1}`;
+    const rawName = item.name || item.product_name || item.product || item.title || item.itemName || `Item #${idx + 1}`;
+    const packSize = item.packSize || item.pack_size || item.pack || item.product?.pack_size || item.product?.packSize || '';
+    const name = formatItemReceiptName(rawName, packSize);
     // Requirement: Quantity on receipt must ALWAYS be whole numbers only: 1, 2, 3, 4... Never 1.000, 2.000
     const rawQ = Number(item.quantity ?? item.qty ?? item.originalQuantity ?? 1);
     const quantity = Math.max(1, Math.round(rawQ));
@@ -88,6 +109,11 @@ export function normalizeBillData(rawBill) {
     // Amount = Rate * Quantity. Rate (Our Price) is preserved.
     const amount = Number((rate * quantity).toFixed(2));
     const lineTotal = itemDiscount > 0 ? Number((amount * (1 - itemDiscount / 100)).toFixed(2)) : amount;
+
+    const rawMrp = item.mrp ?? item.metadata?.mrp ?? item.product?.mrp;
+    const mrp = (rawMrp !== null && rawMrp !== undefined && rawMrp !== '' && !isNaN(Number(rawMrp)) && Number(rawMrp) > 0)
+      ? Number(rawMrp)
+      : null;
 
     const returnedQuantity = Math.round(Number(item.returnedQuantity ?? (item.returns || []).reduce((sum, r) => sum + Number(r.quantity || 0), 0) ?? 0));
     const returnableQuantity = Math.max(0, quantity - returnedQuantity);
@@ -101,6 +127,7 @@ export function normalizeBillData(rawBill) {
       quantity,
       rate,
       price: rate,
+      mrp,
       amount,
       unit,
       itemDiscount,
@@ -121,6 +148,14 @@ export function normalizeBillData(rawBill) {
   const discountAmount = Number(rawSummary.discountAmount ?? rawSummary.discount ?? rawBill.discount ?? 0);
   const subtotal = rawBill.isGSTInclusive === false ? Number(rawSummary.subtotal ?? rawBill.subtotal ?? calculatedSubtotal) : (beforeDiscount > 0 ? beforeDiscount : Number(rawSummary.subtotal ?? rawBill.subtotal ?? calculatedSubtotal));
   const grandTotal = Number(rawSummary.grandTotal ?? rawBill.total_amount ?? rawBill.total ?? Math.max(0, (beforeDiscount > 0 ? beforeDiscount : subtotal + totalGST) - discountAmount));
+
+  const allProductsHaveMrp = items.length > 0 && items.every(i => i.mrp !== null && i.mrp > 0);
+  const totalMrpAmount = allProductsHaveMrp
+    ? Number(items.reduce((sum, i) => sum + (Number(i.mrp) * i.quantity), 0).toFixed(2))
+    : 0;
+  const mrpSavings = (allProductsHaveMrp && totalMrpAmount > grandTotal)
+    ? Number((totalMrpAmount - grandTotal).toFixed(2))
+    : 0;
 
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
   const wordsAmount = numberToWordsINR(grandTotal);
@@ -153,6 +188,9 @@ export function normalizeBillData(rawBill) {
     balanceDue,
     timestamp,
     items,
+    allProductsHaveMrp,
+    totalMrpAmount,
+    mrpSavings,
     totalQuantity,
     wordsAmount,
     summary: {
@@ -348,27 +386,40 @@ export function generateReceiptHtml(bill) {
     ${norm.customerName ? `<span>Cust: ${escapeReceiptText(norm.customerName)}</span>` : ''}
   </div>
 
-  <!-- Product Table: Product | Qty | Rate | Amount -->
+  <!-- Product Table: Product | Qty | MRP | RP | Amount (or Product | Qty | Rate | Amount) -->
   <table class="items-table">
     <colgroup>
-      <col style="width: 50%;" />
-      <col style="width: 14%;" />
-      <col style="width: 18%;" />
-      <col style="width: 18%;" />
+      ${norm.allProductsHaveMrp ? `
+        <col style="width: 36%;" />
+        <col style="width: 12%;" />
+        <col style="width: 17%;" />
+        <col style="width: 17%;" />
+        <col style="width: 18%;" />
+      ` : `
+        <col style="width: 50%;" />
+        <col style="width: 14%;" />
+        <col style="width: 18%;" />
+        <col style="width: 18%;" />
+      `}
     </colgroup>
     <thead>
       <tr>
         <th style="text-align: left; padding-left: 2px;">Product</th>
         <th style="text-align: right;">Qty</th>
-        <th style="text-align: right;">Rate</th>
+        ${norm.allProductsHaveMrp ? `
+          <th style="text-align: right;">MRP</th>
+          <th style="text-align: right;">RP</th>
+        ` : `
+          <th style="text-align: right;">Rate</th>
+        `}
         <th style="text-align: right;">Amount</th>
       </tr>
     </thead>
     <tbody>
       ${items.map(item => `
         <tr>
-          <td style="text-align: left; word-break: break-word; padding-left: 2px; padding-right: 4px;">
-            <div style="font-weight: 800; font-size: 12px; line-height: 1.25;">${escapeReceiptText(item.name)}</div>
+          <td style="text-align: left; word-break: break-word; padding-left: 2px; padding-right: 2px;">
+            <div style="font-weight: 800; font-size: 11.5px; line-height: 1.2;">${escapeReceiptText(item.name)}</div>
             ${item.itemDiscount > 0 ? `<div style="font-size: 9px; font-weight: normal; color: #444;">Disc: -${(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>` : ''}
             ${item.returnedQuantity > 0 ? `
               <div style="font-size: 9px; font-weight: 900; color: #b91c1c !important;">
@@ -379,9 +430,18 @@ export function generateReceiptHtml(bill) {
           <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
             ${formatReceiptQty(item.quantity)}
           </td>
-          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
-            ${item.rate.toFixed(2)}
-          </td>
+          ${norm.allProductsHaveMrp ? `
+            <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
+              ${Number(item.mrp).toFixed(2)}
+            </td>
+            <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
+              ${item.rate.toFixed(2)}
+            </td>
+          ` : `
+            <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
+              ${item.rate.toFixed(2)}
+            </td>
+          `}
           <td style="text-align: right; white-space: nowrap; font-weight: 900; font-variant-numeric: tabular-nums;">
             ${item.amount.toFixed(2)}
           </td>
@@ -476,6 +536,21 @@ export function generateReceiptHtml(bill) {
     <span>Net Value</span>
     <span>${(norm.hasReturns ? norm.netTotalAfterReturns : summary.grandTotal).toFixed(2)}</span>
   </div>
+
+  ${norm.allProductsHaveMrp && norm.mrpSavings > 0 ? `
+    <div class="dash-line"></div>
+    <div class="totals-row">
+      <span>Total MRP Value:</span>
+      <span class="bold">₹${norm.totalMrpAmount.toFixed(2)}</span>
+    </div>
+    <div class="totals-row" style="font-weight: 900;">
+      <span>Total Savings on MRP:</span>
+      <span class="bold">₹${norm.mrpSavings.toFixed(2)} (${((norm.mrpSavings / norm.totalMrpAmount) * 100).toFixed(1)}%)</span>
+    </div>
+    <div class="center bold" style="font-size: 11px; margin: 4px 0; border: 1px dashed #000000; padding: 2px 4px;">
+      *** YOU SAVED ₹${norm.mrpSavings.toFixed(2)} ON MRP! ***
+    </div>
+  ` : ''}
 
   <div class="dash-line"></div>
 
@@ -602,20 +677,39 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               </div>
             </div>
 
-            {/* Product Table: Product | Qty | Rate | Amount */}
+            {/* Product Table: Product | Qty | MRP | RP | Amount (or Product | Qty | Rate | Amount) */}
             <div className="pt-0.5">
               <table className="w-full text-xs font-bold border-collapse" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
-                  <col style={{ width: '50%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '18%' }} />
-                  <col style={{ width: '18%' }} />
+                  {norm.allProductsHaveMrp ? (
+                    <>
+                      <col style={{ width: '36%' }} />
+                      <col style={{ width: '12%' }} />
+                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '18%' }} />
+                    </>
+                  ) : (
+                    <>
+                      <col style={{ width: '50%' }} />
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '18%' }} />
+                      <col style={{ width: '18%' }} />
+                    </>
+                  )}
                 </colgroup>
                 <thead>
                   <tr className="border-t border-b border-dashed border-black text-black">
                     <th className="text-left py-1 px-1 font-black">Product</th>
                     <th className="text-right py-1 px-1 font-black">Qty</th>
-                    <th className="text-right py-1 px-1 font-black">Rate</th>
+                    {norm.allProductsHaveMrp ? (
+                      <>
+                        <th className="text-right py-1 px-1 font-black">MRP</th>
+                        <th className="text-right py-1 px-1 font-black">RP</th>
+                      </>
+                    ) : (
+                      <th className="text-right py-1 px-1 font-black">Rate</th>
+                    )}
                     <th className="text-right py-1 px-1 font-black">Amount</th>
                   </tr>
                 </thead>
@@ -623,7 +717,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
                   {norm.items.map((item, idx) => (
                     <tr key={item.id || item.cartId || idx} className="align-top leading-tight">
                       <td className="text-left py-0.5 px-1 break-words font-bold text-black">
-                        <div className="text-[12px] leading-snug">{item.name}</div>
+                        <div className="text-[11.5px] leading-snug">{item.name}</div>
                         {item.itemDiscount > 0 && (
                           <div className="text-[10px] font-normal text-slate-700">Disc: -{(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>
                         )}
@@ -634,7 +728,14 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
                         )}
                       </td>
                       <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{formatReceiptQty(item.quantity)}</td>
-                      <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{item.rate.toFixed(2)}</td>
+                      {norm.allProductsHaveMrp ? (
+                        <>
+                          <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{Number(item.mrp).toFixed(2)}</td>
+                          <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{item.rate.toFixed(2)}</td>
+                        </>
+                      ) : (
+                        <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{item.rate.toFixed(2)}</td>
+                      )}
                       <td className="text-right py-0.5 px-1 whitespace-nowrap font-black text-black tabular-nums">{item.amount.toFixed(2)}</td>
                     </tr>
                   ))}
@@ -732,6 +833,23 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               <span>Net Value</span>
               <span>{(norm.hasReturns ? norm.netTotalAfterReturns : norm.summary.grandTotal).toFixed(2)}</span>
             </div>
+
+            {norm.allProductsHaveMrp && norm.mrpSavings > 0 && (
+              <>
+                <div className="border-t border-dashed border-black my-1" />
+                <div className="flex justify-between text-xs font-bold text-black">
+                  <span>Total MRP Value:</span>
+                  <span className="font-black">₹{norm.totalMrpAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs font-black text-black">
+                  <span>Total Savings on MRP:</span>
+                  <span className="font-black">₹{norm.mrpSavings.toFixed(2)} ({((norm.mrpSavings / norm.totalMrpAmount) * 100).toFixed(1)}%)</span>
+                </div>
+                <div className="text-center font-black text-xs py-1 border border-dashed border-black my-1">
+                  *** YOU SAVED ₹{norm.mrpSavings.toFixed(2)} ON MRP! ***
+                </div>
+              </>
+            )}
 
             <div className="border-t border-dashed border-black my-1" />
 

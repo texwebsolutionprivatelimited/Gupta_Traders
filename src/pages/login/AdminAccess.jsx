@@ -208,9 +208,9 @@ export default function AdminAccess() {
     { label: 'Categories', path: '/categories', desc: 'Product groups', icon: <FaTags className="text-purple-400" />, color: 'border-purple-500/20 bg-purple-500/5' },
     { label: 'Inventory', path: '/inventory', desc: 'Manage stock', icon: <FaWarehouse className="text-cyan-400" />, color: 'border-cyan-500/20 bg-cyan-500/5' },
     { label: 'Purchase', path: '/purchase', desc: 'Vendor orders', icon: <FaShoppingCart className="text-indigo-400" />, color: 'border-indigo-500/20 bg-indigo-500/5' },
-    { label: 'Sales', path: '/sales', desc: 'Invoices & records', icon: <FaChartLine className="text-emerald-450" />, color: 'border-emerald-500/20 bg-emerald-500/5' },
+    { label: 'Sales History', path: '/sales/history', desc: 'Invoices & records', icon: <FaChartLine className="text-emerald-450" />, color: 'border-emerald-500/20 bg-emerald-500/5' },
     { label: 'Suppliers', path: '/suppliers', desc: 'Vendor directory', icon: <FaBuilding className="text-sky-400" />, color: 'border-sky-500/20 bg-sky-500/5' },
-    { label: 'Customers', path: '/customers', desc: 'Client profiles', icon: <FaUsers className="text-orange-400" />, color: 'border-orange-500/20 bg-orange-500/5' },
+
     { label: 'Expenses', path: '/expenses', desc: 'Store spendings', icon: <FaMoneyBillWave className="text-rose-400" />, color: 'border-rose-500/20 bg-rose-500/5' },
     { label: 'Reports', path: '/reports', desc: 'Store reports', icon: <FaFileInvoiceDollar className="text-teal-400" />, color: 'border-teal-500/20 bg-teal-500/5' },
     { label: 'Users', path: '/users', desc: 'Staff access config', icon: <FaKey className="text-violet-400" />, color: 'border-violet-500/20 bg-violet-500/5' },
@@ -337,7 +337,7 @@ export default function AdminAccess() {
               <h3 className="text-base font-bold text-slate-100">Recent Sales Audit</h3>
             </div>
             <button
-              onClick={() => navigate('/sales')}
+              onClick={() => navigate('/sales/history')}
               className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors hover:bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-transparent hover:border-emerald-500/20 cursor-pointer"
             >
               Audit All Sales →

@@ -14,18 +14,6 @@ const initialItems = [
   },
 ];
 
-const productPrices = {
-  "Aashirvaad Atta": 350,
-  "Fortune Rice": 1200,
-  "Tata Salt": 25,
-  "Amul Milk": 60,
-  "Parle-G Biscuit": 10,
-  "Maggi Noodles": 15,
-  "Fortune Oil": 180,
-  Sugar: 45,
-  "Tea Powder": 250,
-  "Surf Excel": 120,
-};
 
 export default function SalesEntry() {
   const navigate = useNavigate();
@@ -73,7 +61,7 @@ export default function SalesEntry() {
           return {
             ...item,
             product: value,
-            salesPrice: productPrices[value] || 0,
+            salesPrice: (remoteProducts.find(p => p.name === value) || {}).salesPrice || 0,
           };
         }
 

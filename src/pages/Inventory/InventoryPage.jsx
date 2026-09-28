@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { formatINR } from '../../utils/erp'
 import { listCategories, listInventoryMovements, listUIProducts, subscribeToTable } from '../../services/erpService'
 
@@ -23,10 +24,20 @@ import {
 const ITEMS_PER_PAGE = 10
 
 export default function InventoryPage() {
+  const [searchParams] = useSearchParams()
+  const initialSearch = searchParams.get('search') || searchParams.get('q') || ''
   const [activeTab, setActiveTab] = useState('stock') // 'stock' | 'ledger'
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(initialSearch)
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'low' | 'out'
+
+  useEffect(() => {
+    const q = searchParams.get('search') || searchParams.get('q') || ''
+    if (q) {
+      setSearchQuery(q)
+      setActiveTab('stock')
+    }
+  }, [searchParams])
 
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
@@ -74,7 +85,16 @@ export default function InventoryPage() {
 
   useEffect(() => {
     const offInventory=subscribeToTable('inventory',reloadData),offProducts=subscribeToTable('products',reloadData),offMovements=subscribeToTable('stock_movements',reloadData)
-    return () => {offInventory();offProducts();offMovements()}
+    const handleEventUpdate = () => reloadData()
+    window.addEventListener('inventory-updated', handleEventUpdate)
+    window.addEventListener('erp:inventory_change', handleEventUpdate)
+    return () => {
+      offInventory();
+      offProducts();
+      offMovements();
+      window.removeEventListener('inventory-updated', handleEventUpdate)
+      window.removeEventListener('erp:inventory_change', handleEventUpdate)
+    }
   }, [])
 
   // Handle updates from modals

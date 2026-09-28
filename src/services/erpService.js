@@ -389,13 +389,24 @@ export async function completeSale(sale, items) {
   return saved;
 }
 export async function completePurchase(purchase, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_purchase', { p_purchase: purchase, p_items: items }); fail(error, 'Unable to complete purchase'); invalidateCache('products'); return data }
-export async function completeSalesReturn(ret, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_sales_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete sales return'); invalidateCache('products'); return data }
+export async function completeSalesReturn(ret, items) {
+  await requireSession();
+  const { data, error } = await supabase.rpc('complete_sales_return', { p_return: ret, p_items: items });
+  fail(error, 'Unable to complete sales return');
+  invalidateCache('products');
+  invalidateCache('inventory');
+  try {
+    window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { returnData: data, items } }));
+    window.dispatchEvent(new CustomEvent('erp:inventory_change', { detail: { type: 'sales_return', items } }));
+  } catch (e) {}
+  return data;
+}
 export async function completePurchaseReturn(ret, items) { const { data, error } = await supabase.rpc('complete_purchase_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete purchase return'); invalidateCache('products'); return data }
 
 export async function listSalesReturns() {
   const { data, error } = await supabase
     .from('sales_returns')
-    .select('*, sale:sales(id,invoice_number,sale_date,total_amount,payment_method), customer:customers(*), items:sale_return_items(*, product:products(name,unit,sku))')
+    .select('*, sale:sales(id,invoice_number,sale_date,total_amount,payment_method), customer:customers(*), items:sale_return_items(*, product:products(name,unit,sku,pack_size))')
     .order('created_at', { ascending: false });
   fail(error, 'Unable to load sales returns');
   return data;
@@ -404,7 +415,7 @@ export async function listSalesReturns() {
 export async function listSales() {
   const { data, error } = await supabase
     .from('sales')
-    .select('*, customer:customers(*), items:sale_items(*, returns:sale_return_items(*), product:products(name,unit,selling_price,purchase_price)), returns:sales_returns(*, items:sale_return_items(*, product:products(name,unit,sku)))')
+    .select('*, customer:customers(*), items:sale_items(*, returns:sale_return_items(*), product:products(name,unit,selling_price,purchase_price,pack_size)), returns:sales_returns(*, items:sale_return_items(*, product:products(name,unit,sku,pack_size)))')
     .order('sale_date', { ascending: false });
   fail(error, 'Unable to load sales');
   return data;
@@ -435,14 +446,20 @@ export async function listUISales() {
       const itemDiscount = Number(i.metadata?.item_discount_percent || i.discount || 0);
       const gst = Number(i.tax_rate || i.tax || 0);
       const cost = Number(i.unit_cost || i.product?.purchase_price || 0);
+      const rawMrp = i.metadata?.mrp ?? i.mrp ?? i.product?.mrp ?? (i.product?.metadata?.mrp || null);
+      const mrp = (rawMrp !== null && rawMrp !== undefined && rawMrp !== '' && !isNaN(Number(rawMrp)) && Number(rawMrp) > 0)
+        ? Number(rawMrp)
+        : null;
 
       return {
         ...i,
         product: i.product_name || i.product?.name || i.product || 'Item',
         name: i.product_name || i.product?.name || i.product || 'Item',
+        packSize: i.packSize || i.pack_size || i.metadata?.packSize || i.metadata?.pack_size || i.product?.pack_size || '',
         unit: i.unit || i.product?.unit || '',
         salesPrice: price,
         price,
+        mrp,
         itemDiscount,
         gst,
         purchasePrice: cost,

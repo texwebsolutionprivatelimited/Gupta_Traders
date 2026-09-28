@@ -8,7 +8,6 @@ import ProductsPage from './pages/Products/ProductsPage'
 import CategoriesPage from './pages/Categories/CategoriesPage'
 import InventoryPage from './pages/Inventory'
 import SuppliersPage from './pages/Suppliers'
-import CustomersPage from './pages/Customers'
 import LoginPage from './pages/login'
 import TrashPage from './pages/Trash'
 import PackagedProductScanner from './pages/Products/PackagedProductScanner'
@@ -79,14 +78,9 @@ function ProtectedRoute() {
   const path = location.pathname
 
   if (role === 'cashier') {
-    const allowed = ['/', '/pos', '/customers', '/sales', '/sales/history', '/sales/return', '/sales/invoice-reprint']
+    const allowed = ['/', '/pos', '/sales', '/sales/history', '/sales/return', '/sales/invoice-reprint']
     if (!allowed.includes(path) && !path.startsWith('/sales')) {
       return <Navigate to="/pos" replace />
-    }
-  } else if (role === 'manager') {
-    const forbidden = ['/categories', '/expenses', '/users', '/settings', '/hardware']
-    if (forbidden.includes(path)) {
-      return <Navigate to="/" replace />
     }
   }
 
@@ -94,6 +88,30 @@ function ProtectedRoute() {
 }
 
 function App() {
+  // ─── Global Theme Manager & Cross-Route Synchronizer ──────────
+  useEffect(() => {
+    const applyTheme = () => {
+      try {
+        const saved = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const currentTheme = saved || (prefersDark ? 'dark' : 'light');
+        if (currentTheme === 'light') {
+          document.documentElement.classList.add('light');
+        } else {
+          document.documentElement.classList.remove('light');
+        }
+      } catch (e) {}
+    };
+
+    applyTheme();
+    window.addEventListener('storage', applyTheme);
+    window.addEventListener('erp:theme_changed', applyTheme);
+    return () => {
+      window.removeEventListener('storage', applyTheme);
+      window.removeEventListener('erp:theme_changed', applyTheme);
+    };
+  }, []);
+
   // Global Hardware Connectivity manager
   useEffect(() => {
     if (typeof navigator === "undefined") return;
@@ -264,6 +282,74 @@ function App() {
     };
   }, []);
 
+  // ─── Universal Background Scroll Lock for Whole ERP ───────────
+  useEffect(() => {
+    const isModalVisible = (el) => {
+      if (!el || (el.offsetParent === null && el.offsetWidth === 0 && el.offsetHeight === 0)) return false;
+      if (el.classList.contains('-translate-x-full')) return false;
+      const style = window.getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    };
+
+    const updateScrollLock = () => {
+      const overlayCandidates = document.querySelectorAll(
+        '.fixed.inset-0:not(.pointer-events-none), [role="dialog"], [data-modal="true"]'
+      );
+      const hasActiveModal = Array.from(overlayCandidates).some(isModalVisible);
+
+      if (hasActiveModal) {
+        if (!document.body.classList.contains('modal-open')) {
+          document.body.classList.add('modal-open');
+          document.documentElement.classList.add('modal-open');
+          document.body.style.overflow = 'hidden';
+          document.documentElement.style.overflow = 'hidden';
+          const mainContent = document.getElementById('main-content') || document.querySelector('main');
+          if (mainContent) {
+            mainContent.style.overflow = 'hidden';
+          }
+        }
+      } else {
+        if (document.body.classList.contains('modal-open')) {
+          document.body.classList.remove('modal-open');
+          document.documentElement.classList.remove('modal-open');
+          document.body.style.overflow = '';
+          document.documentElement.style.overflow = '';
+          const mainContent = document.getElementById('main-content') || document.querySelector('main');
+          if (mainContent) {
+            mainContent.style.overflow = '';
+          }
+        }
+      }
+    };
+
+    const observer = new MutationObserver(updateScrollLock);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'hidden', 'open']
+    });
+
+    const handleWheelOnBackdrop = (e) => {
+      const target = e.target;
+      if (target && target.classList && target.classList.contains('fixed') && target.classList.contains('inset-0')) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('wheel', handleWheelOnBackdrop, { passive: false });
+    updateScrollLock();
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('wheel', handleWheelOnBackdrop);
+      document.body.classList.remove('modal-open');
+      document.documentElement.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
+
   return (
     <ReportProvider>
       <ExpenseProvider>
@@ -296,7 +382,7 @@ function App() {
                 <Route path="/sales/invoice-reprint" element={<InvoiceReprint />} />
 
                 <Route path="/suppliers" element={<SuppliersPage />} />
-                <Route path="/customers" element={<CustomersPage />} />
+
 
                 {/* Expenses Routes */}
                 <Route path="/expenses" element={<Expenses />} />

@@ -11,7 +11,9 @@ import {
   printThermalReturnReceipt,
   printThermalReceipt,
   ReceiptPreview,
+  formatItemReceiptName,
 } from "../Billing/BillReceipt";
+import { addNotification } from "../../services/notificationService";
 import {
   FaUndo as UndoIcon,
   FaReceipt as ReceiptIcon,
@@ -324,6 +326,45 @@ export default function SalesReturn() {
       };
 
       setCompletedReturnData(completedBundle);
+
+      // Create notification whenever sales return updates inventory
+      try {
+        const returnedDetails = returnItemsPayload.map((rp) => {
+          const originalItem = selectedSale.items?.find((x) => x.id === rp.sale_item_id);
+          const rawName = originalItem?.name || originalItem?.product || 'Product';
+          const pack = originalItem?.packSize || originalItem?.pack_size || '';
+          const displayName = formatItemReceiptName(rawName, pack);
+          return {
+            name: displayName,
+            rawName,
+            quantity: rp.quantity,
+            unit: originalItem?.unit || '',
+          };
+        });
+
+        const firstItem = returnedDetails[0];
+        const summaryText = returnedDetails
+          .map((it) => `${it.quantity}x ${it.name}`)
+          .join(', ');
+
+        const invNumber = selectedSale.invoice || selectedSale.invoice_number || 'INV';
+        const returnNumber = result?.return_number || 'SR';
+
+        addNotification({
+          title: 'Sales Return • Stock Restored',
+          message: `${summaryText} returned & added back to inventory. Invoice: ${invNumber} (${returnNumber})`,
+          type: 'sales_return',
+          targetUrl: `/inventory?search=${encodeURIComponent(firstItem?.rawName || firstItem?.name || '')}`,
+          meta: {
+            saleId: selectedSale.id,
+            invoiceNumber: invNumber,
+            returnNumber,
+            items: returnedDetails,
+          },
+        });
+      } catch (notifErr) {
+        console.warn('Could not post sales return notification:', notifErr);
+      }
 
       // Refresh sales and return list
       await loadData();

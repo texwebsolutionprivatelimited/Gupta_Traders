@@ -5,7 +5,6 @@ import { ArrowLeft, Save, UserRound, ShieldCheck, Lock, AlertCircle } from "luci
 
 const roles = [
   "Admin / Owner",
-  "Manager",
   "Cashier / Accountant",
 ];
 
@@ -40,7 +39,7 @@ export default function EditUser() {
         name: user.name || "",
         email: user.email || "",
         mobile: user.mobile || "",
-        role: user.role==='admin'?"Admin / Owner":user.role==='manager'?"Manager":"Cashier / Accountant",
+        role: user.role==='admin'?"Admin / Owner":"Cashier / Accountant",
         status: user.status==='active'?"Active":"Inactive",
         currentPassword: "",
         newPassword: "",
@@ -96,7 +95,7 @@ export default function EditUser() {
     }
 
     try {
-      await adminUsers('update',{id,name:formData.name.trim(),email:formData.email.trim(),mobile:formData.mobile,role:formData.role==='Admin / Owner'?'admin':formData.role==='Manager'?'manager':'cashier',status:formData.status==='Active'?'active':'inactive',password:formData.newPassword||undefined})
+      await adminUsers('update',{id,name:formData.name.trim(),email:formData.email.trim(),mobile:formData.mobile,role:formData.role==='Admin / Owner'?'admin':'cashier',status:formData.status==='Active'?'active':'inactive',password:formData.newPassword||undefined})
       alert("User updated successfully!");
       navigate("/users");
     } catch (err) {

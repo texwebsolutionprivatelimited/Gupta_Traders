@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SearchableSelect from "../../components/SearchableSelect";
-import { completePurchaseReturn, listPurchases, listUISuppliers } from '../../services/erpService'
+import { completePurchaseReturn, listPurchases, listUISuppliers, listUIProducts } from '../../services/erpService'
 
 const initialItems = [
   {
@@ -13,57 +13,22 @@ const initialItems = [
   },
 ];
 
-const productPrices = {
-  "Basmati Rice": 85,
-  "Toor Dal": 110,
-  "Wheat Flour": 45,
-  Sugar: 42,
-  Salt: 20,
-  "Cooking Oil": 135,
-  "Mustard Oil": 145,
-  Tea: 210,
-  Coffee: 280,
-  Poha: 45,
-  Besan: 75,
-  "Moong Dal": 105,
-  "Chana Dal": 75,
-  "Maggi Noodles": 12,
-  "Parle-G Biscuits": 8,
-  "Britannia Good Day": 25,
-  "Tomato Ketchup": 90,
-  "Mango Pickle": 100,
-  Milk: 27,
-  Paneer: 340,
-};
-
-const productGST = {
-  "Basmati Rice": 5,
-  "Toor Dal": 5,
-  "Wheat Flour": 0,
-  Sugar: 0,
-  Salt: 0,
-  "Cooking Oil": 5,
-  "Mustard Oil": 5,
-  Tea: 5,
-  Coffee: 5,
-  Poha: 5,
-  Besan: 5,
-  "Moong Dal": 5,
-  "Chana Dal": 5,
-  "Maggi Noodles": 12,
-  "Parle-G Biscuits": 5,
-  "Britannia Good Day": 18,
-  "Tomato Ketchup": 12,
-  "Mango Pickle": 12,
-  Milk: 0,
-  Paneer: 5,
-};
-
-const productOptions = Object.keys(productPrices);
-
 export default function PurchaseReturn() {
-  const [suppliersList,setSuppliersList]=useState([]),[sourcePurchases,setSourcePurchases]=useState([])
-  useEffect(()=>{Promise.all([listUISuppliers(),listPurchases()]).then(([s,p])=>{setSuppliersList(s);setSourcePurchases(p)}).catch(error=>alert(error.message))},[])
+  const [suppliersList, setSuppliersList] = useState([]);
+  const [sourcePurchases, setSourcePurchases] = useState([]);
+  const [remoteProducts, setRemoteProducts] = useState([]);
+
+  useEffect(() => {
+    Promise.all([listUISuppliers(), listPurchases(), listUIProducts()])
+      .then(([s, p, prods]) => {
+        setSuppliersList(s || []);
+        setSourcePurchases(p || []);
+        setRemoteProducts(prods || []);
+      })
+      .catch((error) => alert(error.message));
+  }, []);
+
+  const productOptions = remoteProducts.map((p) => p.name).filter(Boolean);
 
   const [supplier, setSupplier] = useState("");
   const [returnNo, setReturnNo] = useState("");
@@ -99,11 +64,18 @@ export default function PurchaseReturn() {
         if (item.id !== id) return item;
 
         if (field === "product") {
+          const matched = remoteProducts.find(
+            (p) => (p.name || '').trim().toLowerCase() === String(value).trim().toLowerCase() || p.id === value
+          );
           return {
             ...item,
             product: value,
-            purchasePrice: productPrices[value] || 0,
-            gst: productGST[value] ?? 0,
+            purchasePrice: matched
+              ? Number(matched.purchasePrice ?? matched.purchase_price ?? matched.rate ?? item.purchasePrice ?? 0)
+              : item.purchasePrice,
+            gst: matched && (matched.gstRate !== undefined || matched.gst_rate !== undefined)
+              ? Number(matched.gstRate ?? matched.gst_rate ?? 5)
+              : item.gst,
           };
         }
 
@@ -346,15 +318,70 @@ export default function PurchaseReturn() {
                     return (
                       <tr key={item.id}>
                         <td className="px-5 py-4">
-                          <SearchableSelect
-                            value={item.product}
-                            onChange={(val) =>
-                              updateItem(item.id, "product", val)
-                            }
-                            options={productOptions}
-                            placeholder="Select Product"
-                            className={`${inputStyle} min-w-[190px]`}
-                          />
+                          <div className="flex items-center gap-1.5 min-w-[240px]">
+                            {item.isManual ? (
+                              <>
+                                <input
+                                  type="text"
+                                  list={`purchase-return-products-list-${item.id}`}
+                                  value={item.product}
+                                  onChange={(e) =>
+                                    updateItem(item.id, "product", e.target.value)
+                                  }
+                                  placeholder="Type or select product..."
+                                  className={`${inputStyle} flex-1 min-w-0`}
+                                  required
+                                  autoFocus
+                                />
+                                <datalist id={`purchase-return-products-list-${item.id}`}>
+                                  {productOptions.map((opt, idx) => (
+                                    <option key={idx} value={opt} />
+                                  ))}
+                                </datalist>
+                              </>
+                            ) : (
+                              <div className="flex-1 min-w-0">
+                                <SearchableSelect
+                                  value={item.product}
+                                  onChange={(val) =>
+                                    updateItem(item.id, "product", val)
+                                  }
+                                  options={productOptions}
+                                  placeholder={productOptions.length > 0 ? "Select Product" : "Type product..."}
+                                  className={inputStyle}
+                                  allowCustom={true}
+                                />
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => updateItem(item.id, "isManual", false)}
+                                className={`p-2 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                                  !item.isManual
+                                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-sm"
+                                    : "bg-slate-800/60 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                                }`}
+                                title={!item.isManual ? "Product Search (Active)" : "Switch to Product Search"}
+                                aria-label="Product Search"
+                              >
+                                🔍
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateItem(item.id, "isManual", true)}
+                                className={`p-2 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                                  item.isManual
+                                    ? "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-sm"
+                                    : "bg-slate-800/60 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                                }`}
+                                title={item.isManual ? "Manual Typing (Active)" : "Switch to Manual Typing"}
+                                aria-label="Manual Typing"
+                              >
+                                ✍️
+                              </button>
+                            </div>
+                          </div>
                         </td>
 
                         <td className="px-5 py-4">
@@ -393,7 +420,7 @@ export default function PurchaseReturn() {
                             onChange={(e) =>
                               updateItem(item.id, "gst", e.target.value)
                             }
-                            className={`${inputStyle} w-24`}
+                            className={`${inputStyle} w-28 min-w-[6.5rem] cursor-pointer`}
                           >
                             <option value="0">0%</option>
                             <option value="5">5%</option>

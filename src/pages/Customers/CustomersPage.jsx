@@ -26,7 +26,7 @@ export default function CustomersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { role } = useAuth()
-  const userRole = role === 'cashier' ? 'Cashier' : role === 'manager' ? 'Manager' : 'Admin'
+  const userRole = role === 'cashier' ? 'Cashier' : 'Admin'
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')

@@ -30,17 +30,6 @@ const rolePermissions = {
     "Settings",
     "Hardware",
   ],
-  Manager: [
-    "Dashboard",
-    "POS",
-    "Products",
-    "Inventory",
-    "Purchase",
-    "Sales",
-    "Suppliers",
-    "Customers",
-    "Reports",
-  ],
   "Cashier / Accountant": [
     "POS Billing",
     "Customers",
@@ -52,7 +41,7 @@ export default function UserManagement() {
   const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
-  useEffect(()=>{adminUsers('list').then(rows=>setUsers(rows.map(u=>({...u,role:u.role==='admin'?'Admin / Owner':u.role==='manager'?'Manager':'Cashier / Accountant',status:u.status==='active'?'Active':'Inactive'})))).catch(error=>alert(error.message))},[])
+  useEffect(()=>{adminUsers('list').then(rows=>setUsers(rows.map(u=>({...u,role:u.role==='admin'?'Admin / Owner':'Cashier / Accountant',status:u.status==='active'?'Active':'Inactive'})))).catch(error=>alert(error.message))},[])
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
@@ -84,10 +73,6 @@ export default function UserManagement() {
 
   const activeUsers = users.filter(
     (user) => user.status === "Active"
-  ).length;
-
-  const managerUsers = users.filter(
-    (user) => user.role === "Manager"
   ).length;
 
   const cashierUsers = users.filter(
@@ -170,7 +155,7 @@ export default function UserManagement() {
         </div>
 
         {/* Stats */}
-        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-6 grid gap-4 sm:grid-cols-3">
           <StatCard
             title="Total Users"
             value={users.length}
@@ -188,14 +173,6 @@ export default function UserManagement() {
           />
 
           <StatCard
-            title="Managers"
-            value={managerUsers}
-            subtitle="Manager accounts"
-            icon={<ShieldCheck size={21} />}
-            iconClass="bg-violet-500/10 text-violet-600 dark:text-violet-400"
-          />
-
-          <StatCard
             title="Cashier / Accountant"
             value={cashierUsers}
             subtitle="Billing accounts"
@@ -205,21 +182,13 @@ export default function UserManagement() {
         </div>
 
         {/* Role Summary */}
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <div className="mb-6 grid gap-4 md:grid-cols-2">
           <RoleCard
             role="Admin / Owner"
             count={adminUserCount}
             description="Full system access"
             permissions={rolePermissions["Admin / Owner"]}
             icon={<ShieldCheck size={20} />}
-          />
-
-          <RoleCard
-            role="Manager"
-            count={managerUsers}
-            description="Business operations access"
-            permissions={rolePermissions.Manager}
-            icon={<Users size={20} />}
           />
 
           <RoleCard
@@ -258,7 +227,6 @@ export default function UserManagement() {
               <option value="Admin / Owner">
                 Admin / Owner
               </option>
-              <option value="Manager">Manager</option>
               <option value="Cashier / Accountant">
                 Cashier / Accountant
               </option>
@@ -505,8 +473,6 @@ function RoleBadge({ role }) {
   const classes = {
     "Admin / Owner":
       "bg-violet-500/10 text-violet-700 border border-violet-200 dark:border-violet-900/40 dark:text-violet-400",
-    Manager:
-      "bg-blue-500/10 text-blue-700 border border-blue-200 dark:border-blue-900/40 dark:text-blue-400",
     "Cashier / Accountant":
       "bg-amber-500/10 text-amber-700 border border-amber-200 dark:border-amber-900/40 dark:text-amber-400",
   };

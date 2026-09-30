@@ -14,7 +14,7 @@ import { formatINR } from '../../utils/erp'
 
 export default function CustomerLedgerModal({ customer, onTransactionRecorded, onClose }) {
   const { role } = useAuth()
-  const userRole = role === 'cashier' ? 'Cashier' : role === 'manager' ? 'Manager' : 'Admin'
+  const userRole = role === 'cashier' ? 'Cashier' : 'Admin'
   const [txnAmount, setTxnAmount] = useState('')
   const [txnType, setTxnType] = useState('payment') // 'payment', 'invoice', or 'adjustment'
   const [paymentMode, setPaymentMode] = useState('UPI')

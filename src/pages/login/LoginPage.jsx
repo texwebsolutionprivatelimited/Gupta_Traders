@@ -372,7 +372,7 @@ export default function LoginPage() {
                   <div className="space-y-1.5">
                     <h4 className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider">1. Agreement to Terms</h4>
                     <p className="text-xs leading-relaxed text-slate-400">
-                      By accessing or using the Gupta Traders Management Workspace, you agree to be bound by these terms. This system is created solely for internal use by authorized administrators, managers, and cashiers of Gupta Traders. If you do not agree to these terms, you are not permitted to access or use the application.
+                      By accessing or using the Gupta Traders Management Workspace, you agree to be bound by these terms. This system is created solely for internal use by authorized administrators and cashiers of Gupta Traders. If you do not agree to these terms, you are not permitted to access or use the application.
                     </p>
                   </div>
                   <div className="space-y-1.5">

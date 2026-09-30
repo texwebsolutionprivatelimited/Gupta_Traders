@@ -102,18 +102,73 @@ export default function SalesReturn() {
     setSelectedSale(sale);
     setInvoiceSearch(sale.invoice || sale.invoice_number || "");
 
-    // Initialize item selection map
+    // Initialize item selection map: default all returnable items to full available quantity
     const initialMap = {};
-    (sale.items || []).forEach((item) => {
+    (sale.items || []).forEach((item, idx) => {
+      const itemId = item.id || `item_${idx}`;
       const available = Number(item.returnableQuantity ?? item.quantity ?? 1);
-      initialMap[item.id] = {
+      initialMap[itemId] = {
         selected: available > 0,
-        quantity: available > 0 ? 1 : 0,
+        quantity: available > 0 ? available : 0,
         max: available,
       };
     });
     setSelectedItems(initialMap);
   }, []);
+
+  // Helper: Select all items at their full returnable quantity
+  const selectAllItems = useCallback(() => {
+    if (!selectedSale?.items) return;
+    const nextMap = {};
+    selectedSale.items.forEach((item, idx) => {
+      const itemId = item.id || `item_${idx}`;
+      const available = Number(item.returnableQuantity ?? item.quantity ?? 1);
+      nextMap[itemId] = {
+        selected: available > 0,
+        quantity: available > 0 ? available : 0,
+        max: available,
+      };
+    });
+    setSelectedItems(nextMap);
+  }, [selectedSale]);
+
+  // Helper: Deselect all items
+  const deselectAllItems = useCallback(() => {
+    if (!selectedSale?.items) return;
+    const nextMap = {};
+    selectedSale.items.forEach((item, idx) => {
+      const itemId = item.id || `item_${idx}`;
+      const available = Number(item.returnableQuantity ?? item.quantity ?? 1);
+      nextMap[itemId] = {
+        selected: false,
+        quantity: 0,
+        max: available,
+      };
+    });
+    setSelectedItems(nextMap);
+  }, [selectedSale]);
+
+  // Check if all available items are selected
+  const isAllSelected = useMemo(() => {
+    if (!selectedSale?.items?.length) return false;
+    const availableItems = selectedSale.items.filter(
+      (it) => Number(it.returnableQuantity ?? it.quantity ?? 1) > 0
+    );
+    if (availableItems.length === 0) return false;
+    return availableItems.every((it, idx) => {
+      const itemId = it.id || `item_${idx}`;
+      return selectedItems[itemId]?.selected && selectedItems[itemId]?.quantity > 0;
+    });
+  }, [selectedSale, selectedItems]);
+
+  // Master toggle: select all or clear all
+  const toggleSelectAll = useCallback(() => {
+    if (isAllSelected) {
+      deselectAllItems();
+    } else {
+      selectAllItems();
+    }
+  }, [isAllSelected, deselectAllItems, selectAllItems]);
 
   // Load Sales and Return History
   const loadData = useCallback(async () => {
@@ -178,31 +233,36 @@ export default function SalesReturn() {
   }, [selectedSale, returnDate]);
 
   // Update item selection toggle
-  const toggleItemSelection = (itemId) => {
+  const toggleItemSelection = useCallback((itemId, maxQty) => {
     setSelectedItems((prev) => {
-      const current = prev[itemId] || { selected: false, quantity: 1, max: 1 };
+      const current = prev[itemId] || { selected: false, quantity: maxQty || 1, max: maxQty || 1 };
+      const nextSelected = !current.selected;
       return {
         ...prev,
         [itemId]: {
           ...current,
-          selected: !current.selected,
-          quantity: !current.selected && current.quantity <= 0 ? 1 : current.quantity,
+          selected: nextSelected,
+          quantity: nextSelected
+            ? (current.quantity > 0 ? current.quantity : (maxQty || 1))
+            : current.quantity,
         },
       };
     });
-  };
+  }, []);
 
   // Update item return quantity
-  const updateItemQty = (itemId, val, max) => {
-    const num = Math.max(1, Math.min(max, parseInt(val, 10) || 1));
+  const updateItemQty = useCallback((itemId, val, max) => {
+    const num = Math.max(0, Math.min(max, parseInt(val, 10) || 0));
     setSelectedItems((prev) => ({
       ...prev,
       [itemId]: {
         ...(prev[itemId] || {}),
+        selected: num > 0,
         quantity: num,
+        max,
       },
     }));
-  };
+  }, []);
 
   // Calculate live return refund totals
   const refundTotals = useMemo(() => {
@@ -216,8 +276,21 @@ export default function SalesReturn() {
     let itemsCount = 0;
     let totalQty = 0;
 
-    selectedSale.items.forEach((item) => {
-      const state = selectedItems[item.id];
+    let allAvailableSelectedAtMax = selectedSale.items.length > 0;
+    let totalAvailableLines = 0;
+
+    selectedSale.items.forEach((item, idx) => {
+      const itemId = item.id || `item_${idx}`;
+      const state = selectedItems[itemId];
+      const max = Number(item.returnableQuantity ?? item.quantity ?? 1);
+
+      if (max > 0) {
+        totalAvailableLines++;
+        if (!state?.selected || state.quantity !== max) {
+          allAvailableSelectedAtMax = false;
+        }
+      }
+
       if (state?.selected && state.quantity > 0) {
         const qty = state.quantity;
         const price = Number(item.price || item.salesPrice || 0);
@@ -235,6 +308,18 @@ export default function SalesReturn() {
         totalQty += qty;
       }
     });
+
+    // If every available item is selected at full quantity and no prior returns were made,
+    // match the exact bill total (e.g. ₹1,965.00)
+    if (
+      allAvailableSelectedAtMax &&
+      totalAvailableLines > 0 &&
+      (!selectedSale.hasReturns || selectedSale.totalRefunded === 0)
+    ) {
+      total = Number(selectedSale.total || total);
+      subtotal = Number(selectedSale.subtotal || (total - (selectedSale.gst || 0)));
+      gst = Number(selectedSale.gst || (total - subtotal));
+    }
 
     return {
       subtotal: Math.round(subtotal * 100) / 100,
@@ -273,8 +358,9 @@ export default function SalesReturn() {
 
     // Prepare return items payload
     const returnItemsPayload = [];
-    selectedSale.items.forEach((item) => {
-      const state = selectedItems[item.id];
+    selectedSale.items.forEach((item, idx) => {
+      const itemId = item.id || `item_${idx}`;
+      const state = selectedItems[itemId];
       if (state?.selected && state.quantity > 0) {
         const price = Number(item.price || item.salesPrice || 0);
         const itemDiscount = Number(item.itemDiscount || 0);
@@ -282,7 +368,7 @@ export default function SalesReturn() {
         const lineTotal = lineNet;
 
         returnItemsPayload.push({
-          sale_item_id: item.id,
+          sale_item_id: item.id || item.sale_item_id,
           quantity: state.quantity,
           line_total: Math.round(lineTotal * 100) / 100,
         });
@@ -565,34 +651,120 @@ export default function SalesReturn() {
                   </div>
                 </div>
               ) : (
-                /* Selected Bill Overview Card */
+                /* Selected Bill Overview & Full History Card */
                 <div className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
-                    <div>
-                      <p className="text-xs text-slate-500 font-medium">Invoice Number</p>
-                      <p className="text-base font-bold font-mono text-slate-900 dark:text-slate-100">
-                        {selectedSale.invoice}
-                      </p>
+                  {/* Bill Banner */}
+                  <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-md border border-slate-700/60">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-700/80 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/30">
+                          <ReceiptIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-mono text-xl font-bold tracking-tight text-white">
+                              {selectedSale.invoice}
+                            </h3>
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              {selectedSale.payment || "Paid"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Billed on: <span className="text-slate-200 font-semibold">{formatDateTime(selectedSale.date || selectedSale.createdAt)}</span>
+                            {selectedSale.metadata?.cashier && ` • Cashier: ${selectedSale.metadata.cashier}`}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleResetForm}
+                          className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
+                        >
+                          Select Different Bill
+                        </button>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-500 font-medium">Customer</p>
-                      <p className="text-base font-bold text-slate-900 dark:text-slate-100">
-                        {selectedSale.customer}
-                      </p>
+
+                    {/* Financial Metric Cards Grid */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                      <div className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/60">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Original Total Bill</p>
+                        <p className="text-xl font-black text-emerald-400 mt-1">
+                          {formatINR(selectedSale.total)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Full Receipt Value</p>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/60">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Amount Paid & Mode</p>
+                        <p className="text-xl font-black text-white mt-1">
+                          {formatINR(selectedSale.amountPaid || selectedSale.paid_amount || selectedSale.total)}
+                        </p>
+                        <p className="text-[10px] text-slate-300 mt-0.5 font-medium truncate">
+                          Via: <span className="uppercase text-amber-300 font-bold">{selectedSale.paymentMode || "Cash"}</span>
+                          {selectedSale.splitDetails && ` (Cash: ₹${selectedSale.splitDetails.cashAmount || selectedSale.cashAmount || 0} + UPI: ₹${selectedSale.splitDetails.upiAmount || selectedSale.upiAmount || 0})`}
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/60">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Products / Units</p>
+                        <p className="text-xl font-black text-sky-400 mt-1">
+                          {selectedSale.items?.length || 0} items
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {selectedSale.items?.reduce((s, it) => s + Number(it.originalQuantity || it.quantity || 1), 0)} Total Units Sold
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/60">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Available for Return</p>
+                        <p className="text-xl font-black text-rose-400 mt-1">
+                          {formatINR(Math.max(0, Number(selectedSale.total || 0) - Number(selectedSale.totalRefunded || 0)))}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {selectedSale.totalRefunded > 0 ? `₹${formatINR(selectedSale.totalRefunded)} already returned` : "100% Eligible for Return"}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-500 font-medium">Sale Date</p>
-                      <p className="text-base font-bold text-slate-900 dark:text-slate-100">
-                        {policyCheck?.saleDateFormatted}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-500 font-medium">Original Total</p>
-                      <p className="text-base font-black text-emerald-600 dark:text-emerald-400">
-                        {formatINR(selectedSale.total)}
-                      </p>
+
+                    {/* Financial Sub-Details: Customer, Tax, Subtotal */}
+                    <div className="mt-4 pt-3 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-300">
+                      <div>
+                        <span className="text-slate-400 font-medium">Customer: </span>
+                        <span className="font-bold text-white">{selectedSale.customer}</span>
+                        {selectedSale.customerObj?.phone && <span className="text-slate-400"> ({selectedSale.customerObj.phone})</span>}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span>Subtotal: <strong className="text-white">{formatINR(selectedSale.subtotal)}</strong></span>
+                        <span>GST/Tax: <strong className="text-white">{formatINR(selectedSale.gst)}</strong></span>
+                        {Number(selectedSale.discount || 0) > 0 && <span>Discount: <strong className="text-rose-400">-{formatINR(selectedSale.discount)}</strong></span>}
+                      </div>
                     </div>
                   </div>
+
+                  {/* Prior Return History Alert (if any) */}
+                  {selectedSale.hasReturns && selectedSale.returns && selectedSale.returns.length > 0 && (
+                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200">
+                      <div className="flex items-center gap-2 font-bold text-sm">
+                        <HistoryIcon className="w-4 h-4 text-amber-500" />
+                        Previous Return History for this Invoice ({selectedSale.returns.length} previous return(s)):
+                      </div>
+                      <div className="mt-2 space-y-1 text-xs">
+                        {selectedSale.returns.map((ret, idx) => (
+                          <div key={ret.id || idx} className="flex justify-between items-center py-1 border-b border-amber-500/20 last:border-b-0">
+                            <span>
+                              <strong>{ret.return_number}</strong> on {formatDateTime(ret.return_date || ret.created_at)} ({ret.reason || 'Return'})
+                            </span>
+                            <span className="font-black text-rose-600 dark:text-rose-400">
+                              Refunded: {formatINR(ret.total_amount)} via {ret.refund_method || 'Cash'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* 7-DAY RETURN POLICY ELIGIBILITY BANNER */}
                   {policyCheck && (
@@ -628,21 +800,33 @@ export default function SalesReturn() {
             {/* STEP 2: SELECT PRODUCTS & QUANTITIES TO RETURN */}
             {selectedSale && (
               <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-                <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <BoxIcon className="w-4 h-4 text-rose-500" />
-                      2. Select Products & Quantity Being Returned
+                      2. Products in this Receipt & Return Quantities
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Check each item to return and adjust the quantity. Cannot exceed originally sold quantity.
+                      All sold products from this bill are listed below. By default, all products and their full quantities are selected for full refund.
                     </p>
                   </div>
-                  <div className="text-xs font-bold text-slate-500">
-                    Selected for return:{" "}
-                    <span className="text-rose-600 dark:text-rose-400">
-                      {refundTotals.itemsCount} product(s) | {refundTotals.totalQty} qty
-                    </span>
+
+                  {/* Quick Selection Buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={selectAllItems}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 transition cursor-pointer"
+                    >
+                      Select All (Full Return: {formatINR(selectedSale.total)})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deselectAllItems}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition cursor-pointer"
+                    >
+                      Deselect All
+                    </button>
                   </div>
                 </div>
 
@@ -650,19 +834,28 @@ export default function SalesReturn() {
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800/60 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
                       <tr>
-                        <th className="px-4 py-3.5 text-center w-12">Return?</th>
-                        <th className="px-4 py-3.5">Product Name</th>
+                        <th className="px-4 py-3.5 text-center w-12">
+                          <input
+                            type="checkbox"
+                            checked={isAllSelected}
+                            onChange={toggleSelectAll}
+                            title="Select / Deselect all products"
+                            className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+                          />
+                        </th>
+                        <th className="px-4 py-3.5">Product Name & Details</th>
                         <th className="px-4 py-3.5 text-center">Sold Qty</th>
                         <th className="px-4 py-3.5 text-center">Already Returned</th>
                         <th className="px-4 py-3.5 text-center">Available to Return</th>
                         <th className="px-4 py-3.5 text-right">Unit Price</th>
-                        <th className="px-4 py-3.5 text-center w-32">Return Qty</th>
+                        <th className="px-4 py-3.5 text-center w-36">Return Qty</th>
                         <th className="px-4 py-3.5 text-right">Refund Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-                      {(selectedSale.items || []).map((item) => {
-                        const itemState = selectedItems[item.id] || {
+                      {(selectedSale.items || []).map((item, idx) => {
+                        const itemId = item.id || `item_${idx}`;
+                        const itemState = selectedItems[itemId] || {
                           selected: false,
                           quantity: 0,
                           max: item.returnableQuantity ?? item.quantity ?? 1,
@@ -680,7 +873,7 @@ export default function SalesReturn() {
 
                         return (
                           <tr
-                            key={item.id}
+                            key={itemId}
                             className={`transition-colors ${itemState.selected
                                 ? "bg-rose-500/5 dark:bg-rose-500/10 font-medium"
                                 : isFullyTakenBack
@@ -693,7 +886,7 @@ export default function SalesReturn() {
                                 type="checkbox"
                                 checked={itemState.selected}
                                 disabled={isFullyTakenBack || !policyCheck?.isWithin7Days}
-                                onChange={() => toggleItemSelection(item.id)}
+                                onChange={() => toggleItemSelection(itemId, available)}
                                 className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300 dark:border-slate-700 cursor-pointer disabled:cursor-not-allowed"
                               />
                             </td>
@@ -701,18 +894,20 @@ export default function SalesReturn() {
                               <div className="font-bold text-slate-900 dark:text-slate-100">
                                 {item.name || item.product}
                               </div>
-                              <div className="text-xs text-slate-500">
-                                Unit: {item.unit || "Pcs"}
-                                {discount > 0 && ` • Disc: -${discount}%`}
+                              <div className="text-xs text-slate-500 flex flex-wrap gap-2 mt-0.5">
+                                {item.packSize && <span>Pack: {item.packSize}</span>}
+                                <span>Unit: {item.unit || "Pcs"}</span>
+                                {item.gst > 0 && <span>GST: {item.gst}%</span>}
+                                {discount > 0 && <span className="text-amber-600">Disc: -{discount}%</span>}
                               </div>
                             </td>
                             <td className="px-4 py-3.5 text-center font-semibold">
-                              {item.originalQuantity ?? item.quantity} {item.unit}
+                              {item.originalQuantity ?? item.quantity} {item.unit || "Pcs"}
                             </td>
                             <td className="px-4 py-3.5 text-center">
                               {item.returnedQuantity > 0 ? (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                                  {item.returnedQuantity} {item.unit}
+                                  {item.returnedQuantity} {item.unit || "Pcs"}
                                 </span>
                               ) : (
                                 <span className="text-slate-400 text-xs">0</span>
@@ -725,7 +920,7 @@ export default function SalesReturn() {
                                 </span>
                               ) : (
                                 <span className="text-emerald-600 dark:text-emerald-400">
-                                  {available} {item.unit}
+                                  {available} {item.unit || "Pcs"}
                                 </span>
                               )}
                             </td>
@@ -733,16 +928,29 @@ export default function SalesReturn() {
                               {formatINR(price)}
                             </td>
                             <td className="px-4 py-3.5 text-center">
-                              <input
-                                type="number"
-                                min="1"
-                                max={available}
-                                disabled={!itemState.selected || isFullyTakenBack || !policyCheck?.isWithin7Days}
-                                value={itemState.selected ? currentQty : ""}
-                                onChange={(e) => updateItemQty(item.id, e.target.value, available)}
-                                placeholder="0"
-                                className="w-20 px-2.5 py-1.5 text-center font-bold text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 disabled:opacity-40 disabled:cursor-not-allowed"
-                              />
+                              <div className="flex items-center justify-center gap-1.5">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={available}
+                                  disabled={!itemState.selected || isFullyTakenBack || !policyCheck?.isWithin7Days}
+                                  value={itemState.selected ? currentQty : ""}
+                                  onChange={(e) => updateItemQty(itemId, e.target.value, available)}
+                                  placeholder="0"
+                                  className="w-16 px-2 py-1.5 text-center font-bold text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                                />
+                                {itemState.selected && available > 1 && (
+                                  <button
+                                    type="button"
+                                    disabled={isFullyTakenBack || !policyCheck?.isWithin7Days}
+                                    onClick={() => updateItemQty(itemId, available, available)}
+                                    title={`Set to maximum available (${available})`}
+                                    className="px-1.5 py-1 text-[10px] font-bold rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
+                                  >
+                                    Max
+                                  </button>
+                                )}
+                              </div>
                             </td>
                             <td className="px-4 py-3.5 text-right font-black text-rose-600 dark:text-rose-400">
                               {formatINR(lineRefund)}
@@ -751,6 +959,32 @@ export default function SalesReturn() {
                         );
                       })}
                     </tbody>
+                    {/* Table Footer with Summary */}
+                    <tfoot className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-xs">
+                      <tr>
+                        <td colSpan="2" className="px-4 py-3 text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                          Total Available: {selectedSale.items?.length || 0} product lines
+                        </td>
+                        <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">
+                          {selectedSale.items?.reduce((s, x) => s + Number(x.originalQuantity || x.quantity || 1), 0)} units
+                        </td>
+                        <td className="px-4 py-3 text-center text-slate-500">
+                          {selectedSale.items?.reduce((s, x) => s + Number(x.returnedQuantity || 0), 0)} units
+                        </td>
+                        <td className="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">
+                          {selectedSale.items?.reduce((s, x) => s + Number(x.returnableQuantity ?? x.quantity ?? 1), 0)} units
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-500">
+                          Selected:
+                        </td>
+                        <td className="px-4 py-3 text-center font-bold text-rose-600 dark:text-rose-400">
+                          {refundTotals.totalQty} units
+                        </td>
+                        <td className="px-4 py-3 text-right text-base font-black text-rose-600 dark:text-rose-400">
+                          {formatINR(refundTotals.total)}
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </section>
@@ -860,6 +1094,12 @@ export default function SalesReturn() {
                           {formatINR(selectedSale.total)}
                         </span>
                       </div>
+                      {Number(selectedSale.totalRefunded || 0) > 0 && (
+                        <div className="flex justify-between text-amber-600 dark:text-amber-400 text-xs font-semibold">
+                          <span>Already Refunded</span>
+                          <span>-{formatINR(selectedSale.totalRefunded)}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-slate-500 dark:text-slate-400">
                         <span>Items Selected</span>
                         <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -872,6 +1112,14 @@ export default function SalesReturn() {
                           {formatINR(refundTotals.subtotal)}
                         </span>
                       </div>
+                      {refundTotals.gst > 0 && (
+                        <div className="flex justify-between text-slate-500 dark:text-slate-400">
+                          <span>Taxes / GST</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {formatINR(refundTotals.gst)}
+                          </span>
+                        </div>
+                      )}
 
                       <div className="border-t border-dashed border-slate-200 dark:border-slate-800 pt-3">
                         <div className="flex items-center justify-between">
@@ -883,7 +1131,7 @@ export default function SalesReturn() {
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400 mt-1">
-                          Payment via: <span className="font-bold text-slate-700 dark:text-slate-300">{refundMethod}</span>
+                          Refund via: <span className="font-bold text-slate-700 dark:text-slate-300">{refundMethod}</span>
                         </p>
                       </div>
                     </div>

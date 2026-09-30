@@ -417,17 +417,17 @@ html.light textarea::placeholder {
   margin-bottom: 1.5rem !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 
-  /* 768px to 1440px: 3 columns */
-  @media (min-width: 768px) and (max-width: 1440px) {
+  /* 768px to 1200px: 3 columns */
+  @media (min-width: 768px) and (max-width: 1200px) {
     .dashboard-stats-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     }
   }
 
-  /* Above 1440px: 6 columns */
-  @media (min-width: 1440.01px) {
+  /* Above 1200px: 5 columns */
+  @media (min-width: 1200.01px) {
     .dashboard-stats-grid {
-      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+      grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     }
   }
 }

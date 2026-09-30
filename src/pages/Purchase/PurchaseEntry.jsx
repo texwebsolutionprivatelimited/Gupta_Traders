@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, Edit3, Trash2 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
-import { completePurchase, listUISuppliers, listUIProducts } from '../../services/erpService'
+import { completePurchase, listUISuppliers, listUIProducts, saveSupplier, createProduct } from '../../services/erpService'
 
 const initialItems = [
   {
@@ -11,21 +11,9 @@ const initialItems = [
     quantity: 1,
     purchasePrice: 0,
     gst: 18,
+    isManual: false,
   },
 ];
-
-const productPrices = {
-  "Aashirvaad Atta": 310,
-  "Fortune Rice": 1050,
-  "Tata Salt": 20,
-  "Amul Milk": 52,
-  "Parle-G Biscuit": 8,
-  "Maggi Noodles": 12,
-  "Fortune Oil": 160,
-  Sugar: 38,
-  "Tea Powder": 210,
-  "Surf Excel": 100,
-};
 
 export default function PurchaseEntry() {
   const navigate = useNavigate();
@@ -34,12 +22,27 @@ export default function PurchaseEntry() {
     new Date().toISOString().split("T")[0]
   );
   const [supplier, setSupplier] = useState("");
+  const [isManualSupplier, setIsManualSupplier] = useState(false);
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [utrNo, setUtrNo] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState(initialItems);
-  const [remoteProducts,setRemoteProducts]=useState([]),[remoteSuppliers,setRemoteSuppliers]=useState([])
-  useEffect(()=>{Promise.all([listUIProducts(),listUISuppliers()]).then(([p,s])=>{setRemoteProducts(p);setRemoteSuppliers(s)}).catch(e=>alert(e.message))},[])
+  const [remoteProducts, setRemoteProducts] = useState([]);
+  const [remoteSuppliers, setRemoteSuppliers] = useState([]);
+
+  useEffect(() => {
+    Promise.all([listUIProducts(), listUISuppliers()])
+      .then(([p, s]) => {
+        setRemoteProducts(p || []);
+        setRemoteSuppliers(s || []);
+        if (!s || s.length === 0) {
+          setIsManualSupplier(true);
+        }
+      })
+      .catch((e) => alert(e.message));
+  }, []);
+
+  const productOptions = remoteProducts.map((p) => p.name).filter(Boolean);
 
   // Selected item state for view/edit modals
   const [selectedItem, setSelectedItem] = useState(null);
@@ -55,6 +58,7 @@ export default function PurchaseEntry() {
         quantity: 1,
         purchasePrice: 0,
         gst: 18,
+        isManual: false,
       },
     ]);
   };
@@ -70,10 +74,18 @@ export default function PurchaseEntry() {
         if (item.id !== id) return item;
 
         if (field === "product") {
+          const matched = remoteProducts.find(
+            (p) => (p.name || '').trim().toLowerCase() === String(value).trim().toLowerCase() || p.id === value
+          );
           return {
             ...item,
             product: value,
-            purchasePrice: productPrices[value] || 0,
+            purchasePrice: matched
+              ? Number(matched.purchasePrice ?? matched.purchase_price ?? matched.rate ?? item.purchasePrice ?? 0)
+              : item.purchasePrice,
+            gst: matched && (matched.gstRate !== undefined || matched.gst_rate !== undefined)
+              ? Number(matched.gstRate ?? matched.gst_rate ?? 18)
+              : item.gst,
           };
         }
 
@@ -148,12 +160,36 @@ export default function PurchaseEntry() {
       return;
     }
 
-    try{
-      const supplierRow = remoteSuppliers.find(s => s.companyName === supplier || s.id === supplier);
-      if (!supplierRow) throw new Error('Select a valid supplier');
-      const rpcItems = items.map(item => {
-        const p = remoteProducts.find(x => x.name === item.product || x.id === item.product);
-        if (!p) throw new Error(`Product not found: ${item.product}`);
+    try {
+      let supplierRow = remoteSuppliers.find(
+        (s) => s.companyName?.trim().toLowerCase() === supplier.trim().toLowerCase() || s.id === supplier
+      );
+      if (!supplierRow) {
+        // Auto-create supplier so purchase can link to valid supplier_id
+        const newSup = await saveSupplier({
+          companyName: supplier.trim(),
+          status: 'active'
+        });
+        supplierRow = newSup;
+      }
+      if (!supplierRow?.id) throw new Error('Please enter or select a valid supplier');
+
+      const rpcItems = await Promise.all(items.map(async (item) => {
+        let p = remoteProducts.find(
+          (x) => (x.name || '').trim().toLowerCase() === item.product.trim().toLowerCase() || x.id === item.product
+        );
+        if (!p) {
+          // Auto-create manually typed product in database so it gets a valid product_id
+          p = await createProduct({
+            name: item.product.trim(),
+            purchasePrice: Number(item.purchasePrice || 0),
+            sellingPrice: Number(item.purchasePrice || 0),
+            gstRate: Number(item.gst || 0),
+            unit: 'pcs',
+            currentStock: 0
+          });
+        }
+        if (!p?.id) throw new Error(`Product could not be saved: ${item.product}`);
         const gst = Number(item.gst || 0);
         const basePrice = gst > 0 ? (Number(item.purchasePrice) / (1 + gst / 100)) : Number(item.purchasePrice);
         return {
@@ -162,7 +198,8 @@ export default function PurchaseEntry() {
           unit_price: basePrice,
           tax_rate: gst
         };
-      });
+      }));
+
       await completePurchase({
         supplier_id: supplierRow.id,
         supplier_invoice_number: billNo || null,
@@ -224,17 +261,60 @@ export default function PurchaseEntry() {
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               <FormField label="Supplier" required>
-                <select
-                  value={supplier}
-                  onChange={(e) => setSupplier(e.target.value)}
-                  className="input-field"
-                >
-                  <option value="">Select Supplier</option>
-                  <option value="Mahavir Traders">Mahavir Traders</option>
-                  <option value="National Wholesalers">National Wholesalers</option>
-                  <option value="Apex Distributors">Apex Distributors</option>
-                  <option value="Shree Kirana Suppliers">Shree Kirana Suppliers</option>
-                </select>
+                {isManualSupplier || remoteSuppliers.length === 0 ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={supplier}
+                      onChange={(e) => setSupplier(e.target.value)}
+                      placeholder="Type supplier name..."
+                      className="input-field flex-1 min-w-0"
+                      required
+                    />
+                    {remoteSuppliers.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsManualSupplier(false)}
+                        className="px-2.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700/60 shrink-0 transition"
+                        title="Select from existing suppliers"
+                      >
+                        📋 List
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={supplier}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') {
+                          setIsManualSupplier(true);
+                          setSupplier('');
+                        } else {
+                          setSupplier(e.target.value);
+                        }
+                      }}
+                      className="input-field flex-1 min-w-0"
+                      required
+                    >
+                      <option value="">Select Supplier</option>
+                      {remoteSuppliers.map((s) => (
+                        <option key={s.id} value={s.companyName}>
+                          {s.companyName}
+                        </option>
+                      ))}
+                      <option value="__custom__">✍️ + Type Supplier Manually</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => { setIsManualSupplier(true); setSupplier(''); }}
+                      className="px-2.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700/60 shrink-0 transition"
+                      title="Type new supplier manually"
+                    >
+                      ✍️ Type
+                    </button>
+                  </div>
+                )}
               </FormField>
 
               <FormField label="Invoice Number">
@@ -329,15 +409,70 @@ export default function PurchaseEntry() {
                     return (
                       <tr key={item.id}>
                         <td className="px-5 py-4">
-                          <SearchableSelect
-                            value={item.product}
-                            onChange={(val) =>
-                              updateItem(item.id, "product", val)
-                            }
-                            options={Object.keys(productPrices)}
-                            placeholder="Select Product"
-                            className="input-field min-w-[190px]"
-                          />
+                          <div className="flex items-center gap-1.5 min-w-[240px]">
+                            {item.isManual ? (
+                              <>
+                                <input
+                                  type="text"
+                                  list={`purchase-products-list-${item.id}`}
+                                  value={item.product}
+                                  onChange={(e) =>
+                                    updateItem(item.id, "product", e.target.value)
+                                  }
+                                  placeholder="Type or select product..."
+                                  className="input-field flex-1 min-w-0"
+                                  required
+                                  autoFocus
+                                />
+                                <datalist id={`purchase-products-list-${item.id}`}>
+                                  {productOptions.map((opt, idx) => (
+                                    <option key={idx} value={opt} />
+                                  ))}
+                                </datalist>
+                              </>
+                            ) : (
+                              <div className="flex-1 min-w-0">
+                                <SearchableSelect
+                                  value={item.product}
+                                  onChange={(val) =>
+                                    updateItem(item.id, "product", val)
+                                  }
+                                  options={productOptions}
+                                  placeholder={productOptions.length > 0 ? "Select Product" : "Type product..."}
+                                  className="input-field"
+                                  allowCustom={true}
+                                />
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => updateItem(item.id, "isManual", false)}
+                                className={`p-2 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                                  !item.isManual
+                                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-sm"
+                                    : "bg-slate-800/60 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                                }`}
+                                title={!item.isManual ? "Product Search (Active)" : "Switch to Product Search"}
+                                aria-label="Product Search"
+                              >
+                                🔍
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateItem(item.id, "isManual", true)}
+                                className={`p-2 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                                  item.isManual
+                                    ? "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-sm"
+                                    : "bg-slate-800/60 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                                }`}
+                                title={item.isManual ? "Manual Typing (Active)" : "Switch to Manual Typing"}
+                                aria-label="Manual Typing"
+                              >
+                                ✍️
+                              </button>
+                            </div>
+                          </div>
                         </td>
 
                         <td className="px-5 py-4">
@@ -370,7 +505,7 @@ export default function PurchaseEntry() {
                             onChange={(e) =>
                               updateItem(item.id, "gst", e.target.value)
                             }
-                            className="input-field w-23"
+                            className="input-field w-28 min-w-[6.5rem] cursor-pointer"
                           >
                             <option value="0">0%</option>
                             <option value="5">5%</option>
@@ -544,16 +679,25 @@ export default function PurchaseEntry() {
                 <label className="mb-1 block text-sm font-medium">Product</label>
                 <SearchableSelect
                   value={selectedItem.product}
-                  onChange={(val) =>
+                  onChange={(val) => {
+                    const matched = remoteProducts.find(
+                      (p) => (p.name || '').trim().toLowerCase() === String(val).trim().toLowerCase() || p.id === val
+                    );
                     setSelectedItem((prev) => ({
                       ...prev,
                       product: val,
-                      purchasePrice: productPrices[val] || prev.purchasePrice,
-                    }))
-                  }
-                  options={Object.keys(productPrices)}
-                  placeholder="Select Product"
+                      purchasePrice: matched
+                        ? Number(matched.purchasePrice ?? matched.purchase_price ?? matched.rate ?? prev.purchasePrice)
+                        : prev.purchasePrice,
+                      gst: matched && (matched.gstRate !== undefined || matched.gst_rate !== undefined)
+                        ? Number(matched.gstRate ?? matched.gst_rate ?? prev.gst)
+                        : prev.gst,
+                    }));
+                  }}
+                  options={productOptions}
+                  placeholder={productOptions.length > 0 ? "Select Product" : "Type product name..."}
                   className="input-field"
+                  allowCustom={true}
                 />
               </div>
 

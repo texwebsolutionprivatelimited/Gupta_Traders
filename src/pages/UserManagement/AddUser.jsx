@@ -12,7 +12,6 @@ import {
 
 const roles = [
     "Admin / Owner",
-    "Manager",
     "Cashier / Accountant",
 ];
 
@@ -81,7 +80,7 @@ export default function AddUser() {
             return;
         }
 
-        try{await adminUsers('create',{name:name.trim(),email:email.trim(),mobile:mobile.trim(),role:role==='Admin / Owner'?'admin':role==='Manager'?'manager':'cashier',status:status==='Active'?'active':'inactive',password});alert('User added successfully!');navigate('/users')}catch(error){setError(error.message)}
+        try{await adminUsers('create',{name:name.trim(),email:email.trim(),mobile:mobile.trim(),role:role==='Admin / Owner'?'admin':'cashier',status:status==='Active'?'active':'inactive',password});alert('User added successfully!');navigate('/users')}catch(error){setError(error.message)}
     };
 
     const inputClassName =
@@ -233,8 +232,6 @@ export default function AddUser() {
                             <p className="text-sm text-slate-700 dark:text-slate-300">
                                 {formData.role === "Admin / Owner"
                                     ? "Full access to all modules, settings and user management."
-                                    : formData.role === "Manager"
-                                    ? "Access to business operations, inventory, sales, purchases, suppliers and customers."
                                     : "Access to POS billing, customers and sales history."}
                             </p>
                         </div>

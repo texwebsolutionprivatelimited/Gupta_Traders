@@ -190,10 +190,11 @@ export default function SalesEntry() {
                   className="input-field"
                 >
                   <option value="">Select Customer</option>
-                  <option value="Rahul Sharma">Rahul Sharma</option>
-                  <option value="Amit Kumar">Amit Kumar</option>
-                  <option value="Priya Singh">Priya Singh</option>
-                  <option value="Rohan Verma">Rohan Verma</option>
+                  {remoteCustomers.map((c) => (
+                    <option key={c.id || c.name} value={c.name}>
+                      {c.name} {c.phone ? `(${c.phone})` : ''}
+                    </option>
+                  ))}
                 </select>
               </FormField>
 
@@ -293,7 +294,7 @@ export default function SalesEntry() {
                             onChange={(val) =>
                               updateItem(item.id, "product", val)
                             }
-                            options={Object.keys(productPrices)}
+                            options={remoteProducts.map((p) => p.name)}
                             placeholder="Select Product"
                             className="input-field min-w-[190px]"
                           />
@@ -506,14 +507,15 @@ export default function SalesEntry() {
                 <label className="mb-1 block text-sm font-medium">Product</label>
                 <SearchableSelect
                   value={selectedItem.product}
-                  onChange={(val) =>
+                  onChange={(val) => {
+                    const matched = remoteProducts.find((p) => p.name === val);
                     setSelectedItem((prev) => ({
                       ...prev,
                       product: val,
-                      salesPrice: productPrices[val] || prev.salesPrice,
-                    }))
-                  }
-                  options={Object.keys(productPrices)}
+                      salesPrice: matched?.salesPrice || prev.salesPrice,
+                    }));
+                  }}
+                  options={remoteProducts.map((p) => p.name)}
                   placeholder="Select Product"
                   className="input-field"
                 />

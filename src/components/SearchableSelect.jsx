@@ -4,9 +4,10 @@ import { createPortal } from "react-dom";
 export default function SearchableSelect({
   value,
   onChange,
-  options,
+  options = [],
   placeholder = "Select Option",
   className = "",
+  allowCustom = true,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -43,7 +44,6 @@ export default function SearchableSelect({
   useEffect(() => {
     if (isOpen) {
       updateCoords();
-      // Track scroll events in capturing phase to capture scrolling of table containers
       window.addEventListener("scroll", updateCoords, true);
       window.addEventListener("resize", updateCoords);
     }
@@ -66,15 +66,36 @@ export default function SearchableSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter((opt) =>
-    opt.toLowerCase().includes(search.toLowerCase())
-  );
+  const safeOptions = Array.isArray(options) ? options : [];
+  const filteredOptions = safeOptions.filter((opt) => {
+    const optStr = typeof opt === 'string' ? opt : (opt?.label || opt?.name || '');
+    return optStr.toLowerCase().includes(search.toLowerCase());
+  });
 
   const handleSelect = (val) => {
     onChange(val);
     setIsOpen(false);
     setSearch("");
   };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (filteredOptions.length > 0) {
+        const first = typeof filteredOptions[0] === 'string' ? filteredOptions[0] : (filteredOptions[0]?.value || filteredOptions[0]?.label);
+        handleSelect(first);
+      } else if (allowCustom && search.trim()) {
+        handleSelect(search.trim());
+      }
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+    }
+  };
+
+  const hasExactMatch = safeOptions.some((opt) => {
+    const optStr = typeof opt === 'string' ? opt : (opt?.label || opt?.name || '');
+    return optStr.toLowerCase() === search.trim().toLowerCase();
+  });
 
   return (
     <div className="relative w-full">
@@ -116,32 +137,53 @@ export default function SearchableSelect({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search..."
+                onKeyDown={handleKeyDown}
+                placeholder={allowCustom ? "Search or type custom..." : "Search..."}
                 className="w-full px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50"
                 autoFocus
               />
             </div>
             
             {/* Options List */}
-            <div className="max-h-[190px] overflow-y-auto scrollbar-thin py-1 bg-slate-900">
+            <div className="max-h-[220px] overflow-y-auto scrollbar-thin py-1 bg-slate-900">
+              {/* Option to use custom text if typed and not an exact match */}
+              {allowCustom && search.trim() && !hasExactMatch && (
+                <button
+                  type="button"
+                  onClick={() => handleSelect(search.trim())}
+                  className="w-full text-left px-3 py-2 text-xs text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 font-medium border-b border-slate-800/80 transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>✍️</span>
+                  <span className="truncate">Type manually: <strong>"{search.trim()}"</strong></span>
+                </button>
+              )}
+
               {filteredOptions.length > 0 ? (
-                filteredOptions.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => handleSelect(opt)}
-                    className={`w-full text-left px-3 py-2 text-xs transition-colors cursor-pointer ${
-                      opt === value
-                        ? "bg-emerald-500/10 text-emerald-400 font-medium"
-                        : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
-                    }`}
-                  >
-                    {opt}
-                  </button>
-                ))
+                filteredOptions.map((opt) => {
+                  const optLabel = typeof opt === 'string' ? opt : (opt?.label || opt?.name);
+                  const optVal = typeof opt === 'string' ? opt : (opt?.value ?? opt?.label ?? opt?.name);
+                  return (
+                    <button
+                      key={optVal}
+                      type="button"
+                      onClick={() => handleSelect(optVal)}
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors cursor-pointer ${
+                        optVal === value
+                          ? "bg-emerald-500/10 text-emerald-400 font-medium"
+                          : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                      }`}
+                    >
+                      {optLabel}
+                    </button>
+                  );
+                })
               ) : (
                 <div className="px-3 py-3 text-xs text-slate-500 text-center">
-                  No options found
+                  {allowCustom && search.trim() ? (
+                    <span>Press <strong>Enter</strong> to use "{search.trim()}"</span>
+                  ) : (
+                    <span>No options found</span>
+                  )}
                 </div>
               )}
             </div>

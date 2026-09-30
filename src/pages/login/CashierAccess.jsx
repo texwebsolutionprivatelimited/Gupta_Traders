@@ -162,7 +162,7 @@ export default function CashierAccess() {
         </div>
 
         {/* ─── Cashier Quick Access Shortcut Cards ──────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
 
           <button
             onClick={() => navigate('/pos')}
@@ -178,19 +178,6 @@ export default function CashierAccess() {
           </button>
 
           <button
-            onClick={() => navigate('/customers')}
-            className="flex items-center gap-4 p-5 rounded-2xl border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 transition-all cursor-pointer text-left group hover:scale-[1.01]"
-          >
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <FaUsers className="text-blue-400 text-2xl" />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-blue-400">2. Customer Registry</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Manage customer directory, view balances, check credit limits.</p>
-            </div>
-          </button>
-
-          <button
             onClick={() => navigate('/sales')}
             className="flex items-center gap-4 p-5 rounded-2xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-all cursor-pointer text-left group hover:scale-[1.01]"
           >
@@ -198,7 +185,7 @@ export default function CashierAccess() {
               <FaChartLine className="text-amber-400 text-2xl" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-amber-400">3. Sales History</h4>
+              <h4 className="text-sm font-bold text-amber-400">2. Sales History</h4>
               <p className="text-xs text-slate-400 mt-0.5">Verify past invoices, check payment modes, void/reprint receipts.</p>
             </div>
           </button>

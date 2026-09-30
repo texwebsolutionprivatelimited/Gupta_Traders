@@ -30,18 +30,6 @@ const rolePermissions = {
     "Hardware",
   ],
 
-  Manager: [
-    "Dashboard",
-    "POS",
-    "Products",
-    "Inventory",
-    "Purchase",
-    "Sales",
-    "Suppliers",
-    "Customers",
-    "Reports",
-  ],
-
   "Cashier / Accountant": [
     "POS Billing",
     "Customers",
@@ -54,7 +42,7 @@ export default function UserDetails() {
   const navigate = useNavigate();
 
   const [users,setUsers]=useState([]),[loading,setLoading]=useState(true)
-  useEffect(()=>{adminUsers('list').then(rows=>setUsers(rows.map(u=>({...u,role:u.role==='admin'?'Admin / Owner':u.role==='manager'?'Manager':'Cashier / Accountant',status:u.status==='active'?'Active':'Inactive'})))).catch(error=>alert(error.message)).finally(()=>setLoading(false))},[id])
+  useEffect(()=>{adminUsers('list').then(rows=>setUsers(rows.map(u=>({...u,role:u.role==='admin'?'Admin / Owner':'Cashier / Accountant',status:u.status==='active'?'Active':'Inactive'})))).catch(error=>alert(error.message)).finally(()=>setLoading(false))},[id])
   const user = users.find((item) => String(item.id) === String(id));
 
   if(loading)return <div className="p-8 text-slate-400">Loading user…</div>

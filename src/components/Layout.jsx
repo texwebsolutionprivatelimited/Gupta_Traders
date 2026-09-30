@@ -537,7 +537,7 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
       const actions = [
         { label: 'POS Billing', path: '/pos', desc: 'Create new invoices', keyword: 'pos billing sales checkout invoice print' },
         { label: 'Products Directory', path: '/products', desc: 'Manage inventory catalogs', keyword: 'products items barcode sku' },
-        { label: 'Categories Manager', path: '/categories', desc: 'Organize products by departments', keyword: 'categories sections departments' },
+        { label: 'Categories', path: '/categories', desc: 'Organize products by departments', keyword: 'categories sections departments' },
         { label: 'Inventory Stock Control', path: '/inventory', desc: 'Physical audit and inward/outward logs', keyword: 'inventory stock warehouse logs audit reconcile adjustment' },
         { label: 'Suppliers & Vendors', path: '/suppliers', desc: 'Manage payables, ledgers, and vendor details', keyword: 'suppliers vendors payables purchase ledger company' },
         { label: 'Sales History', path: '/sales/history', desc: 'Track sales records and transactions', keyword: 'sales bills transaction invoices history' },

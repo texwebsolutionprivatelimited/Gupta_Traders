@@ -223,7 +223,6 @@ export default function AdminAccess() {
     { title: "Today's Purchase", value: dashboardData.todaysPurchase, icon: <FaShoppingCart className="w-6 h-6" />, gradient: 'from-blue-500 to-indigo-600', isCurrency: true },
     { title: "Today's Profit", value: dashboardData.todaysProfit, icon: <FaMoneyBillWave className="w-6 h-6" />, gradient: 'from-violet-500 to-purple-600', isCurrency: true },
     { title: 'Total Products', value: dashboardData.totalProducts, icon: <FaBox className="w-6 h-6" />, gradient: 'from-cyan-500 to-sky-600', isCurrency: false },
-    { title: 'Total Customers', value: dashboardData.totalCustomers, icon: <FaUsers className="w-6 h-6" />, gradient: 'from-orange-500 to-amber-600', isCurrency: false },
     { title: 'Low Stock Alerts', value: dashboardData.lowStockItems, icon: <FaExclamationTriangle className="w-6 h-6" />, gradient: 'from-rose-500 to-red-600', isCurrency: false },
   ]
 

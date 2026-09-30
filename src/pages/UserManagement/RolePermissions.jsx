@@ -28,17 +28,6 @@ const MODULES = [
 
 const DEFAULT_PERMISSIONS = {
     "Admin / Owner": MODULES,
-    Manager: [
-        "Dashboard",
-        "POS",
-        "Products",
-        "Inventory",
-        "Purchase",
-        "Sales",
-        "Suppliers",
-        "Customers",
-        "Reports",
-    ],
     "Cashier / Accountant": [
         "POS Billing",
         "Customers",
@@ -48,7 +37,6 @@ const DEFAULT_PERMISSIONS = {
 
 const ROLE_OPTIONS = [
     "Admin / Owner",
-    "Manager",
     "Cashier / Accountant",
 ];
 
@@ -58,7 +46,7 @@ export default function RolePermissions() {
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
-        listRoles().then(rows=>{const mapped={};rows.forEach(r=>{const label=r.role==='admin'?'Admin / Owner':r.role==='manager'?'Manager':'Cashier / Accountant';mapped[label]=r.permissions?.modules||DEFAULT_PERMISSIONS[label]||[]});setPermissions(mapped)}).catch(error=>alert(error.message))
+        listRoles().then(rows=>{const mapped={};rows.forEach(r=>{const label=r.role==='admin'?'Admin / Owner':'Cashier / Accountant';mapped[label]=r.permissions?.modules||DEFAULT_PERMISSIONS[label]||[]});setPermissions(mapped)}).catch(error=>alert(error.message))
     }, []);
 
     const currentPermissions = permissions[selectedRole] || [];
@@ -113,7 +101,7 @@ export default function RolePermissions() {
 
     const handleSave = async () => {
         try {
-            const role=selectedRole==='Admin / Owner'?'admin':selectedRole==='Manager'?'manager':'cashier';await updateRolePermissions(role,{modules:permissions[selectedRole]||[]})
+            const role=selectedRole==='Admin / Owner'?'admin':'cashier';await updateRolePermissions(role,{modules:permissions[selectedRole]||[]})
 
             setSaved(true);
 
@@ -386,10 +374,6 @@ export default function RolePermissions() {
 function getRoleDescription(role) {
     if (role === "Admin / Owner") {
         return "Full system access";
-    }
-
-    if (role === "Manager") {
-        return "Business operations access";
     }
 
     return "Billing and customer access";

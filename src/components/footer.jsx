@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import guptaTradersLogo from '../assets/gupta traders logo.png'
 
 export default function Footer() {
@@ -49,9 +50,9 @@ export default function Footer() {
 
           {/* Quick Info & Links */}
           <div className="flex items-center gap-4 text-xs text-slate-500">
-            <a href="#/settings" className="hover:text-emerald-400 transition-colors">Settings</a>
+            <Link to="/settings" className="hover:text-emerald-400 transition-colors">Settings</Link>
             <span className="text-slate-800">&bull;</span>
-            <a href="#/reports" className="hover:text-emerald-400 transition-colors">Reports</a>
+            <Link to="/reports" className="hover:text-emerald-400 transition-colors">Reports</Link>
             <span className="text-slate-800">&bull;</span>
             <span className="font-mono text-[10px] bg-slate-900 border border-slate-800/80 px-2 py-0.5 rounded text-slate-400">
               v2.4.0

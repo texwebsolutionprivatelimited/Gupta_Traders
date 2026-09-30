@@ -26,6 +26,7 @@ import {
   listUIProducts,
   subscribeToTable
 } from "../../services/erpService";
+import { addNotification, buildPurchaseAddedNotification } from "../../services/notificationService";
 
 const formatCurrency = (val) =>
   new Intl.NumberFormat("en-IN", {
@@ -133,7 +134,7 @@ export default function PurchaseEntry() {
     };
   }, []);
 
-  // Handle URL query params for ?new=1 or ?edit=ID
+  // Handle URL query params for ?new=1, ?edit=ID, or ?billId=ID
   useEffect(() => {
     if (searchParams.get("new") === "1") {
       openNewBillForm();
@@ -144,6 +145,16 @@ export default function PurchaseEntry() {
       if (target) {
         openEditBillForm(target);
         setSearchParams({}, { replace: true });
+      }
+    } else if (searchParams.get("billId") || searchParams.get("billNo") || searchParams.get("viewId")) {
+      const targetQuery = (searchParams.get("billId") || searchParams.get("billNo") || searchParams.get("viewId")).toLowerCase().trim();
+      const target = purchaseBills.find((b) => 
+        String(b.id).toLowerCase() === targetQuery ||
+        String(b.billNo || '').toLowerCase() === targetQuery ||
+        String(b.invoice || '').toLowerCase() === targetQuery
+      );
+      if (target) {
+        setViewingBill(target);
       }
     }
   }, [searchParams, purchaseBills]);
@@ -337,7 +348,24 @@ export default function PurchaseEntry() {
         total: totals.total,
       };
 
-      await savePurchaseBill(billData, validItems, editingBillId);
+      const saved = await savePurchaseBill(billData, validItems, editingBillId);
+
+      // Trigger one notification per purchase bill/list (NOT per individual product)
+      if (!editingBillId) {
+        try {
+          addNotification(buildPurchaseAddedNotification({
+            id: saved?.id || billNo.trim(),
+            billNo: billNo.trim(),
+            supplierName: supplierName.trim(),
+            totalAmount: totals.total,
+            date: purchaseDateTime,
+            itemCount: validItems.length
+          }));
+        } catch (notifErr) {
+          console.warn('Could not post purchase notification:', notifErr);
+        }
+      }
+
       setStatusMessage({
         type: "success",
         text: editingBillId

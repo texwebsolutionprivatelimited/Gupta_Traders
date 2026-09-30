@@ -819,6 +819,19 @@ export default function ProductsPage() {
     }
   }, [urlSearch, urlTab])
 
+  // Auto-open product modal when navigated from notification with ?productId=...
+  useEffect(() => {
+    const targetProdId = searchParams.get('productId');
+    if (targetProdId && products.length > 0) {
+      const match = products.find(p => String(p.id) === String(targetProdId));
+      if (match) {
+        setEditingProduct(match);
+        setFormType(match.type || 'packaged');
+        setShowForm(true);
+      }
+    }
+  }, [searchParams, products]);
+
   const handleSearchChange = (val) => {
     setSearchQuery(val)
     const params = {}

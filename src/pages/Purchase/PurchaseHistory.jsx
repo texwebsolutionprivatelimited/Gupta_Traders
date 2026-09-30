@@ -1,82 +1,7 @@
 
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { listUIPurchases, subscribeToTable, deletePurchaseBill } from '../../services/erpService'
-
-// const purchaseData = [
-//   {
-//     id: "PUR-001",
-//     date: "15 Aug 2026",
-//     supplier: "Shree Traders",
-//     invoice: "INV-2026-101",
-//     items: 12,
-//     subtotal: 45600,
-//     gst: 8208,
-//     total: 53808,
-//     status: "Completed",
-//     payment: "Paid",
-//   },
-//   {
-//     id: "PUR-002",
-//     date: "13 Aug 2026",
-//     supplier: "BuildWell Suppliers",
-//     invoice: "INV-2026-098",
-//     items: 8,
-//     subtotal: 32400,
-//     gst: 5832,
-//     total: 38232,
-//     status: "Completed",
-//     payment: "Paid",
-//   },
-//   {
-//     id: "PUR-003",
-//     date: "11 Aug 2026",
-//     supplier: "Cement House",
-//     invoice: "INV-2026-094",
-//     items: 15,
-//     subtotal: 67200,
-//     gst: 12096,
-//     total: 79296,
-//     status: "Pending",
-//     payment: "Pending",
-//   },
-//   {
-//     id: "PUR-004",
-//     date: "08 Aug 2026",
-//     supplier: "Gupta Building Materials",
-//     invoice: "INV-2026-087",
-//     items: 10,
-//     subtotal: 28900,
-//     gst: 5202,
-//     total: 34102,
-//     status: "Completed",
-//     payment: "Paid",
-//   },
-//   {
-//     id: "PUR-005",
-//     date: "05 Aug 2026",
-//     supplier: "Shree Traders",
-//     invoice: "INV-2026-081",
-//     items: 6,
-//     subtotal: 18500,
-//     gst: 3330,
-//     total: 21830,
-//     status: "Returned",
-//     payment: "Refunded",
-//   },
-//   {
-//     id: "PUR-006",
-//     date: "02 Aug 2026",
-//     supplier: "Metro Hardware",
-//     invoice: "INV-2026-074",
-//     items: 18,
-//     subtotal: 41200,
-//     gst: 7416,
-//     total: 48616,
-//     status: "Completed",
-//     payment: "Paid",
-//   },
-// ];
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -221,17 +146,34 @@ function PaymentBadge({ payment }) {
 }
 
 export default function PurchaseHistory() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [selectedPurchase, setSelectedPurchase] = useState(null);
 
-
   const [purchaseData, setPurchaseData] = useState([]);
 
   useEffect(() => {
-    const load=()=>listUIPurchases().then(setPurchaseData).catch(error=>alert(error.message));load();return subscribeToTable('purchases',load)
+    const load = () => listUIPurchases().then(setPurchaseData).catch(error => alert(error.message)); load(); return subscribeToTable('purchases', load)
   }, []);
+
+  // Auto-open purchase details/receipt modal when navigated from notification
+  useEffect(() => {
+    const targetId = searchParams.get('viewId') || searchParams.get('billNo') || searchParams.get('id');
+    if (targetId && purchaseData.length > 0) {
+      const targetLower = targetId.toLowerCase().trim();
+      const match = purchaseData.find(
+        (p) =>
+          String(p.id).toLowerCase() === targetLower ||
+          String(p.invoice || '').toLowerCase() === targetLower ||
+          String(p.billNo || '').toLowerCase() === targetLower
+      );
+      if (match) {
+        setSelectedPurchase(match);
+      }
+    }
+  }, [searchParams, purchaseData]);
 
   const filteredPurchases = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -273,24 +215,24 @@ export default function PurchaseHistory() {
   ).length;
 
 
-const handleDownload = (purchase) => {
-  if (!purchase) return;
+  const handleDownload = (purchase) => {
+    if (!purchase) return;
 
-  const items = Array.isArray(purchase.items)
-    ? purchase.items
-    : [];
+    const items = Array.isArray(purchase.items)
+      ? purchase.items
+      : [];
 
-  const itemsRows = items
-    .map((item, index) => {
-      const quantity = Number(item.quantity) || 0;
-      const price = Number(item.purchasePrice) || 0;
-      const gst = Number(item.gst) || 0;
+    const itemsRows = items
+      .map((item, index) => {
+        const quantity = Number(item.quantity) || 0;
+        const price = Number(item.purchasePrice) || 0;
+        const gst = Number(item.gst) || 0;
 
-      const amount = quantity * price;
-      const gstAmount = (amount * gst) / 100;
-      const total = amount + gstAmount;
+        const amount = quantity * price;
+        const gstAmount = (amount * gst) / 100;
+        const total = amount + gstAmount;
 
-      return `
+        return `
         <tr>
           <td>${index + 1}</td>
           <td>${item.product || "Product"}</td>
@@ -302,14 +244,14 @@ const handleDownload = (purchase) => {
           <td>₹${total.toFixed(2)}</td>
         </tr>
       `;
-    })
-    .join("");
+      })
+      .join("");
 
-  const subtotal = Number(purchase.subtotal) || 0;
-  const gstTotal = Number(purchase.gst) || 0;
-  const grandTotal = Number(purchase.total) || 0;
+    const subtotal = Number(purchase.subtotal) || 0;
+    const gstTotal = Number(purchase.gst) || 0;
+    const grandTotal = Number(purchase.total) || 0;
 
-  const invoiceHTML = `
+    const invoiceHTML = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -535,16 +477,15 @@ const handleDownload = (purchase) => {
       </thead>
 
       <tbody>
-        ${
-          itemsRows ||
-          `
+        ${itemsRows ||
+      `
           <tr>
             <td colspan="8" style="text-align:center;">
               No product details available
             </td>
           </tr>
           `
-        }
+      }
       </tbody>
 
     </table>
@@ -579,39 +520,38 @@ const handleDownload = (purchase) => {
 </html>
 `;
 
-  try {
-    const blob = new Blob(
-      [invoiceHTML],
-      {
-        type: "text/html;charset=utf-8",
-      }
-    );
+    try {
+      const blob = new Blob(
+        [invoiceHTML],
+        {
+          type: "text/html;charset=utf-8",
+        }
+      );
 
-    const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
 
-    const link = document.createElement("a");
+      const link = document.createElement("a");
 
-    link.href = url;
+      link.href = url;
 
-    link.download = `${
-      purchase.invoice ||
-      purchase.id ||
-      "purchase-invoice"
-    }.html`;
+      link.download = `${purchase.invoice ||
+        purchase.id ||
+        "purchase-invoice"
+        }.html`;
 
-    document.body.appendChild(link);
+      document.body.appendChild(link);
 
-    link.click();
+      link.click();
 
-    document.body.removeChild(link);
+      document.body.removeChild(link);
 
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error("Invoice download failed:", error);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Invoice download failed:", error);
 
-    alert("Unable to download invoice.");
-  }
-};
+      alert("Unable to download invoice.");
+    }
+  };
 
 
   return (
@@ -1079,4 +1019,3 @@ const handleDownload = (purchase) => {
     </div>
   );
 }
-

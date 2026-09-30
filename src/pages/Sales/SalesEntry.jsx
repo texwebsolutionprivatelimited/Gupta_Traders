@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Eye, Edit3, Trash2 } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
 import { completeSale, listUICustomers, listUIProducts } from '../../services/erpService'
+import { addNotification, buildNewSaleNotification } from '../../services/notificationService'
 
 const initialItems = [
   {
@@ -136,7 +137,41 @@ export default function SalesEntry() {
       return;
     }
 
-    try{const customerRow=remoteCustomers.find(c=>c.name===customer||c.id===customer);const rpcItems=items.map(item=>{const p=remoteProducts.find(x=>x.name===item.product||x.id===item.product);if(!p)throw new Error(`Product not found: ${item.product}`);const gst=Number(item.gst||0);const basePrice=gst>0?(Number(item.salesPrice)/(1+gst/100)):Number(item.salesPrice);return{product_id:p.id,quantity:Number(item.quantity),unit_price:basePrice,tax_rate:gst,display_price:Number(item.salesPrice),is_gst_inclusive:true}});await completeSale({invoice_number:invoiceNo||undefined,sale_date:invoiceDate,customer_id:customerRow?.id||null,amount_paid:paymentMode==='Credit'?0:totals.total,payment_method:paymentMode,payment_reference:utrNo,notes},rpcItems);alert('Sale saved successfully!');navigate('/sales/history')}catch(error){alert(error.message)}
+    try{
+      const customerRow=remoteCustomers.find(c=>c.name===customer||c.id===customer);
+      const rpcItems=items.map(item=>{
+        const p=remoteProducts.find(x=>x.name===item.product||x.id===item.product);
+        if(!p)throw new Error(`Product not found: ${item.product}`);
+        const gst=Number(item.gst||0);
+        const basePrice=gst>0?(Number(item.salesPrice)/(1+gst/100)):Number(item.salesPrice);
+        return{product_id:p.id,quantity:Number(item.quantity),unit_price:basePrice,tax_rate:gst,display_price:Number(item.salesPrice),is_gst_inclusive:true};
+      });
+      const saved = await completeSale({
+        invoice_number:invoiceNo||undefined,
+        sale_date:invoiceDate,
+        customer_id:customerRow?.id||null,
+        amount_paid:paymentMode==='Credit'?0:totals.total,
+        payment_method:paymentMode,
+        payment_reference:utrNo,
+        notes
+      },rpcItems);
+
+      try {
+        addNotification(buildNewSaleNotification({
+          id: saved?.id || invoiceNo,
+          invoiceNumber: saved?.invoice_number || invoiceNo,
+          totalAmount: totals.total,
+          date: invoiceDate,
+          paymentMethod: paymentMode,
+          customerName: customerRow?.name || customer || undefined
+        }));
+      } catch (notifErr) {
+        console.warn('Could not post sale notification:', notifErr);
+      }
+
+      alert('Sale saved successfully!');
+      navigate('/sales/history');
+    }catch(error){alert(error.message)}
   };
 
   return (

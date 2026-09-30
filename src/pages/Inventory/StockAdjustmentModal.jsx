@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { CloseIcon, WarningIcon } from './Icons'
 import { adjustStock } from '../../services/erpService'
+import { addNotification, buildInventoryUpdateNotification, buildStockAlertNotification } from '../../services/notificationService'
 
 const predefinedReasons = {
   inward: [
@@ -44,8 +45,39 @@ export default function StockAdjustmentModal({ product, onSave, onCancel }) {
     }
 
     const delta=type==='inward'?numericQty:type==='outward'?-numericQty:numericQty-Number(product.currentStock||0)
-    if(delta===0){setError('Reconciled quantity is already the current stock');return}
-    try{const quantity=await adjustStock(product.id,delta,type==='reconcile'?'reconciliation':'adjustment',finalReason);onSave({...product,currentStock:Number(quantity)},`Stock adjusted successfully for ${product.name}`)}catch(error){setError(error.message)}
+    try {
+      const quantity = await adjustStock(product.id, delta, type === 'reconcile' ? 'reconciliation' : 'adjustment', finalReason);
+
+      // Trigger real-time Inventory Update Notification
+      try {
+        addNotification(buildInventoryUpdateNotification({
+          productId: product.id,
+          productName: product.name,
+          delta,
+          reason: finalReason,
+          newStock: Number(quantity),
+          unit: product.unit || 'pcs'
+        }));
+
+        // Check low stock threshold alert
+        const minStock = Number(product.minStock || product.minimum_stock || 0);
+        if (minStock > 0 && Number(quantity) <= minStock) {
+          addNotification(buildStockAlertNotification({
+            productId: product.id,
+            productName: product.name,
+            currentStock: Number(quantity),
+            minStock,
+            unit: product.unit || 'pcs'
+          }));
+        }
+      } catch (notifErr) {
+        console.warn('Could not post inventory notification:', notifErr);
+      }
+
+      onSave({ ...product, currentStock: Number(quantity) }, `Stock adjusted successfully for ${product.name}`);
+    } catch (error) {
+      setError(error.message);
+    }
   }
 
   // Auto-set default reason when type changes

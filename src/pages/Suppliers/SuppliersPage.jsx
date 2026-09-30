@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { deleteSupplier, listUISuppliers, recordPartyTransaction, saveSupplier, subscribeToTable } from '../../services/erpService'
+import { addNotification, buildNewSupplierNotification } from '../../services/notificationService'
 import { formatINR } from '../../utils/erp'
 
 // ─── SVG Icons ──────────────────────────────────────────────────
@@ -800,6 +801,26 @@ export default function SuppliersPage() {
     return subscribeToTable('suppliers', refreshData)
   }, [])
 
+  // Auto-open supplier details/ledger when navigated from notification
+  useEffect(() => {
+    const targetId = searchParams.get('id');
+    const targetSearch = searchParams.get('search');
+    if (targetSearch && !search) {
+      setSearch(targetSearch);
+    }
+    if (targetId && suppliers.length > 0) {
+      const targetLower = targetId.toLowerCase().trim();
+      const match = suppliers.find(
+        s => String(s.id).toLowerCase() === targetLower ||
+             (targetSearch && String(s.companyName || s.name || '').toLowerCase().includes(targetSearch.toLowerCase().trim()))
+      );
+      if (match) {
+        setSelectedLedgerSupplier(match);
+        setLedgerModalOpen(true);
+      }
+    }
+  }, [searchParams, suppliers]);
+
   function showToast(message, type = 'success') {
     setToast({ message, type })
   }
@@ -808,6 +829,20 @@ export default function SuppliersPage() {
     setFormModalOpen(false)
     setSelectedSupplier(null)
     refreshData()
+
+    if (actionType === 'created' || !selectedSupplier) {
+      try {
+        addNotification(buildNewSupplierNotification({
+          id: savedData.id,
+          supplierName: savedData.companyName || savedData.name,
+          date: new Date().toISOString(),
+          contact: savedData.phone || savedData.contactPerson
+        }));
+      } catch (notifErr) {
+        console.warn('Could not post new supplier notification:', notifErr);
+      }
+    }
+
     showToast(`Supplier "${savedData.companyName}" successfully ${actionType}!`, 'success')
   }
 

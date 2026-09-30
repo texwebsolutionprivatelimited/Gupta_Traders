@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { listUISales, subscribeToTable } from '../../services/erpService'
 
 const formatCurrency = (value) =>
@@ -216,6 +216,7 @@ function Card({ title, value, valueClass = "" }) {
 
 export default function SalesHistory() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -226,6 +227,22 @@ export default function SalesHistory() {
   useEffect(() => {
     const load=()=>listUISales().then(setSalesData).catch(error=>alert(error.message));load();return subscribeToTable('sales',load)
   }, []);
+
+  // Auto-open sale details modal when navigated from notification
+  useEffect(() => {
+    const targetInvoice = searchParams.get('invoice') || searchParams.get('saleId') || searchParams.get('id');
+    if (targetInvoice && salesData.length > 0) {
+      const targetLower = targetInvoice.toLowerCase().trim();
+      const match = salesData.find(
+        (s) =>
+          String(s.id).toLowerCase() === targetLower ||
+          String(s.invoice || '').toLowerCase() === targetLower
+      );
+      if (match) {
+        setSelectedSale(match);
+      }
+    }
+  }, [searchParams, salesData]);
 
   // Filter sales
   const filteredSales = useMemo(() => {

@@ -11,6 +11,7 @@ import {
   formatINR,
 } from '../../utils/erp'
 import { completeSale as persistSale, deleteHeldBill as removeHeldBill, listHeldBills, listUICustomers, listUIProducts, saveHeldBill, subscribeToTable } from '../../services/erpService'
+import { addNotification, buildNewSaleNotification, buildStockAlertNotification } from '../../services/notificationService'
 import { useAuth } from '../../context/AuthContext'
 import { FaShoppingCart as CartIcon, FaPlus, FaHistory } from 'react-icons/fa'
 import guptaTradersLogo from '../../assets/gupta traders logo.png'
@@ -285,8 +286,46 @@ export default function POSBilling() {
           cashAmount,
           upiAmount,
         }
-      },items)
+      }, items);
       const savedTotal = Number(saved?.total_amount)
+
+      // Trigger real-time Sale Notification
+      try {
+        addNotification(buildNewSaleNotification({
+          id: saved.id,
+          invoiceNumber: saved.invoice_number,
+          totalAmount: Number.isFinite(savedTotal) ? savedTotal : summary.grandTotal,
+          date: new Date().toISOString(),
+          paymentMethod: paymentMode,
+          customerName: customerName || undefined
+        }));
+      } catch (notifErr) {
+        console.warn('Could not post sale notification:', notifErr);
+      }
+
+      // Check stock alert for each sold item
+      try {
+        bill.items.forEach(cartItem => {
+          const prod = products.find(p => p.id === (cartItem.supabase_id || cartItem.id));
+          if (prod) {
+            const currentStock = Number(prod.currentStock ?? prod.stock ?? 0);
+            const remainingStock = Math.max(0, currentStock - Number(cartItem.quantity || 1));
+            const minStock = Number(prod.minStock || prod.minimum_stock || 0);
+            if (minStock > 0 && remainingStock <= minStock) {
+              addNotification(buildStockAlertNotification({
+                productId: prod.id,
+                productName: prod.name,
+                currentStock: remainingStock,
+                minStock,
+                unit: prod.unit || 'pcs'
+              }));
+            }
+          }
+        });
+      } catch (stockErr) {
+        console.warn('Could not check stock alert:', stockErr);
+      }
+
       const completed={
         ...bill,
         billNumber:saved.invoice_number,

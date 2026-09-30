@@ -26,14 +26,8 @@ import {
   FaFileExcel,
   FaBell,
   FaUndoAlt,
-  FaBoxOpen
 } from 'react-icons/fa'
-import {
-  getNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-  clearAllNotifications
-} from '../services/notificationService'
+import NotificationBell from './NotificationBell'
 
 // Emoji map for category icons fallback
 const emojiToFaMap = {
@@ -1011,70 +1005,6 @@ export default function Layout() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
-  // ── Notification Bell State & Sync ──────────────────────────────
-  const [notifications, setNotifications] = useState([])
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0)
-  const [notifMenuOpen, setNotifMenuOpen] = useState(false)
-  const notifMenuRef = useRef(null)
-
-  useEffect(() => {
-    const syncNotifs = () => {
-      const all = getNotifications()
-      setNotifications(all)
-      setUnreadNotifCount(all.filter(n => !n.read).length)
-    }
-    syncNotifs()
-
-    const handleUpdate = () => syncNotifs()
-    window.addEventListener('erp:notifications_updated', handleUpdate)
-    window.addEventListener('storage', handleUpdate)
-    return () => {
-      window.removeEventListener('erp:notifications_updated', handleUpdate)
-      window.removeEventListener('storage', handleUpdate)
-    }
-  }, [])
-
-  useEffect(() => {
-    function handleClickOutsideNotif(event) {
-      if (notifMenuRef.current && !notifMenuRef.current.contains(event.target)) {
-        setNotifMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutsideNotif)
-    return () => document.removeEventListener('mousedown', handleClickOutsideNotif)
-  }, [])
-
-  const handleNotificationClick = (notif) => {
-    markNotificationAsRead(notif.id)
-    setNotifMenuOpen(false)
-    if (notif.targetUrl) {
-      navigate(notif.targetUrl)
-    }
-  }
-
-  const handleMarkAllNotificationsRead = (e) => {
-    e.stopPropagation()
-    markAllNotificationsAsRead()
-  }
-
-  const handleClearNotifications = (e) => {
-    e.stopPropagation()
-    clearAllNotifications()
-  }
-
-  const formatNotifTime = (isoString) => {
-    if (!isoString) return ''
-    const date = new Date(isoString)
-    const diffSec = Math.floor((Date.now() - date.getTime()) / 1000)
-    if (diffSec < 60) return 'Just now'
-    const diffMin = Math.floor(diffSec / 60)
-    if (diffMin < 60) return `${diffMin}m ago`
-    const diffHr = Math.floor(diffMin / 60)
-    if (diffHr < 24) return `${diffHr}h ago`
-    const diffDay = Math.floor(diffHr / 24)
-    if (diffDay < 7) return `${diffDay}d ago`
-    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-  }
 
   useEffect(() => {
     function handleClickOutsideExport(event) {
@@ -2023,118 +1953,7 @@ export default function Layout() {
             )}
 
             {/* Notification Bell */}
-            <div ref={notifMenuRef} className="relative">
-              <button
-                id="header-notification-bell"
-                type="button"
-                onClick={() => setNotifMenuOpen(!notifMenuOpen)}
-                className={`relative p-2 rounded-xl transition-all cursor-pointer ${
-                  notifMenuOpen
-                    ? 'bg-slate-800 text-emerald-400'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                }`}
-                title={unreadNotifCount > 0 ? `${unreadNotifCount} unread notification${unreadNotifCount > 1 ? 's' : ''}` : 'Notifications'}
-                aria-label="Notifications"
-              >
-                <FaBell className="w-4 h-4 sm:w-5 sm:h-5" />
-                {unreadNotifCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center border-2 border-slate-950 shadow-md animate-pulse">
-                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
-                  </span>
-                )}
-              </button>
-
-              {/* Notification Dropdown Panel */}
-              {notifMenuOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fadeIn text-left">
-                  {/* Header */}
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/80">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-100 uppercase tracking-wider">Notifications</span>
-                      {unreadNotifCount > 0 && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
-                          {unreadNotifCount} unread
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {unreadNotifCount > 0 && (
-                        <button
-                          type="button"
-                          onClick={handleMarkAllNotificationsRead}
-                          className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors cursor-pointer"
-                        >
-                          Mark all read
-                        </button>
-                      )}
-                      {notifications.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={handleClearNotifications}
-                          className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer ml-1"
-                          title="Clear all notifications"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Notification List */}
-                  <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-800/60">
-                    {notifications.length === 0 ? (
-                      <div className="py-8 text-center px-4 space-y-2">
-                        <div className="w-10 h-10 mx-auto rounded-full bg-slate-800/60 flex items-center justify-center text-slate-500">
-                          <FaBell className="w-4 h-4 opacity-50" />
-                        </div>
-                        <p className="text-xs font-semibold text-slate-400">No notifications yet</p>
-                        <p className="text-[11px] text-slate-500">Stock updates from sales returns will appear here.</p>
-                      </div>
-                    ) : (
-                      notifications.map(notif => (
-                        <div
-                          key={notif.id}
-                          onClick={() => handleNotificationClick(notif)}
-                          className={`p-3.5 transition-colors cursor-pointer flex gap-3 items-start group ${
-                            notif.read ? 'hover:bg-slate-800/40 bg-slate-900/40' : 'bg-slate-800/50 hover:bg-slate-800/80 border-l-2 border-emerald-500'
-                          }`}
-                        >
-                          <div className={`p-2 rounded-xl flex-shrink-0 mt-0.5 ${
-                            notif.type === 'sales_return'
-                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
-                          }`}>
-                            {notif.type === 'sales_return' ? <FaUndoAlt className="w-3.5 h-3.5" /> : <FaBoxOpen className="w-3.5 h-3.5" />}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-1">
-                              <h4 className={`text-xs font-bold truncate ${notif.read ? 'text-slate-300' : 'text-slate-100'}`}>
-                                {notif.title}
-                              </h4>
-                              <span className="text-[10px] text-slate-500 whitespace-nowrap">
-                                {formatNotifTime(notif.createdAt)}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                              {notif.message}
-                            </p>
-                            <div className="flex items-center justify-between mt-2 pt-1">
-                              <span className="text-[10px] font-semibold text-emerald-400 group-hover:underline flex items-center gap-1">
-                                View in Inventory &rarr;
-                              </span>
-                              {!notif.read && (
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <NotificationBell />
 
             {/* Profile Menu */}
             <div ref={userMenuRef} className="relative">

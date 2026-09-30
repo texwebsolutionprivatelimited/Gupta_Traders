@@ -248,6 +248,18 @@ export async function createProduct(values) {
     fail(stockError, 'Product created but opening stock failed')
   }
   invalidateCache('products')
+  try {
+    const { addNotification, buildNewProductNotification } = await import('./notificationService.js');
+    addNotification(buildNewProductNotification({
+      id: data.id,
+      productName: data.name,
+      stock: stock,
+      unit: values.unit || 'pcs',
+      date: new Date().toISOString()
+    }));
+  } catch (notifErr) {
+    console.warn('Could not post new product notification:', notifErr);
+  }
   return data
 }
 export async function updateProduct(id, values) {
@@ -578,6 +590,144 @@ export async function completeSalesReturn(ret, items) {
 }
 export async function completePurchaseReturn(ret, items) { const { data, error } = await supabase.rpc('complete_purchase_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete purchase return'); invalidateCache('products'); return data }
 
+export async function listPurchaseReturns() {
+  const { data, error } = await supabase
+    .from('purchase_returns')
+    .select('*, purchase:purchases(*), supplier:suppliers(*), items:purchase_return_items(*)')
+    .order('created_at', { ascending: false });
+  fail(error, 'Unable to load purchase returns');
+  return (data || []).map(r => {
+    let items = r.items || [];
+    if ((!items || items.length === 0) && r.notes && r.notes.includes('--- RETURN ITEMS ---')) {
+      try {
+        const jsonPart = r.notes.split('--- RETURN ITEMS ---')[1];
+        items = JSON.parse(jsonPart.trim());
+      } catch (e) {}
+    }
+    return {
+      ...r,
+      id: r.id,
+      returnNo: r.return_no || r.return_number || 'PR-000',
+      invoiceNo: r.invoice_no || r.purchase?.supplier_invoice_number || r.purchase?.invoice_number || '',
+      supplierName: r.supplier_name || r.supplier?.company_name || r.supplier?.name || 'Supplier',
+      date: r.return_date || r.created_at,
+      subtotal: Number(r.subtotal || 0),
+      taxAmount: Number(r.tax_amount || 0),
+      totalAmount: Number(r.total_amount || 0),
+      reason: r.reason || 'Other',
+      notes: r.notes || '',
+      status: r.status || 'Completed',
+      items: (items || []).map((it, idx) => ({
+        ...it,
+        id: it.id || `pr-item-${idx}`,
+        product: it.product_name || it.product || it.name || 'Product',
+        quantity: Number(it.quantity || 1),
+        purchasePrice: Number(it.price ?? it.unit_price ?? it.purchasePrice ?? 0),
+        gst: Number(it.gst ?? it.tax_rate ?? 0),
+        total: Number(it.total ?? it.line_total ?? (Number(it.quantity || 1) * Number(it.price ?? it.unit_price ?? 0)))
+      }))
+    };
+  });
+}
+
+export async function savePurchaseReturn(returnData, returnItems) {
+  let savedResult = null;
+  const validRpcItems = (returnItems || []).filter(it => it.purchase_item_id && it.product_id);
+
+  if (validRpcItems.length > 0 && validRpcItems.length === (returnItems || []).length && returnData.purchase_id) {
+    try {
+      const rpcPayload = validRpcItems.map(it => ({
+        purchase_item_id: it.purchase_item_id,
+        quantity: Number(it.quantity)
+      }));
+      const res = await completePurchaseReturn({
+        purchase_id: returnData.purchase_id,
+        supplier_id: returnData.supplier_id || null,
+        return_number: returnData.return_no || returnData.return_number || null,
+        return_date: returnData.return_date,
+        reason: returnData.reason,
+        notes: returnData.notes,
+        refund_method: returnData.refund_method || 'Refund'
+      }, rpcPayload);
+      savedResult = res;
+    } catch (rpcErr) {
+      console.warn('RPC complete_purchase_return fallback to direct record:', rpcErr);
+    }
+  }
+
+  if (!savedResult) {
+    const returnNumber = returnData.return_no || returnData.return_number || `PR-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const itemsJson = JSON.stringify(returnItems || []);
+    const fullNotes = returnData.notes
+      ? `${returnData.notes}\n\n--- RETURN ITEMS ---\n${itemsJson}`
+      : `--- RETURN ITEMS ---\n${itemsJson}`;
+
+    const returnRow = {
+      return_no: returnNumber,
+      return_number: returnNumber,
+      purchase_id: returnData.purchase_id || null,
+      supplier_id: returnData.supplier_id || null,
+      supplier_name: returnData.supplier_name || null,
+      invoice_no: returnData.invoice_no || null,
+      return_date: returnData.return_date ? new Date(returnData.return_date).toISOString() : new Date().toISOString(),
+      reason: returnData.reason || 'Other',
+      notes: fullNotes,
+      subtotal: Number(returnData.subtotal || 0),
+      tax_amount: Number(returnData.tax_amount || 0),
+      total_amount: Number(returnData.total_amount || 0),
+      status: 'Completed',
+      payment_status: 'Refund Pending',
+      refund_method: returnData.refund_method || 'Refund'
+    };
+
+    const { data: prData, error: prErr } = await supabase
+      .from('purchase_returns')
+      .insert(returnRow)
+      .select()
+      .single();
+
+    fail(prErr, 'Unable to save purchase return record');
+    savedResult = prData;
+
+    if (returnItems && returnItems.length > 0 && prData?.id) {
+      const itemsToInsert = returnItems.map(it => ({
+        purchase_return_id: prData.id,
+        purchase_item_id: it.purchase_item_id && String(it.purchase_item_id).includes('-') ? it.purchase_item_id : null,
+        product_id: it.product_id && String(it.product_id).includes('-') ? it.product_id : null,
+        product_name: it.product || it.name || it.product_name || 'Item',
+        quantity: Number(it.quantity || 1),
+        price: Number(it.purchasePrice ?? it.unit_price ?? 0),
+        unit_price: Number(it.purchasePrice ?? it.unit_price ?? 0),
+        gst: Number(it.gst ?? it.tax_rate ?? 0),
+        tax_rate: Number(it.gst ?? it.tax_rate ?? 0),
+        tax_amount: Number(it.gstAmount ?? it.tax_amount ?? 0),
+        line_total: Number(it.amount ?? it.line_total ?? 0),
+        total: Number(it.total ?? 0)
+      }));
+
+      try {
+        await supabase.from('purchase_return_items').insert(itemsToInsert);
+      } catch (itemErr) {
+        console.warn('Purchase return items table insert notice:', itemErr);
+      }
+    }
+  }
+
+  invalidateCache('products');
+  return savedResult;
+}
+
+export async function deletePurchaseReturn(id) {
+  if (!id) return false;
+  try {
+    await supabase.from('purchase_return_items').delete().eq('purchase_return_id', id);
+  } catch (e) {}
+  const { error } = await supabase.from('purchase_returns').delete().eq('id', id);
+  fail(error, 'Unable to delete purchase return record');
+  invalidateCache('products');
+  return true;
+}
+
 export async function listSalesReturns() {
   const { data, error } = await supabase
     .from('sales_returns')
@@ -780,18 +930,83 @@ export async function listCustomers() { const { data, error } = await supabase.f
 export function customerToUI(c) { return { id: c.id, name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', city: c.city || '', gstin: c.gstin || c.gst_number || '', customerType: c.customer_type || 'retail', creditLimit: Number(c.credit_limit || 0), outstandingBalance: Number(c.balance ?? c.opening_balance ?? 0), status: c.status || 'active', profilePic: c.profile_image_url || '', createdAt: c.created_at, updatedAt: c.updated_at, metadata: c.metadata || {} } }
 export async function listUICustomers() { const customers = (await listCustomers()).map(customerToUI); const { data: ledger, error } = await supabase.from('transactions').select('*').order('transaction_date', { ascending: false }); fail(error, 'Unable to load customer ledgers'); return customers.map(c => ({ ...c, ledger: ledger.filter(x => x.reference_id === c.id).map(x => ({ id: x.id, date: x.transaction_date || x.date, type: x.type, description: x.description, amount: Number(x.amount || 0), balanceAfter: null })) })) }
 function customerRow(v) { return { name: v.name?.trim(), phone: v.phone?.trim() || null, email: v.email?.trim() || null, address: v.address?.trim() || null, city: v.city?.trim() || null, state: v.state || null, postal_code: v.postalCode || null, gstin: v.gstin?.trim().toUpperCase() || null, customer_type: v.customerType || 'retail', credit_limit: Number(v.creditLimit || 0), status: v.status || 'active', profile_image_url: v.profilePic || null, notes: v.notes || null, metadata: v.metadata || {} } }
-export async function saveCustomer(values, id) { const row = customerRow(values); if (!id) row.balance = 0; const query = id ? supabase.from('customers').update(row).eq('id', id) : supabase.from('customers').insert(row); const { data, error } = await query.select().single(); fail(error, id ? 'Unable to update customer' : 'Unable to create customer'); if (!id && Number(values.openingBalance)) { await recordPartyTransaction('customer', data.id, { type: 'adjustment', amount: Number(values.openingBalance), description: 'Opening Balance' }) } return customerToUI({ ...data, balance: id ? data.balance : Number(values.openingBalance || 0) }) }
+export async function saveCustomer(values, id) {
+  const row = customerRow(values);
+  if (!id) row.balance = 0;
+  const query = id ? supabase.from('customers').update(row).eq('id', id) : supabase.from('customers').insert(row);
+  const { data, error } = await query.select().single();
+  fail(error, id ? 'Unable to update customer' : 'Unable to create customer');
+  if (!id && Number(values.openingBalance)) {
+    await recordPartyTransaction('customer', data.id, { type: 'adjustment', amount: Number(values.openingBalance), description: 'Opening Balance' });
+  }
+  if (!id && data) {
+    try {
+      const { addNotification, buildNewCustomerNotification } = await import('./notificationService.js');
+      addNotification(buildNewCustomerNotification({
+        id: data.id,
+        customerName: data.name,
+        phone: data.phone,
+        date: data.created_at
+      }));
+    } catch (notifErr) {
+      console.warn('Could not post customer notification:', notifErr);
+    }
+  }
+  return customerToUI({ ...data, balance: id ? data.balance : Number(values.openingBalance || 0) });
+}
 export async function deleteCustomer(id) { return softDeleteEntity('customer', id) }
 export async function listSuppliers() { const { data, error } = await supabase.from('suppliers').select('*').is('deleted_at', null).order('company_name'); fail(error, 'Unable to load suppliers'); return data }
 export function supplierToUI(s) { return { id: s.id, companyName: s.company_name, contactPerson: s.contact_person || '', phone: s.phone || '', email: s.email || '', address: s.address || '', city: s.city || '', gstin: s.gstin || '', outstandingBalance: Number(s.balance), creditLimit: Number(s.credit_limit), status: s.status, productsSupplied: s.metadata?.productsSupplied || [], createdAt: s.created_at, updatedAt: s.updated_at, metadata: s.metadata || {} } }
 export async function listUISuppliers() { const suppliers = (await listSuppliers()).map(supplierToUI); const { data: ledger, error } = await supabase.from('transactions').select('*').order('transaction_date', { ascending: false }); fail(error, 'Unable to load supplier ledgers'); return suppliers.map(s => ({ ...s, ledger: ledger.filter(x => x.reference_id === s.id).map(x => ({ id: x.id, date: x.transaction_date || x.date, type: x.type, description: x.description, amount: Number(x.amount || 0), balanceAfter: null })) })) }
 function supplierRow(v) { const company = v.companyName?.trim() || v.name?.trim(); return { name: company, company_name: company, contact_person: v.contactPerson?.trim() || null, phone: v.phone?.trim() || null, email: v.email?.trim() || null, address: v.address?.trim() || null, city: v.city?.trim() || null, state: v.state || null, postal_code: v.postalCode || null, gstin: v.gstin?.trim().toUpperCase() || null, status: v.status || 'active', credit_limit: Number(v.creditLimit || 0), notes: v.notes || null, metadata: { ...(v.metadata || {}), productsSupplied: v.productsSupplied || v.metadata?.productsSupplied || [] } } }
-export async function saveSupplier(values, id) { const row = supplierRow(values); if (!id) row.balance = 0; const query = id ? supabase.from('suppliers').update(row).eq('id', id) : supabase.from('suppliers').insert(row); const { data, error } = await query.select().single(); fail(error, id ? 'Unable to update supplier' : 'Unable to create supplier'); if (!id && Number(values.openingBalance)) { await recordPartyTransaction('supplier', data.id, { type: 'adjustment', amount: Number(values.openingBalance), description: 'Opening Balance' }) } return supplierToUI({ ...data, balance: id ? data.balance : Number(values.openingBalance || 0) }) }
+export async function saveSupplier(values, id) {
+  const row = supplierRow(values);
+  if (!id) row.balance = 0;
+  const query = id ? supabase.from('suppliers').update(row).eq('id', id) : supabase.from('suppliers').insert(row);
+  const { data, error } = await query.select().single();
+  fail(error, id ? 'Unable to update supplier' : 'Unable to create supplier');
+  if (!id && Number(values.openingBalance)) {
+    await recordPartyTransaction('supplier', data.id, { type: 'adjustment', amount: Number(values.openingBalance), description: 'Opening Balance' });
+  }
+  if (!id && data) {
+    try {
+      const { addNotification, buildNewSupplierNotification } = await import('./notificationService.js');
+      addNotification(buildNewSupplierNotification({
+        id: data.id,
+        supplierName: data.company_name || data.name,
+        contact: data.phone || data.contact_person,
+        date: data.created_at
+      }));
+    } catch (notifErr) {
+      console.warn('Could not post supplier notification:', notifErr);
+    }
+  }
+  return supplierToUI({ ...data, balance: id ? data.balance : Number(values.openingBalance || 0) });
+}
 export async function deleteSupplier(id) { return softDeleteEntity('supplier', id) }
 export async function listLedger(partyType, partyId) { const { data, error } = await supabase.from('transactions').select('*').eq('reference_id', partyId).order('transaction_date', { ascending: false }); fail(error, 'Unable to load ledger'); return data }
 export async function recordPartyTransaction(partyType, partyId, transaction) { const { data, error } = await supabase.rpc('record_party_transaction', { p_party_type: partyType, p_party_id: partyId, p_entry_type: transaction.type, p_amount: Number(transaction.amount), p_description: transaction.description, p_entry_date: transaction.date || new Date().toISOString() }); fail(error, 'Unable to record ledger transaction'); return data }
 export async function listExpenses() { const { data, error } = await supabase.from('expenses').select('*').order('expense_date', { ascending: false }); fail(error, 'Unable to load expenses'); return data }
-export async function saveExpense(values, id) { const query = id ? supabase.from('expenses').update(values).eq('id', id) : supabase.from('expenses').insert(values); const { data, error } = await query.select().single(); fail(error, 'Unable to save expense'); return data }
+export async function saveExpense(values, id) {
+  const query = id ? supabase.from('expenses').update(values).eq('id', id) : supabase.from('expenses').insert(values);
+  const { data, error } = await query.select().single();
+  fail(error, 'Unable to save expense');
+  if (!id && data) {
+    try {
+      const { addNotification, buildExpenseNotification } = await import('./notificationService.js');
+      addNotification(buildExpenseNotification({
+        id: data.id,
+        category: data.expense_type || data.category,
+        amount: data.amount,
+        description: data.description,
+        date: data.expense_date || data.created_at
+      }));
+    } catch (notifErr) {
+      console.warn('Could not post expense notification:', notifErr);
+    }
+  }
+  return data;
+}
 export async function deleteExpense(id) { const { error } = await supabase.from('expenses').delete().eq('id', id); fail(error, 'Unable to delete expense') }
 export async function listHeldBills() { const { data, error } = await supabase.from('held_bills').select('*').order('held_at', { ascending: false }); fail(error, 'Unable to load held bills'); return data }
 export async function saveHeldBill(values) { const user = await requireSession(); const { data, error } = await supabase.from('held_bills').insert({ ...values, held_by: user.id }).select().single(); fail(error, 'Unable to hold bill'); return data }

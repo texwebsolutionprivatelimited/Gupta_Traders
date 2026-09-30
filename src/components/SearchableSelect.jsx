@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { PenLine } from "lucide-react";
 
 export default function SearchableSelect({
   value,
@@ -105,11 +106,11 @@ export default function SearchableSelect({
         onClick={() => setIsOpen(!isOpen)}
         className={`${className} flex items-center justify-between text-left cursor-pointer focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15`}
       >
-        <span className={value ? "text-slate-100 truncate pr-2" : "text-slate-400 truncate pr-2"}>
+        <span className={value ? "text-slate-900 dark:text-slate-100 font-medium truncate pr-2" : "text-slate-400 truncate pr-2"}>
           {value || placeholder}
         </span>
         <svg
-          className={`w-4 h-4 text-slate-500 transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`}
+          className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -129,31 +130,31 @@ export default function SearchableSelect({
               width: `${coords.width}px`,
               zIndex: 9999,
             }}
-            className="flex flex-col bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden"
+            className="flex flex-col bg-white rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.12)] border-0 overflow-hidden"
           >
             {/* Search Input */}
-            <div className="p-2 border-b border-slate-800 bg-slate-950/40">
+            <div className="p-2.5 bg-[#f8fafc]">
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={allowCustom ? "Search or type custom..." : "Search..."}
-                className="w-full px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full px-3 py-2 text-xs bg-white rounded-lg text-[#0f172a] placeholder-[#94a3b8] border-0 shadow-[0_1px_3px_rgba(0,0,0,0.08)] focus:outline-none focus:shadow-[0_0_0_2px_#3b82f6]"
                 autoFocus
               />
             </div>
             
             {/* Options List */}
-            <div className="max-h-[220px] overflow-y-auto scrollbar-thin py-1 bg-slate-900">
+            <div className="max-h-[220px] overflow-y-auto scrollbar-thin py-1 bg-white">
               {/* Option to use custom text if typed and not an exact match */}
               {allowCustom && search.trim() && !hasExactMatch && (
                 <button
                   type="button"
                   onClick={() => handleSelect(search.trim())}
-                  className="w-full text-left px-3 py-2 text-xs text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 font-medium border-b border-slate-800/80 transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="w-full text-left px-3.5 py-2 text-xs text-amber-900 bg-amber-50 hover:bg-amber-100 font-semibold transition-colors cursor-pointer flex items-center gap-2"
                 >
-                  <span>✍️</span>
+                  <PenLine size={13} className="shrink-0 text-amber-800" />
                   <span className="truncate">Type manually: <strong>"{search.trim()}"</strong></span>
                 </button>
               )}
@@ -167,10 +168,10 @@ export default function SearchableSelect({
                       key={optVal}
                       type="button"
                       onClick={() => handleSelect(optVal)}
-                      className={`w-full text-left px-3 py-2 text-xs transition-colors cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-2 text-xs transition-colors cursor-pointer ${
                         optVal === value
-                          ? "bg-emerald-500/10 text-emerald-400 font-medium"
-                          : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                          ? "bg-blue-50 text-blue-700 font-bold"
+                          : "text-[#1e293b] hover:bg-[#f8fafc] hover:text-[#0f172a] font-medium"
                       }`}
                     >
                       {optLabel}
@@ -178,7 +179,7 @@ export default function SearchableSelect({
                   );
                 })
               ) : (
-                <div className="px-3 py-3 text-xs text-slate-500 text-center">
+                <div className="px-3 py-3 text-xs text-[#64748b] text-center">
                   {allowCustom && search.trim() ? (
                     <span>Press <strong>Enter</strong> to use "{search.trim()}"</span>
                   ) : (

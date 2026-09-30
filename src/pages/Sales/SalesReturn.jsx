@@ -13,7 +13,7 @@ import {
   ReceiptPreview,
   formatItemReceiptName,
 } from "../Billing/BillReceipt";
-import { addNotification } from "../../services/notificationService";
+import { addNotification, buildSalesReturnNotification } from "../../services/notificationService";
 import {
   FaUndo as UndoIcon,
   FaReceipt as ReceiptIcon,
@@ -209,6 +209,23 @@ export default function SalesReturn() {
       unsubReturns();
     };
   }, [loadData]);
+
+  // Auto-open return voucher receipt modal when navigated from notification
+  useEffect(() => {
+    const targetReturn = searchParams.get('returnNumber') || searchParams.get('returnNo') || searchParams.get('id');
+    if (targetReturn && returnHistory.length > 0) {
+      const targetLower = targetReturn.toLowerCase().trim();
+      const match = returnHistory.find(
+        (r) =>
+          String(r.id).toLowerCase() === targetLower ||
+          String(r.return_number || '').toLowerCase() === targetLower ||
+          String(r.returnNo || '').toLowerCase() === targetLower
+      );
+      if (match) {
+        setSelectedHistoryReturn(match);
+      }
+    }
+  }, [searchParams, returnHistory]);
 
   // 7-day rule check on selected sale
   const policyCheck = useMemo(() => {
@@ -436,18 +453,13 @@ export default function SalesReturn() {
         const invNumber = selectedSale.invoice || selectedSale.invoice_number || 'INV';
         const returnNumber = result?.return_number || 'SR';
 
-        addNotification({
-          title: 'Sales Return • Stock Restored',
-          message: `${summaryText} returned & added back to inventory. Invoice: ${invNumber} (${returnNumber})`,
-          type: 'sales_return',
-          targetUrl: `/inventory?search=${encodeURIComponent(firstItem?.rawName || firstItem?.name || '')}`,
-          meta: {
-            saleId: selectedSale.id,
-            invoiceNumber: invNumber,
-            returnNumber,
-            items: returnedDetails,
-          },
-        });
+        addNotification(buildSalesReturnNotification({
+          returnNumber,
+          items: returnedDetails,
+          refundAmount: refundTotals.total,
+          date: returnDate,
+          invoiceNumber: invNumber
+        }));
       } catch (notifErr) {
         console.warn('Could not post sales return notification:', notifErr);
       }

@@ -390,6 +390,180 @@ export async function completeSale(sale, items) {
   return saved;
 }
 export async function completePurchase(purchase, items) { await requireSession(); const { data, error } = await supabase.rpc('complete_purchase', { p_purchase: purchase, p_items: items }); fail(error, 'Unable to complete purchase'); invalidateCache('products'); return data }
+
+export async function savePurchaseBill(billData, items = [], existingId = null) {
+  const {
+    supplierName = '',
+    supplierContact = '',
+    supplierAddress = '',
+    purchaseDate,
+    billNo,
+    notes = '',
+    paymentMode = 'Cash',
+    subtotal,
+    taxAmount,
+    total
+  } = billData;
+
+  let supplierId = null;
+  if (supplierName && supplierName.trim()) {
+    try {
+      const { data: sups } = await supabase.from('suppliers').select('id, company_name, phone, address').is('deleted_at', null);
+      let matchedSup = (sups || []).find(
+        s => (s.company_name || '').trim().toLowerCase() === supplierName.trim().toLowerCase()
+      );
+      if (!matchedSup) {
+        const newSup = await saveSupplier({
+          companyName: supplierName.trim(),
+          phone: supplierContact?.trim() || null,
+          address: supplierAddress?.trim() || null,
+          status: 'active'
+        });
+        supplierId = newSup?.id || null;
+      } else {
+        supplierId = matchedSup.id;
+        if (supplierContact || supplierAddress) {
+          await supabase.from('suppliers').update({
+            phone: supplierContact?.trim() || matchedSup.phone,
+            address: supplierAddress?.trim() || matchedSup.address
+          }).eq('id', matchedSup.id);
+        }
+      }
+    } catch (e) {
+      console.warn('Supplier auto-link notice:', e);
+    }
+  }
+
+  const invoiceNumber = billNo?.trim() || `PUR-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  const formattedItems = (items || []).map((item, idx) => {
+    const qty = Number(item.quantity) || 1;
+    const price = Number(item.purchasePrice) || 0;
+    const gstRate = Number(item.gst) || 0;
+    const lineTotal = Number((qty * price).toFixed(2));
+    const lineTax = Number(((lineTotal * gstRate) / 100).toFixed(2));
+    const lineTotalWithTax = Number((lineTotal + lineTax).toFixed(2));
+
+    return {
+      id: item.id || `item-${idx + 1}`,
+      product_name: (item.product || '').trim() || 'Product',
+      product: (item.product || '').trim() || 'Product',
+      quantity: qty,
+      purchase_price: price,
+      unit_price: price,
+      tax_rate: gstRate,
+      tax: gstRate,
+      tax_amount: lineTax,
+      line_total: lineTotal,
+      total: lineTotalWithTax,
+      isManual: !!item.isManual
+    };
+  });
+
+  const calcSubtotal = subtotal !== undefined ? Number(subtotal) : formattedItems.reduce((sum, it) => sum + it.line_total, 0);
+  const calcTax = taxAmount !== undefined ? Number(taxAmount) : formattedItems.reduce((sum, it) => sum + it.tax_amount, 0);
+  const calcTotal = total !== undefined ? Number(total) : (calcSubtotal + calcTax);
+
+  const purchaseRow = {
+    supplier_id: supplierId,
+    supplier_name: supplierName?.trim() || 'Unknown Supplier',
+    supplier_invoice_number: billNo?.trim() || null,
+    invoice_number: invoiceNumber,
+    purchase_date: purchaseDate ? new Date(purchaseDate).toISOString() : new Date().toISOString(),
+    subtotal: Number(calcSubtotal.toFixed(2)),
+    tax: Number(calcTax.toFixed(2)),
+    tax_amount: Number(calcTax.toFixed(2)),
+    total_amount: Number(calcTotal.toFixed(2)),
+    paid_amount: 0,
+    due_amount: 0,
+    payment_status: 'Paid',
+    payment_method: paymentMode || 'Cash',
+    notes: notes?.trim() || null,
+    status: 'completed',
+    metadata: {
+      hard_copy_record: true,
+      supplier_name: supplierName?.trim(),
+      supplier_contact: supplierContact?.trim(),
+      supplier_phone: supplierContact?.trim(),
+      supplier_address: supplierAddress?.trim(),
+      items: formattedItems
+    }
+  };
+
+  let savedPurchase = null;
+
+  if (existingId) {
+    const { data, error } = await supabase
+      .from('purchases')
+      .update(purchaseRow)
+      .eq('id', existingId)
+      .select('*, supplier:suppliers(*)')
+      .single();
+    fail(error, 'Unable to update purchase bill');
+    savedPurchase = data;
+
+    try {
+      await supabase.from('purchase_items').delete().eq('purchase_id', existingId);
+      const itemsToInsert = formattedItems.map(it => ({
+        purchase_id: existingId,
+        product_name: it.product_name,
+        quantity: it.quantity,
+        purchase_price: it.purchase_price,
+        unit_price: it.unit_price,
+        tax_rate: it.tax_rate,
+        tax_amount: it.tax_amount,
+        line_total: it.line_total,
+        total: it.total
+      }));
+      await supabase.from('purchase_items').insert(itemsToInsert);
+    } catch (e) {
+      console.warn('Items preserved in purchase record metadata:', e);
+    }
+  } else {
+    const { data, error } = await supabase
+      .from('purchases')
+      .insert(purchaseRow)
+      .select('*, supplier:suppliers(*)')
+      .single();
+    fail(error, 'Unable to save purchase bill');
+    savedPurchase = data;
+
+    try {
+      const itemsToInsert = formattedItems.map(it => ({
+        purchase_id: savedPurchase.id,
+        product_name: it.product_name,
+        quantity: it.quantity,
+        purchase_price: it.purchase_price,
+        unit_price: it.unit_price,
+        tax_rate: it.tax_rate,
+        tax_amount: it.tax_amount,
+        line_total: it.line_total,
+        total: it.total
+      }));
+      await supabase.from('purchase_items').insert(itemsToInsert);
+    } catch (e) {
+      console.warn('Items preserved in purchase record metadata:', e);
+    }
+  }
+
+  invalidateCache('products');
+  return savedPurchase;
+}
+
+export async function deletePurchaseBill(id) {
+  try {
+    await supabase.from('payments').delete().eq('purchase_id', id);
+  } catch (e) {}
+  try {
+    await supabase.from('purchase_items').delete().eq('purchase_id', id);
+  } catch (e) {}
+  const { error } = await supabase.from('purchases').delete().eq('id', id);
+  if (error) {
+    await supabase.from('purchases').update({ status: 'deleted', notes: 'Deleted purchase bill' }).eq('id', id);
+  }
+  invalidateCache('products');
+  return true;
+}
 export async function completeSalesReturn(ret, items) {
   await requireSession();
   const { data, error } = await supabase.rpc('complete_sales_return', { p_return: ret, p_items: items });
@@ -564,7 +738,44 @@ export async function listUISales() {
     };
   });
 }
-export async function listUIPurchases() { return (await listPurchases()).map(p => ({ id: p.id, date: p.purchase_date, supplier: p.supplier?.company_name || p.supplier?.name || 'Unknown Supplier', invoice: p.invoice_number, billNo: p.supplier_invoice_number || p.invoice_number, items: (p.items || []).map(i => ({ ...i, product: i.product_name || i.product, purchasePrice: Number(i.unit_price || i.purchase_price), gst: Number(i.tax_rate || i.tax), quantity: Number(i.quantity) })), itemCount: p.items?.length || 0, subtotal: Number(p.subtotal), gst: Number(p.tax_amount ?? p.tax), discount: Number(p.discount), total: Number(p.total_amount), status: p.status === 'completed' ? 'Completed' : p.status, payment: p.payment_status === 'paid' ? 'Paid' : 'Pending', paymentMode: p.payment_method, notes: p.notes, createdAt: p.created_at })) }
+export async function listUIPurchases() {
+  return (await listPurchases())
+    .filter(p => p.status !== 'deleted')
+    .map(p => {
+    const rawItems = (p.items && p.items.length > 0) ? p.items : (p.metadata?.items || []);
+    return {
+      id: p.id,
+      date: p.purchase_date,
+      supplier: p.supplier?.company_name || p.supplier?.name || p.metadata?.supplier_name || p.supplier_name || 'Unknown Supplier',
+      supplierContact: p.supplier?.phone || p.metadata?.supplier_contact || p.metadata?.supplier_phone || '',
+      supplierAddress: p.supplier?.address || p.metadata?.supplier_address || '',
+      invoice: p.invoice_number || p.supplier_invoice_number || (p.id ? String(p.id).slice(0, 8) : 'INV-000'),
+      billNo: p.supplier_invoice_number || p.invoice_number,
+      items: rawItems.map((i, idx) => ({
+        ...i,
+        id: i.id || `item-${idx}`,
+        product: i.product_name || i.product || i.name || 'Product',
+        purchasePrice: Number(i.unit_price ?? i.purchase_price ?? 0),
+        gst: Number(i.tax_rate ?? i.tax ?? 0),
+        quantity: Number(i.quantity || 1),
+        amount: Number(i.line_total ?? (Number(i.quantity || 1) * Number(i.unit_price ?? i.purchase_price ?? 0))),
+        total: Number(i.total ?? ((Number(i.quantity || 1) * Number(i.unit_price ?? i.purchase_price ?? 0)) + Number(i.tax_amount ?? 0))),
+        isManual: i.isManual ?? false
+      })),
+      itemCount: rawItems.length,
+      subtotal: Number(p.subtotal || 0),
+      gst: Number(p.tax_amount ?? p.tax ?? 0),
+      discount: Number(p.discount || 0),
+      total: Number(p.total_amount || 0),
+      status: p.status === 'completed' ? 'Completed' : (p.status || 'Completed'),
+      payment: p.payment_status === 'paid' ? 'Paid' : (p.payment_status || 'Paid'),
+      paymentMode: p.payment_method || 'Cash',
+      notes: p.notes || '',
+      metadata: p.metadata || {},
+      createdAt: p.created_at
+    };
+  });
+}
 export async function listCustomers() { const { data, error } = await supabase.from('customers').select('*').is('deleted_at', null).order('name'); fail(error, 'Unable to load customers'); return data }
 export function customerToUI(c) { return { id: c.id, name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', city: c.city || '', gstin: c.gstin || c.gst_number || '', customerType: c.customer_type || 'retail', creditLimit: Number(c.credit_limit || 0), outstandingBalance: Number(c.balance ?? c.opening_balance ?? 0), status: c.status || 'active', profilePic: c.profile_image_url || '', createdAt: c.created_at, updatedAt: c.updated_at, metadata: c.metadata || {} } }
 export async function listUICustomers() { const customers = (await listCustomers()).map(customerToUI); const { data: ledger, error } = await supabase.from('transactions').select('*').order('transaction_date', { ascending: false }); fail(error, 'Unable to load customer ledgers'); return customers.map(c => ({ ...c, ledger: ledger.filter(x => x.reference_id === c.id).map(x => ({ id: x.id, date: x.transaction_date || x.date, type: x.type, description: x.description, amount: Number(x.amount || 0), balanceAfter: null })) })) }

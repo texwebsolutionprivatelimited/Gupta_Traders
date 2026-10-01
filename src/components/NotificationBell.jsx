@@ -15,7 +15,8 @@ import {
   FaWarehouse,
   FaMoneyBillWave,
   FaSyncAlt,
-  FaArrowRight
+  FaArrowRight,
+  FaTag
 } from 'react-icons/fa';
 import {
   getNotifications,

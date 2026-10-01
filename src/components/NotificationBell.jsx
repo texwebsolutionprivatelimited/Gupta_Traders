@@ -79,7 +79,7 @@ export default function NotificationBell() {
     e.stopPropagation();
     setIsSyncing(true);
     try {
-      await syncRecentActivitiesFromDB();
+      await syncRecentActivitiesFromDB(true);
       refreshList();
     } finally {
       setTimeout(() => setIsSyncing(false), 500);

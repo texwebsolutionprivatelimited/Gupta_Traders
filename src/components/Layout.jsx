@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { formatINR } from '../utils/erp'
-import { listCategories, listUICustomers, listUIProducts, listUISales, listUISuppliers } from '../services/erpService'
 import Footer from './footer'
 import guptaTradersLogo from '../assets/gupta traders logo.png'
 import GSTReportModal from './GSTReportModal'
@@ -992,8 +991,6 @@ export default function Layout() {
 
   const { salesRecords = [], purchaseRecords = [], stockItems = [] } = useReport()
   const { rentHistory = [], electricityRecords = [], staffSalaryRecords = [], miscExpenses = [] } = useExpense()
-  const [layoutCustomers,setLayoutCustomers]=useState([]),[layoutSuppliers,setLayoutSuppliers]=useState([])
-  useEffect(()=>{Promise.all([listUICustomers(),listUISuppliers()]).then(([customers,suppliers])=>{setLayoutCustomers(customers);setLayoutSuppliers(suppliers)}).catch(console.error)},[])
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [gstModalOpen, setGstModalOpen] = useState(false)

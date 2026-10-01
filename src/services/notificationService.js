@@ -487,99 +487,92 @@ export function buildNewCustomerNotification({ id, customerName, phone, date }) 
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Real-time Database Synchronization
-// ─────────────────────────────────────────────────────────────────────────────
+let lastSyncTimestamp = 0;
+const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown between automatic syncs
 
-/**
- * Synchronize recent authentic activities from Supabase database records.
- * Uses exact database transactions without dummy data, preserving user read status.
- */
-export async function syncRecentActivitiesFromDB() {
+export async function syncRecentActivitiesFromDB(force = false) {
+  const now = Date.now();
+  if (!force && lastSyncTimestamp > 0 && (now - lastSyncTimestamp < SYNC_COOLDOWN_MS)) {
+    return getNotifications();
+  }
+
   try {
-    const erp = await import('./erpService.js');
-    const [
+    const { listRecentNotificationActivities } = await import('./erpService.js');
+    const {
       purchases,
       purchaseReturns,
       sales,
       salesReturns,
       suppliers,
-      products,
+      lowStockProducts,
+      newProducts,
       expenses,
       movements
-    ] = await Promise.all([
-      erp.listUIPurchases().catch(() => []),
-      erp.listPurchaseReturns().catch(() => []),
-      erp.listUISales().catch(() => []),
-      erp.listSalesReturns().catch(() => []),
-      erp.listUISuppliers().catch(() => []),
-      erp.listUIProducts().catch(() => []),
-      erp.listExpenses().catch(() => []),
-      erp.listInventoryMovements().catch(() => [])
-    ]);
+    } = await listRecentNotificationActivities({ forceRefresh: force });
 
+    lastSyncTimestamp = Date.now();
     const generated = [];
 
     // 1. Recent Purchase Returns
-    (purchaseReturns || []).slice(0, 10).forEach(pr => {
+    (purchaseReturns || []).forEach(pr => {
       generated.push(buildPurchaseReturnNotification({
-        returnNo: pr.returnNo || pr.return_number || pr.id,
-        supplierName: pr.supplierName || pr.supplier?.company_name,
-        items: pr.items,
-        totalAmount: pr.totalAmount || pr.total_amount,
-        date: pr.date || pr.return_date || pr.created_at
+        returnNo: pr.return_number || pr.id,
+        supplierName: pr.supplier?.company_name || 'Supplier',
+        items: [],
+        totalAmount: pr.total_amount,
+        date: pr.return_date || pr.created_at
       }));
     });
 
     // 2. Recent Purchases Added
-    (purchases || []).slice(0, 10).forEach(p => {
+    (purchases || []).forEach(p => {
       generated.push(buildPurchaseAddedNotification({
         id: p.id,
-        billNo: p.invoice || p.billNo,
-        supplierName: p.supplier,
-        totalAmount: p.total,
-        date: p.date || p.purchaseDate || p.created_at,
-        itemCount: Array.isArray(p.items) ? p.items.length : undefined
+        billNo: p.supplier_invoice_number || p.invoice_number,
+        supplierName: p.supplier?.company_name || 'Supplier',
+        totalAmount: p.total_amount,
+        date: p.purchase_date || p.created_at
       }));
     });
 
     // 3. Recent Sales Completed
-    (sales || []).slice(0, 10).forEach(s => {
+    (sales || []).forEach(s => {
       generated.push(buildNewSaleNotification({
         id: s.id,
-        invoiceNumber: s.invoice,
-        totalAmount: s.total,
-        date: s.date || s.sale_date || s.created_at,
-        paymentMethod: s.payment,
-        customerName: s.customer
+        invoiceNumber: s.invoice_number,
+        totalAmount: s.total_amount,
+        date: s.sale_date || s.created_at,
+        paymentMethod: s.payment_method,
+        customerName: s.customer?.name || 'Walk-in Customer'
       }));
     });
 
     // 4. Recent Sales Returns
-    (salesReturns || []).slice(0, 10).forEach(sr => {
+    (salesReturns || []).forEach(sr => {
       generated.push(buildSalesReturnNotification({
-        returnNumber: sr.return_number || sr.returnNo || sr.id,
-        items: sr.items,
-        refundAmount: sr.total_amount || sr.totalAmount,
+        returnNumber: sr.return_number || sr.id,
+        items: [],
+        refundAmount: sr.total_amount,
         date: sr.return_date || sr.created_at,
         invoiceNumber: sr.sale?.invoice_number
       }));
     });
 
     // 5. Recent Suppliers
-    (suppliers || []).slice(0, 8).forEach(sup => {
+    (suppliers || []).forEach(sup => {
       generated.push(buildNewSupplierNotification({
         id: sup.id,
-        supplierName: sup.name || sup.company_name,
+        supplierName: sup.company_name,
         date: sup.created_at,
-        contact: sup.phone || sup.contactPerson
+        contact: sup.phone || sup.contact_person
       }));
     });
 
-    // 6. Stock Alerts (any product falling to or below minStock threshold)
-    (products || []).forEach(prod => {
-      const stock = Number(prod.currentStock ?? prod.stock ?? 0);
-      const min = Number(prod.minStock || prod.minimum_stock || 0);
+    // 6. Stock Alerts
+    (lowStockProducts || []).forEach(prod => {
+      const inv = Array.isArray(prod.inventory) ? prod.inventory[0] : prod.inventory;
+      const stock = Number(inv?.quantity || 0);
+      const min = Number(prod.minimum_stock || 0);
 
       if (min > 0 && stock <= min) {
         generated.push(buildStockAlertNotification({
@@ -593,21 +586,22 @@ export async function syncRecentActivitiesFromDB() {
     });
 
     // 7. Recent New Products
-    (products || []).slice(0, 8).forEach(prod => {
+    (newProducts || []).forEach(prod => {
+      const inv = Array.isArray(prod.inventory) ? prod.inventory[0] : prod.inventory;
       generated.push(buildNewProductNotification({
         id: prod.id,
         productName: prod.name,
-        stock: Number(prod.currentStock ?? prod.stock ?? 0),
+        stock: Number(inv?.quantity || 0),
         unit: prod.unit || 'pcs',
         date: prod.created_at
       }));
     });
 
     // 8. Recent Expenses
-    (expenses || []).slice(0, 8).forEach(e => {
+    (expenses || []).forEach(e => {
       generated.push(buildExpenseNotification({
         id: e.id,
-        category: e.expense_type || e.category,
+        category: e.expense_type,
         amount: e.amount,
         description: e.description,
         date: e.expense_date || e.created_at
@@ -615,19 +609,16 @@ export async function syncRecentActivitiesFromDB() {
     });
 
     // 9. Recent Inventory Stock Adjustments
-    (movements || [])
-      .filter(m => m.movement_type === 'adjustment' || m.movement_type === 'reconciliation')
-      .slice(0, 6)
-      .forEach(m => {
-        generated.push(buildInventoryUpdateNotification({
-          productId: m.product_id,
-          productName: m.product?.name || 'Product',
-          delta: Number(m.delta || m.quantity || 0),
-          reason: m.reason,
-          newStock: undefined,
-          unit: m.product?.unit || 'pcs'
-        }));
-      });
+    (movements || []).forEach(m => {
+      generated.push(buildInventoryUpdateNotification({
+        productId: m.product_id,
+        productName: m.product?.name || 'Product',
+        delta: Number(m.quantity || 0),
+        reason: m.reason,
+        newStock: undefined,
+        unit: m.product?.unit || 'pcs'
+      }));
+    });
 
     const result = batchAddNotifications(generated);
     checkMonthlyBackupReminder();
@@ -640,21 +631,10 @@ export async function syncRecentActivitiesFromDB() {
 
 /**
  * Setup Realtime Supabase Subscriptions to update notifications automatically
+ * Cleaned up to eliminate duplicate WebSocket channels
  */
 export function setupRealtimeNotificationSubscriptions() {
-  const tables = ['purchases', 'purchase_returns', 'sales', 'sales_returns', 'suppliers', 'expenses'];
-  const channels = tables.map(table => {
-    return supabase.channel(`erp_notif:${table}:${Math.random().toString(36).slice(2, 7)}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, () => {
-        // Asynchronously sync the new record into notifications
-        syncRecentActivitiesFromDB();
-      })
-      .subscribe();
-  });
-
-  return () => {
-    channels.forEach(ch => supabase.removeChannel(ch));
-  };
+  return () => { };
 }
 
 /**
@@ -695,7 +675,7 @@ export function buildBackupReminderNotification({ lastBackupDate = null } = {}) 
       const dateText = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
       const daysAgo = Math.max(0, Math.floor((now.getTime() - dt.getTime()) / (1000 * 60 * 60 * 24)));
       message = `Last ERP backup was performed on ${dateText} (${daysAgo} days ago). Please create a new database backup to secure current records.`;
-    } catch (_) {}
+    } catch (_) { }
   }
 
   return {
@@ -769,5 +749,5 @@ export function clearMonthlyBackupReminder() {
         })
       );
     }
-  } catch (_) {}
+  } catch (_) { }
 }

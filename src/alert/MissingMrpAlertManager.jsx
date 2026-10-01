@@ -49,9 +49,8 @@ export default function MissingMrpAlertManager() {
         })
       )
 
-      // Check whether to auto-open popup
-      // Don't pop on login page
-      if (location.pathname === '/login') return
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : location.pathname;
+      if (currentPath === '/login') return
 
       if (missing.length > 0) {
         const ackIds = new Set(getAcknowledgedMissingMrpIds().map(String))
@@ -81,7 +80,7 @@ export default function MissingMrpAlertManager() {
 
   useEffect(() => {
     checkMissingProducts()
-  }, [checkMissingProducts])
+  }, [])
 
   // Real-time synchronization
   useEffect(() => {

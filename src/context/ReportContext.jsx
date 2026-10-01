@@ -2,9 +2,71 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { listExpenses, listInventoryMovements, listProducts, listPurchases, listSales, subscribeToTable } from '../services/erpService'
 const ReportContext=createContext()
 export function ReportProvider({children}){
- const [salesRecords,setSalesRecords]=useState([]),[purchaseRecords,setPurchaseRecords]=useState([]),[stockItems,setStockItems]=useState([]),[expenseRecords,setExpenseRecords]=useState([]),[error,setError]=useState(''),[loading,setLoading]=useState(true)
- const refresh=useCallback(async()=>{try{const [s,p,i,e,m]=await Promise.all([listSales(),listPurchases(),listProducts({status:null}),listExpenses(),listInventoryMovements()]);const movementsByProduct=m.reduce((all,row)=>{const quantity=Number(row.quantity||0);const item=all[row.product_id]||{stockIn:0,stockOut:0,net:0};item.net+=quantity;if(quantity>0)item.stockIn+=quantity;if(quantity<0)item.stockOut+=Math.abs(quantity);all[row.product_id]=item;return all},{});setSalesRecords(s);setPurchaseRecords(p);setStockItems(i.map(x=>{const inventory=Array.isArray(x.inventory)?x.inventory[0]:x.inventory;const currentStock=Number(inventory?.quantity||0);const movement=movementsByProduct[x.id]||{stockIn:0,stockOut:0,net:0};return{...x,product:x.name,category:x.category?.name||'Uncategorized',stock:currentStock,currentStock,minStock:Number(x.minimum_stock||0),purchasePrice:Number(x.purchase_price),sellingPrice:Number(x.selling_price),stockIn:movement.stockIn,stockOut:movement.stockOut,openingStock:currentStock-movement.net}}));setExpenseRecords(e);setError('')}catch(err){setError(err.message)}finally{setLoading(false)}},[])
- useEffect(()=>{refresh();const off=['sales','purchases','inventory','stock_movements','expenses'].map(t=>subscribeToTable(t,refresh));return()=>off.forEach(x=>x())},[refresh])
- return <ReportContext.Provider value={{salesRecords,purchaseRecords,stockItems,expenseRecords,loading,error,refresh,setSalesRecords,setPurchaseRecords,setStockItems}}>{children}</ReportContext.Provider>
+  const [salesRecords,setSalesRecords]=useState([]),[purchaseRecords,setPurchaseRecords]=useState([]),[stockItems,setStockItems]=useState([]),[expenseRecords,setExpenseRecords]=useState([]),[error,setError]=useState(''),[loading,setLoading]=useState(true)
+  const refresh=useCallback(async(opts={})=>{
+    try{
+      const force = Boolean(opts?.forceRefresh);
+      const [s,p,i,e,m]=await Promise.all([
+        listSales({forceRefresh: force}),
+        listPurchases({forceRefresh: force}),
+        listProducts({status:null, forceRefresh: force}),
+        listExpenses({forceRefresh: force}),
+        listInventoryMovements({forceRefresh: force})
+      ]);
+      const movementsByProduct=m.reduce((all,row)=>{
+        const quantity=Number(row.quantity||0);
+        const item=all[row.product_id]||{stockIn:0,stockOut:0,net:0};
+        item.net+=quantity;
+        if(quantity>0)item.stockIn+=quantity;
+        if(quantity<0)item.stockOut+=Math.abs(quantity);
+        all[row.product_id]=item;
+        return all;
+      },{});
+      setSalesRecords(s);
+      setPurchaseRecords(p);
+      setStockItems(i.map(x=>{
+        const inventory=Array.isArray(x.inventory)?x.inventory[0]:x.inventory;
+        const currentStock=Number(inventory?.quantity||0);
+        const movement=movementsByProduct[x.id]||{stockIn:0,stockOut:0,net:0};
+        return{
+          ...x,
+          product:x.name,
+          category:x.category?.name||'Uncategorized',
+          stock:currentStock,
+          currentStock,
+          minStock:Number(x.minimum_stock||0),
+          purchasePrice:Number(x.purchase_price),
+          sellingPrice:Number(x.selling_price),
+          stockIn:movement.stockIn,
+          stockOut:movement.stockOut,
+          openingStock:currentStock-movement.net
+        };
+      }));
+      setExpenseRecords(e);
+      setError('');
+    }catch(err){
+      setError(err.message);
+    }finally{
+      setLoading(false);
+    }
+  },[]);
+
+  useEffect(()=>{
+    refresh();
+    let debounceTimer = null;
+    const debouncedRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        refresh();
+      }, 500);
+    };
+    const off=['sales','purchases','inventory','stock_movements','expenses'].map(t=>subscribeToTable(t,debouncedRefresh));
+    return()=>{
+      if (debounceTimer) clearTimeout(debounceTimer);
+      off.forEach(x=>x());
+    };
+  },[refresh]);
+
+  return <ReportContext.Provider value={{salesRecords,purchaseRecords,stockItems,expenseRecords,loading,error,refresh,setSalesRecords,setPurchaseRecords,setStockItems}}>{children}</ReportContext.Provider>
 }
 export function useReport(){const value=useContext(ReportContext);if(!value)throw new Error('useReport must be inside ReportProvider');return value}

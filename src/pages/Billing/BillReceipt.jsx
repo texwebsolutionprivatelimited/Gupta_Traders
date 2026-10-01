@@ -157,6 +157,20 @@ export function normalizeBillData(rawBill) {
     ? Number((totalMrpAmount - grandTotal).toFixed(2))
     : 0;
 
+  // Calculate You Saved from MRP - Rate for the purchased items
+  const youSaved = Number(
+    items.reduce((sum, item) => {
+      const mrp = Number(item.mrp || 0);
+      const rate = Number(item.rate || 0);
+      const qty = Number(item.quantity || 1);
+      if (mrp > rate) {
+        return sum + ((mrp - rate) * qty);
+      }
+      return sum;
+    }, 0).toFixed(2)
+  );
+  const youSavedFormatted = youSaved % 1 === 0 ? youSaved.toFixed(0) : youSaved.toFixed(2);
+
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
   const wordsAmount = numberToWordsINR(grandTotal);
 
@@ -191,6 +205,8 @@ export function normalizeBillData(rawBill) {
     allProductsHaveMrp,
     totalMrpAmount,
     mrpSavings,
+    youSaved,
+    youSavedFormatted,
     totalQuantity,
     wordsAmount,
     summary: {
@@ -542,18 +558,10 @@ export function generateReceiptHtml(bill) {
     <span class="amount" style="font-size: 13px;">${(norm.hasReturns ? norm.netTotalAfterReturns : summary.grandTotal).toFixed(2)}</span>
   </div>
 
-  ${norm.allProductsHaveMrp && norm.mrpSavings > 0 ? `
+  ${norm.youSaved > 0 ? `
     <div class="dash-line"></div>
-    <div class="totals-row">
-      <span>Total MRP Value:</span>
-      <span class="amount bold">₹${norm.totalMrpAmount.toFixed(2)}</span>
-    </div>
-    <div class="totals-row" style="font-weight: 900;">
-      <span>Total Savings on MRP:</span>
-      <span class="amount bold">₹${norm.mrpSavings.toFixed(2)} (${((norm.mrpSavings / norm.totalMrpAmount) * 100).toFixed(1)}%)</span>
-    </div>
-    <div class="center bold" style="font-size: 11px; margin: 5px 0; border: 1.5px dashed #000000; padding: 3px 4px;">
-      *** YOU SAVED ₹${norm.mrpSavings.toFixed(2)} ON MRP! ***
+    <div class="center bold" style="font-size: 12px; margin: 3px 0;">
+      You Saved: ₹${norm.youSavedFormatted}
     </div>
   ` : ''}
 
@@ -819,19 +827,11 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               <span className="tabular-nums">{(norm.hasReturns ? norm.netTotalAfterReturns : norm.summary.grandTotal).toFixed(2)}</span>
             </div>
 
-            {norm.allProductsHaveMrp && norm.mrpSavings > 0 && (
+            {norm.youSaved > 0 && (
               <>
                 <div className="border-t-2 border-dashed border-black my-1.5" />
-                <div className="flex justify-between text-xs font-bold text-black">
-                  <span>Total MRP Value:</span>
-                  <span className="font-black tabular-nums">₹{norm.totalMrpAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-xs font-black text-black">
-                  <span>Total Savings on MRP:</span>
-                  <span className="font-black tabular-nums">₹{norm.mrpSavings.toFixed(2)} ({((norm.mrpSavings / norm.totalMrpAmount) * 100).toFixed(1)}%)</span>
-                </div>
-                <div className="text-center font-black text-xs py-1 border-2 border-dashed border-black my-1">
-                  *** YOU SAVED ₹{norm.mrpSavings.toFixed(2)} ON MRP! ***
+                <div className="text-center font-black text-xs py-0.5 text-black">
+                  You Saved: ₹{norm.youSavedFormatted}
                 </div>
               </>
             )}

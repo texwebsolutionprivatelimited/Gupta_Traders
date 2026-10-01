@@ -1,10 +1,48 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { deleteSupplier, listUISuppliers, recordPartyTransaction, saveSupplier, subscribeToTable } from '../../services/erpService'
+import { deleteSupplier, listUIPurchases, listUISuppliers, recordPartyTransaction, deletePartyTransaction, saveSupplier, subscribeToTable } from '../../services/erpService'
 import { addNotification, buildNewSupplierNotification } from '../../services/notificationService'
 import { formatINR } from '../../utils/erp'
 
+function formatDateTime(dateStr) {
+  if (!dateStr) return '—'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    return d.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+  } catch {
+    return dateStr
+  }
+}
+
+function toDateTimeLocal(isoOrDateStr) {
+  const d = isoOrDateStr ? new Date(isoOrDateStr) : new Date()
+  if (isNaN(d.getTime())) return ''
+  const pad = n => String(n).padStart(2, '0')
+  const YYYY = d.getFullYear()
+  const MM = pad(d.getMonth() + 1)
+  const DD = pad(d.getDate())
+  const hh = pad(d.getHours())
+  const mm = pad(d.getMinutes())
+  return `${YYYY}-${MM}-${DD}T${hh}:${mm}`
+}
+
 // ─── SVG Icons ──────────────────────────────────────────────────
+
+function CalendarClockIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 inline mr-1 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.253M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z" />
+    </svg>
+  )
+}
 
 function SearchIcon() {
   return (
@@ -30,9 +68,9 @@ function EditIcon() {
   )
 }
 
-function DeleteIcon() {
+function DeleteIcon({ className = 'w-4 h-4' } = {}) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
     </svg>
   )
@@ -149,7 +187,8 @@ function Toast({ message, type = 'success', onClose }) {
 // ─── DELETE CONFIRMATION MODAL ──────────────────────────────────
 
 function DeleteConfirmModal({ supplier, onConfirm, onCancel }) {
-  const hasBalance = supplier.outstandingBalance !== 0
+  const restAmount = supplier.restAmountToPay !== undefined ? supplier.restAmountToPay : (supplier.outstandingBalance || 0)
+  const hasBalance = restAmount !== 0
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn" onClick={onCancel}>
@@ -171,7 +210,7 @@ function DeleteConfirmModal({ supplier, onConfirm, onCancel }) {
 
         {hasBalance && (
           <div className="text-rose-400 text-center text-xs mb-6 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
-            ⚠️ <strong>Warning:</strong> This supplier has a non-zero outstanding balance of <strong>{formatINR(supplier.outstandingBalance)}</strong>. Deleting them might result in accounting discrepancies.
+            ⚠️ <strong>Warning:</strong> This supplier has a rest amount of <strong>{formatINR(Math.abs(restAmount))}</strong> ({restAmount > 0 ? 'Payable' : 'Advance Credit'}). Deleting them might result in accounting discrepancies.
           </div>
         )}
 
@@ -206,10 +245,24 @@ function SupplierFormModal({ supplier, onSave, onCancel }) {
   const [city, setCity] = useState(supplier?.city || '')
   const [address, setAddress] = useState(supplier?.address || '')
   const [status, setStatus] = useState(supplier?.status || 'active')
-  const [openingBalance, setOpeningBalance] = useState('')
+  const [recordDateTime, setRecordDateTime] = useState(() => {
+    return toDateTimeLocal(supplier?.lastTransactionDate || supplier?.createdAt || new Date())
+  })
+  const [totalProductReceived, setTotalProductReceived] = useState(
+    supplier?.totalProductReceived !== undefined && supplier?.totalProductReceived !== null
+      ? supplier.totalProductReceived
+      : ''
+  )
+  const [paidAmount, setPaidAmount] = useState(
+    supplier?.givenAmount !== undefined && supplier?.givenAmount !== null
+      ? supplier.givenAmount
+      : (supplier?.openingBalance !== undefined && supplier?.openingBalance !== null ? supplier.openingBalance : '')
+  )
   const [productsInput, setProductsInput] = useState(supplier?.productsSupplied?.join(', ') || '')
   const [error, setError] = useState('')
   const nameRef = useRef(null)
+
+  const calculatedRestAmount = (Number(totalProductReceived) || 0) - (Number(paidAmount) || 0)
 
   useEffect(() => {
     nameRef.current?.focus()
@@ -237,10 +290,12 @@ function SupplierFormModal({ supplier, onSave, onCancel }) {
       address: address.trim(),
       status,
       productsSupplied: products,
-    }
-
-    if (!isEditing) {
-      payload.openingBalance = Number(openingBalance) || 0
+      totalProductReceived: Number(totalProductReceived) || 0,
+      paidAmount: Number(paidAmount) || 0,
+      givenAmount: Number(paidAmount) || 0,
+      openingBalance: Number(paidAmount) || 0,
+      restAmount: calculatedRestAmount,
+      recordDateTime: recordDateTime ? new Date(recordDateTime).toISOString() : new Date().toISOString()
     }
 
     try {
@@ -402,23 +457,100 @@ function SupplierFormModal({ supplier, onSave, onCancel }) {
               />
             </div>
 
-            {!isEditing && (
-              <div className="col-span-2">
-                <label className="block text-xs font-semibold text-slate-400 tracking-wider mb-1.5">
-                  OPENING BALANCE (₹)
-                  <span className="text-[10px] lowercase text-slate-500 ml-1.5 font-normal">
-                    (Use positive if you owe them, negative for advance paid)
-                  </span>
+            {/* Record Date & Time and Amounts Section */}
+            <div className="col-span-2 p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                    Transaction Record & Amounts
+                  </h3>
+                </div>
+                <span className="text-[10px] text-slate-500 font-medium">Record Entry</span>
+              </div>
+
+              {/* Option of Date and Time */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <CalendarClockIcon />
+                  <span>RECORD DATE & TIME</span>
+                  <span className="text-[10px] text-slate-500 font-normal lowercase">(choose record date & time)</span>
                 </label>
                 <input
-                  type="number"
-                  value={openingBalance}
-                  onChange={e => setOpeningBalance(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full px-4 py-3 bg-slate-950/40 border border-slate-800 border-dashed rounded-xl text-indigo-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 text-sm font-semibold"
+                  type="datetime-local"
+                  value={recordDateTime}
+                  onChange={e => setRecordDateTime(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/20 text-xs font-medium cursor-pointer"
                 />
               </div>
-            )}
+
+              {/* Financial Inputs: 1. Total Product Receive, 2. Paid Amount, 3. Rest Amount */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Total Amount product receive */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    1. Total Product Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={totalProductReceived}
+                    onChange={e => setTotalProductReceived(e.target.value)}
+                    placeholder="0.00"
+                    step="any"
+                    min="0"
+                    className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-blue-500 dark:text-blue-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 text-sm font-bold"
+                  />
+                  <span className="text-[9px] text-slate-500 block mt-0.5">Total product amount</span>
+                </div>
+
+                {/* 2. Paid Amount */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    2. Paid Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={paidAmount}
+                    onChange={e => setPaidAmount(e.target.value)}
+                    placeholder="0.00"
+                    step="any"
+                    min="0"
+                    className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-emerald-500 dark:text-emerald-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 text-sm font-bold"
+                  />
+                  <span className="text-[9px] text-slate-500 block mt-0.5">Given / Paid ₹</span>
+                </div>
+
+                {/* 3. Rest Amount (Auto-calculated: Total Received - Paid Amount) */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    3. Rest Amount (₹)
+                  </label>
+                  <div className="px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between">
+                    <span className={`text-sm font-black ${
+                      calculatedRestAmount > 0
+                        ? 'text-rose-500 dark:text-rose-400'
+                        : calculatedRestAmount < 0
+                          ? 'text-emerald-500 dark:text-emerald-400'
+                          : 'text-slate-400'
+                    }`}>
+                      {formatINR(Math.abs(calculatedRestAmount))}
+                    </span>
+                    <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                      calculatedRestAmount > 0
+                        ? 'bg-rose-500/15 text-rose-400'
+                        : calculatedRestAmount < 0
+                          ? 'bg-emerald-500/15 text-emerald-400'
+                          : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {calculatedRestAmount > 0 ? 'Due' : calculatedRestAmount < 0 ? 'Credit' : '₹0'}
+                    </span>
+                  </div>
+                  <span className="text-[9px] text-slate-500 block mt-0.5">
+                    {calculatedRestAmount > 0 ? 'Pending to Pay' : calculatedRestAmount < 0 ? 'Advance Given' : 'Settled (₹0)'}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Footer Actions */}
@@ -446,10 +578,19 @@ function SupplierFormModal({ supplier, onSave, onCancel }) {
 // ─── DETAILED LEDGER VIEW MODAL ──────────────────────────────────
 
 function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
+  const [currentSupplier, setCurrentSupplier] = useState(supplier)
+  const [entries, setEntries] = useState(supplier?.ledger || [])
   const [txnType, setTxnType] = useState('payment') // 'invoice' or 'payment' or 'adjustment'
   const [txnAmount, setTxnAmount] = useState('')
-  const [txnDescription, setTxnDescription] = useState('')
+  const [txnDescription, setTxnDescription] = useState('Payment made')
   const [error, setError] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  useEffect(() => {
+    setCurrentSupplier(supplier)
+    setEntries(supplier?.ledger || [])
+  }, [supplier])
 
   async function handleRecordTxn(e) {
     e.preventDefault()
@@ -473,12 +614,68 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
     }
 
     try {
-      const balance = await recordPartyTransaction('supplier', supplier.id, payload)
+      const balance = await recordPartyTransaction('supplier', currentSupplier.id, payload)
+      const recordedType = txnType
       setTxnAmount('')
-      setTxnDescription('')
-      onTransactionRecorded({ ...supplier, outstandingBalance: Number(balance) }, 'Transaction recorded successfully')
-    } catch (error) {
-      setError(error.message)
+      setTxnDescription(recordedType === 'payment' ? 'Payment made' : recordedType === 'invoice' ? 'Purchase Invoice #' : 'Balance adjustment')
+
+      const newEntry = {
+        id: `txn-${Date.now()}`,
+        date: new Date().toISOString(),
+        type: recordedType,
+        description: payload.description,
+        amount: amt,
+        balanceAfter: Number(balance)
+      }
+      const updatedEntries = [newEntry, ...entries]
+      setEntries(updatedEntries)
+
+      const remPayments = updatedEntries
+        .filter(e => e.type === 'payment' || (e.description || '').toLowerCase().includes('given') || (e.description || '').toLowerCase().includes('opening'))
+        .reduce((sum, e) => sum + Math.abs(Number(e.amount || 0)), 0)
+      const newRest = (currentSupplier.totalProductReceived || 0) - remPayments
+
+      const updatedSup = {
+        ...currentSupplier,
+        outstandingBalance: Number(balance),
+        givenAmount: remPayments,
+        restAmountToPay: newRest,
+        ledger: updatedEntries,
+        lastTransactionDate: newEntry.date
+      }
+      setCurrentSupplier(updatedSup)
+      onTransactionRecorded(updatedSup, 'Transaction recorded successfully')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function handleDeleteEntry(entryId) {
+    setIsDeleting(true)
+    setError('')
+    try {
+      await deletePartyTransaction(entryId, currentSupplier.id)
+      const updatedEntries = entries.filter(e => e.id !== entryId)
+      setEntries(updatedEntries)
+      setConfirmDeleteId(null)
+
+      const remPayments = updatedEntries
+        .filter(e => e.type === 'payment' || (e.description || '').toLowerCase().includes('given') || (e.description || '').toLowerCase().includes('opening'))
+        .reduce((sum, e) => sum + Math.abs(Number(e.amount || 0)), 0)
+      const newRest = (currentSupplier.totalProductReceived || 0) - remPayments
+
+      const updatedSup = {
+        ...currentSupplier,
+        givenAmount: remPayments,
+        restAmountToPay: newRest,
+        ledger: updatedEntries
+      }
+      setCurrentSupplier(updatedSup)
+      onTransactionRecorded(updatedSup, 'Record removed successfully')
+    } catch (err) {
+      setError(err.message || 'Failed to remove record')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -495,75 +692,91 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-md animate-fadeIn" onClick={onClose}>
-      <div className="bg-slate-900 border border-slate-700/60 rounded-3xl p-0 max-w-4xl w-full mx-4 shadow-2xl animate-scaleIn overflow-hidden flex flex-col md:flex-row h-[85vh] max-h-[750px]" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-md animate-fadeIn overflow-y-auto" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-700/60 rounded-3xl p-0 max-w-4xl w-full mx-auto shadow-2xl animate-scaleIn overflow-hidden flex flex-col md:flex-row h-[90vh] max-h-[760px] my-auto" onClick={e => e.stopPropagation()}>
 
         {/* Left column: Supplier Profile & Transaction Recorder */}
-        <div className="w-full md:w-80 border-r border-slate-800/80 bg-slate-950/20 p-6 flex flex-col justify-between shrink-0">
+        <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-800/80 bg-slate-950/20 p-5 sm:p-6 flex flex-col shrink-0 overflow-y-auto max-h-full scrollbar-thin space-y-5">
           <div>
             <div className="flex items-center justify-between mb-4">
-              <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                {supplier.id}
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded-md uppercase tracking-wider truncate max-w-[170px]">
+                {currentSupplier.id}
               </span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${supplier.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-400'
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${currentSupplier.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-400'
                 }`}>
-                {supplier.status}
+                {currentSupplier.status}
               </span>
             </div>
 
             <h2 className="text-xl font-bold text-slate-100 mb-1 leading-tight">
-              {supplier.companyName}
+              {currentSupplier.companyName}
             </h2>
             <p className="text-xs text-indigo-400 font-medium mb-4">
-              Contact: {supplier.contactPerson || 'Not provided'}
+              Contact: {currentSupplier.contactPerson || 'Not provided'}
             </p>
 
             <div className="space-y-2 mb-6 text-xs text-slate-400">
-              {supplier.phone && (
+              {currentSupplier.phone && (
                 <div>
                   <PhoneIcon />
-                  <span>{supplier.phone}</span>
+                  <span>{currentSupplier.phone}</span>
                 </div>
               )}
-              {supplier.email && (
+              {currentSupplier.email && (
                 <div className="truncate">
                   <EmailIcon />
-                  <span>{supplier.email}</span>
+                  <span>{currentSupplier.email}</span>
                 </div>
               )}
-              {supplier.city && (
+              {currentSupplier.city && (
                 <div>
                   <MapIcon />
-                  <span>{supplier.city}, {supplier.address}</span>
+                  <span>{currentSupplier.city}, {currentSupplier.address}</span>
                 </div>
               )}
-              {supplier.gstin && (
+              {currentSupplier.gstin && (
                 <div className="mt-2.5 pt-2 border-t border-slate-800/40 text-[10px] font-mono text-slate-500">
-                  GSTIN: {supplier.gstin}
+                  GSTIN: {currentSupplier.gstin}
                 </div>
               )}
             </div>
 
             {/* Balances card */}
-            <div className="p-4 rounded-2xl bg-slate-950/40 border border-slate-800/80 mb-6 text-center">
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">
-                Outstanding Balance
+            <div className="p-4 rounded-2xl bg-slate-950/40 border border-slate-800/80 space-y-2.5">
+              <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800/60">
+                <span className="text-slate-400 font-medium">Total Product Amount:</span>
+                <span className="font-bold text-slate-100">{formatINR(currentSupplier.totalProductReceived || 0)}</span>
               </div>
-              <div className={`text-2xl font-black ${supplier.outstandingBalance > 0
-                ? 'text-rose-400'
-                : supplier.outstandingBalance < 0
-                  ? 'text-emerald-400'
-                  : 'text-slate-400'
-                }`}>
-                {formatINR(supplier.outstandingBalance)}
+              <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800/60">
+                <span className="text-slate-400 font-medium">Given Amount:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatINR(currentSupplier.givenAmount || 0)}</span>
               </div>
-              <div className="text-[9px] text-slate-500 mt-1">
-                {supplier.outstandingBalance > 0
-                  ? '⚠️ Accounts Payable (We owe them)'
-                  : supplier.outstandingBalance < 0
-                    ? '🤝 Advance Paid (Credit balance)'
-                    : '✅ Accounts Settle/Clear'}
+              <div className="text-center pt-1">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">
+                  Rest Amount to Pay
+                </div>
+                <div className={`text-2xl font-black ${(currentSupplier.restAmountToPay || 0) > 0
+                    ? 'text-rose-500 dark:text-rose-400'
+                    : (currentSupplier.restAmountToPay || 0) < 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-slate-400'
+                  }`}>
+                  {formatINR(Math.abs(currentSupplier.restAmountToPay || 0))}
+                </div>
+                <div className="text-[9px] font-bold text-slate-500 mt-1">
+                  {(currentSupplier.restAmountToPay || 0) > 0
+                    ? '⚠️ Accounts Payable (Rest to pay)'
+                    : (currentSupplier.restAmountToPay || 0) < 0
+                      ? '🤝 Advance Credit (Given > Received)'
+                      : '✅ Accounts Settle/Clear (₹0)'}
+                </div>
               </div>
+              {currentSupplier.lastTransactionDate && (
+                <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-800/40 text-center flex items-center justify-center gap-1">
+                  <CalendarClockIcon />
+                  <span>Last Record: {formatDateTime(currentSupplier.lastTransactionDate)}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -621,7 +834,7 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
 
               <button
                 type="submit"
-                className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-slate-100 font-bold rounded-lg text-xs tracking-wider transition-colors cursor-pointer"
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-slate-100 font-bold rounded-lg text-xs tracking-wider transition-colors cursor-pointer shadow-md shadow-indigo-600/30"
               >
                 Record Entry
               </button>
@@ -630,7 +843,7 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
         </div>
 
         {/* Right column: Ledger History */}
-        <div className="flex-1 flex flex-col bg-slate-950/10 min-h-0">
+        <div className="flex-1 flex flex-col bg-slate-950/10 min-h-0 overflow-hidden">
           <div className="px-6 py-5 border-b border-slate-800/80 flex items-center justify-between shrink-0">
             <div>
               <h3 className="text-md font-bold text-slate-200">
@@ -648,10 +861,10 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
             </button>
           </div>
 
-          <div className="flex-1 p-6 overflow-y-auto min-h-0">
-            {supplier.ledger && supplier.ledger.length > 0 ? (
+          <div className="flex-1 p-4 sm:p-6 overflow-y-auto min-h-0 scrollbar-thin">
+            {entries && entries.length > 0 ? (
               <div className="space-y-4">
-                {supplier.ledger.map((entry) => {
+                {entries.map((entry) => {
                   let badgeColor = ''
                   let typeLabel = ''
                   let amtPrefix = ''
@@ -660,7 +873,7 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
                   switch (entry.type) {
                     case 'opening_balance':
                       badgeColor = 'bg-slate-800 text-slate-300'
-                      typeLabel = 'Opening Bal'
+                      typeLabel = 'Given Amount'
                       amtPrefix = ''
                       amountColor = 'text-slate-300'
                       break
@@ -678,7 +891,7 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
                       break
                     case 'adjustment':
                       badgeColor = 'bg-amber-500/10 text-amber-400 border border-amber-500/10'
-                      typeLabel = 'Adjustment'
+                      typeLabel = entry.description?.toLowerCase().includes('given') || entry.description?.toLowerCase().includes('opening') ? 'Given Amount' : 'Adjustment'
                       amtPrefix = entry.amount >= 0 ? '+' : '-'
                       amountColor = entry.amount >= 0 ? 'text-amber-400' : 'text-emerald-400'
                       break
@@ -704,16 +917,16 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
                               {typeLabel}
                             </span>
                             <span className="text-xs text-slate-500 font-mono">
-                              {new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(entry.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}, {new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                             </span>
                           </div>
                           <p className="text-sm font-semibold text-slate-200 mt-1">
-                            {entry.description}
+                            {entry.description === 'Opening Balance' ? 'Given Amount' : entry.description}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex sm:flex-col sm:items-end justify-between items-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/40">
+                      <div className="flex sm:flex-col sm:items-end justify-between items-center pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/40 gap-2 shrink-0">
                         <span className="text-xs text-slate-500 sm:hidden">Amount & Balance</span>
                         <div className="text-right">
                           <div className={`font-bold text-sm ${amountColor}`}>
@@ -722,6 +935,43 @@ function SupplierLedgerModal({ supplier, onTransactionRecorded, onClose }) {
                           <div className="text-[10px] text-slate-500 font-medium mt-0.5">
                             Bal: {formatINR(entry.balanceAfter)}
                           </div>
+                        </div>
+
+                        {/* Remove each record button */}
+                        <div className="flex items-center justify-end mt-1">
+                          {confirmDeleteId === entry.id ? (
+                            <div className="flex items-center gap-1.5 bg-rose-950/40 border border-rose-500/30 px-2.5 py-1 rounded-xl animate-fadeIn">
+                              <span className="text-[10px] text-rose-400 font-semibold">Remove?</span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEntry(entry.id)}
+                                disabled={isDeleting}
+                                className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold rounded transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                {isDeleting ? '...' : 'Yes'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteId(null)}
+                                disabled={isDeleting}
+                                className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-medium rounded transition-colors cursor-pointer"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(entry.id)}
+                              className="px-2 py-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer flex items-center gap-1.5 group text-xs"
+                              title="Remove this record"
+                            >
+                              <DeleteIcon className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-semibold text-rose-400 opacity-70 group-hover:opacity-100 transition-opacity">
+                                Remove
+                              </span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -788,9 +1038,71 @@ export default function SuppliersPage() {
   // Load and refresh stats
   const refreshData = async () => {
     try {
-      const list = await listUISuppliers()
-      setSuppliers(list)
-      setStats({ totalSuppliers: list.length, activeSuppliers: list.filter(s => s.status === 'active').length, totalPayables: list.reduce((n, s) => n + Math.max(0, s.outstandingBalance), 0), totalAdvances: list.reduce((n, s) => n + Math.max(0, -s.outstandingBalance), 0) })
+      const [rawSuppliers, purchases] = await Promise.all([
+        listUISuppliers(),
+        listUIPurchases().catch(() => [])
+      ])
+
+      const enrichedSuppliers = (rawSuppliers || []).map(sup => {
+        const supPurchases = (purchases || []).filter(p => {
+          if (p.status === 'deleted') return false
+          if (p.supplierId && String(p.supplierId).toLowerCase() === String(sup.id).toLowerCase()) return true
+          if (p.supplier && sup.companyName && p.supplier.trim().toLowerCase() === sup.companyName.trim().toLowerCase()) return true
+          return false
+        })
+
+        const purchaseTotal = supPurchases.reduce((acc, p) => acc + Number(p.total || 0), 0)
+        const metadataTotal = Number(sup.metadata?.totalProductReceived || 0)
+        const totalProductReceived = purchaseTotal > 0 ? purchaseTotal : metadataTotal
+
+        const ledgerPayments = (sup.ledger || [])
+          .filter(l => l.type === 'payment' || (l.description || '').toLowerCase().includes('given') || (l.description || '').toLowerCase().includes('opening'))
+          .reduce((acc, l) => acc + Math.abs(Number(l.amount || 0)), 0)
+
+        const baseGiven = Number(sup.givenAmount ?? sup.opening_balance ?? sup.metadata?.paidAmount ?? sup.openingBalance ?? 0)
+        const givenAmount = (sup.ledger && sup.ledger.length > 0)
+          ? (ledgerPayments > 0 ? ledgerPayments : (sup.ledger.some(l => l.type === 'payment') ? 0 : baseGiven))
+          : baseGiven
+        const restAmountToPay = totalProductReceived - givenAmount
+        const purchaseDates = supPurchases.map(p => p.date || p.createdAt).filter(Boolean)
+        const ledgerDates = (sup.ledger || []).map(l => l.date).filter(Boolean)
+        const metaDate = sup.metadata?.recordDateTime ? [sup.metadata.recordDateTime] : []
+        const allDates = [...purchaseDates, ...ledgerDates, ...metaDate, sup.updatedAt, sup.createdAt].filter(Boolean)
+        allDates.sort((a, b) => new Date(b) - new Date(a))
+        const lastTransactionDate = allDates[0] || sup.createdAt || new Date().toISOString()
+
+        return {
+          ...sup,
+          purchasesCount: supPurchases.length,
+          totalProductReceived,
+          givenAmount,
+          restAmountToPay,
+          lastTransactionDate
+        }
+      })
+
+      setSuppliers(enrichedSuppliers)
+
+      if (selectedLedgerSupplier) {
+        const freshLedgerSup = enrichedSuppliers.find(s => s.id === selectedLedgerSupplier.id)
+        if (freshLedgerSup) {
+          setSelectedLedgerSupplier(freshLedgerSup)
+        }
+      }
+
+      const totalReceived = enrichedSuppliers.reduce((sum, s) => sum + s.totalProductReceived, 0)
+      const totalGiven = enrichedSuppliers.reduce((sum, s) => sum + s.givenAmount, 0)
+      const totalRestToPay = enrichedSuppliers.reduce((sum, s) => sum + Math.max(0, s.restAmountToPay), 0)
+
+      setStats({
+        totalSuppliers: enrichedSuppliers.length,
+        activeSuppliers: enrichedSuppliers.filter(s => s.status === 'active').length,
+        totalReceived,
+        totalGiven,
+        totalRestToPay,
+        totalPayables: enrichedSuppliers.reduce((n, s) => n + Math.max(0, s.restAmountToPay), 0),
+        totalAdvances: enrichedSuppliers.reduce((n, s) => n + Math.max(0, -s.restAmountToPay), 0)
+      })
     } catch (error) {
       showToast(error.message, 'error')
     }
@@ -798,7 +1110,12 @@ export default function SuppliersPage() {
 
   useEffect(() => {
     refreshData()
-    return subscribeToTable('suppliers', refreshData)
+    const unsubSuppliers = subscribeToTable('suppliers', refreshData)
+    const unsubPurchases = subscribeToTable('purchases', refreshData)
+    return () => {
+      if (typeof unsubSuppliers === 'function') unsubSuppliers()
+      if (typeof unsubPurchases === 'function') unsubPurchases()
+    }
   }, [])
 
   // Auto-open supplier details/ledger when navigated from notification
@@ -812,7 +1129,7 @@ export default function SuppliersPage() {
       const targetLower = targetId.toLowerCase().trim();
       const match = suppliers.find(
         s => String(s.id).toLowerCase() === targetLower ||
-             (targetSearch && String(s.companyName || s.name || '').toLowerCase().includes(targetSearch.toLowerCase().trim()))
+          (targetSearch && String(s.companyName || s.name || '').toLowerCase().includes(targetSearch.toLowerCase().trim()))
       );
       if (match) {
         setSelectedLedgerSupplier(match);
@@ -878,11 +1195,11 @@ export default function SuppliersPage() {
       // Balance filter matches
       let matchesBalance = true
       if (filterBalance === 'payables') {
-        matchesBalance = sup.outstandingBalance > 0
+        matchesBalance = sup.restAmountToPay > 0
       } else if (filterBalance === 'advances') {
-        matchesBalance = sup.outstandingBalance < 0
+        matchesBalance = sup.restAmountToPay < 0
       } else if (filterBalance === 'clear') {
-        matchesBalance = sup.outstandingBalance === 0
+        matchesBalance = sup.restAmountToPay === 0
       }
 
       // Status filter matches
@@ -903,11 +1220,15 @@ export default function SuppliersPage() {
         case 'name-desc':
           return b.companyName.localeCompare(a.companyName)
         case 'bal-desc':
-          return b.outstandingBalance - a.outstandingBalance
+        case 'rest-desc':
+          return b.restAmountToPay - a.restAmountToPay
         case 'bal-asc':
-          return a.outstandingBalance - b.outstandingBalance
+        case 'rest-asc':
+          return a.restAmountToPay - b.restAmountToPay
+        case 'received-desc':
+          return b.totalProductReceived - a.totalProductReceived
         case 'date-desc':
-          return new Date(b.createdAt) - new Date(a.createdAt)
+          return new Date(b.lastTransactionDate || b.createdAt) - new Date(a.lastTransactionDate || a.createdAt)
         default:
           return 0
       }
@@ -966,60 +1287,69 @@ export default function SuppliersPage() {
             </div>
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Registered</p>
-              <h3 className="text-2xl font-black text-slate-200 mt-1">
+              <h3 className="text-2xl font-black text-slate-100 mt-1">
                 {stats.totalSuppliers}
               </h3>
+              <span className="text-[11px] font-semibold text-emerald-500 dark:text-emerald-400 mt-0.5 inline-block">
+                {stats.activeSuppliers} Active
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Card 2: Total Outstanding Payables */}
+        {/* Card 2: Total Product Amount */}
         <div className="bg-slate-900 border border-slate-800/80 rounded-3xl p-6 relative overflow-hidden group hover:border-slate-700/60 transition-all duration-300">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl -mr-5 -mt-5"></div>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl -mr-5 -mt-5"></div>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400 font-bold text-lg">
+            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center text-blue-500 dark:text-blue-400 font-bold text-lg">
               ₹
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Payables</p>
-              <h3 className="text-2xl font-black text-rose-400 mt-1">
-                {formatINR(stats.totalPayables)}
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Product Amount</p>
+              <h3 className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
+                {formatINR(stats.totalReceived || 0)}
               </h3>
+              <span className="text-[11px] font-medium text-slate-500 mt-0.5 inline-block">
+                All products received
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Card 3: Total Advances Paid */}
+        {/* Card 3: Total Given Amount */}
         <div className="bg-slate-900 border border-slate-800/80 rounded-3xl p-6 relative overflow-hidden group hover:border-slate-700/60 transition-all duration-300">
           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl -mr-5 -mt-5"></div>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 font-bold text-lg">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-500 dark:text-emerald-400 font-bold text-lg">
               ₹
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Advances/Credits</p>
-              <h3 className="text-2xl font-black text-emerald-400 mt-1">
-                {formatINR(stats.totalAdvances)}
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Given Amount</p>
+              <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {formatINR(stats.totalGiven || 0)}
               </h3>
+              <span className="text-[11px] font-medium text-slate-500 mt-0.5 inline-block">
+                Paid / Advance given
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Card 4: Active Suppliers */}
+        {/* Card 4: Rest Amount to Pay */}
         <div className="bg-slate-900 border border-slate-800/80 rounded-3xl p-6 relative overflow-hidden group hover:border-slate-700/60 transition-all duration-300">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl -mr-5 -mt-5"></div>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl -mr-5 -mt-5"></div>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/25 flex items-center justify-center text-teal-400">
-              <span className="flex h-3 w-3 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-teal-500"></span>
-              </span>
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-500 dark:text-rose-400 font-bold text-lg">
+              ₹
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Suppliers</p>
-              <h3 className="text-2xl font-black text-slate-200 mt-1">
-                {stats.activeSuppliers} <span className="text-xs font-normal text-slate-500">active</span>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Rest Amount to Pay</p>
+              <h3 className="text-2xl font-black text-rose-500 dark:text-rose-400 mt-1">
+                {formatINR(stats.totalRestToPay || 0)}
               </h3>
+              <span className="text-[11px] font-medium text-slate-500 mt-0.5 inline-block">
+                Total pending dues
+              </span>
             </div>
           </div>
         </div>
@@ -1081,7 +1411,7 @@ export default function SuppliersPage() {
             </div>
 
             {/* Sort Select */}
-            <div className="flex flex-col gap-1 w-full sm:w-44 col-span-2">
+            <div className="flex flex-col gap-1 w-full sm:w-48 col-span-2">
               <select
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value)}
@@ -1089,9 +1419,10 @@ export default function SuppliersPage() {
               >
                 <option value="name-asc">Sort: Name (A to Z)</option>
                 <option value="name-desc">Sort: Name (Z to A)</option>
-                <option value="bal-desc">Sort: Balance (High to Low)</option>
-                <option value="bal-asc">Sort: Balance (Low to High)</option>
-                <option value="date-desc">Sort: Date Registered</option>
+                <option value="rest-desc">Sort: Rest to Pay (High to Low)</option>
+                <option value="rest-asc">Sort: Rest to Pay (Low to High)</option>
+                <option value="received-desc">Sort: Total Product Amount (High to Low)</option>
+                <option value="date-desc">Sort: Date & Time (Latest First)</option>
               </select>
             </div>
           </div>
@@ -1102,13 +1433,13 @@ export default function SuppliersPage() {
           <span>
             Showing <strong>{filteredSuppliers.length}</strong> of <strong>{suppliers.length}</strong> suppliers
           </span>
-          {(search || filterBalance !== 'all' || filterStatus !== 'all') && (
+          {(search || filterBalance !== 'all' || filterStatus !== 'all' || sortBy !== 'date-desc') && (
             <button
               onClick={() => {
                 setSearch('')
                 setFilterBalance('all')
                 setFilterStatus('all')
-                setSortBy('name-asc')
+                setSortBy('date-desc')
               }}
               className="text-indigo-400 hover:text-indigo-300 font-bold transition-colors cursor-pointer"
             >
@@ -1124,11 +1455,11 @@ export default function SuppliersPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/20">
-                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Company & GSTIN</th>
-                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Contact Info</th>
-                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Location</th>
-                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Products Supplied</th>
-                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Outstanding Balance</th>
+                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Company & Contact</th>
+                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Date & Time</th>
+                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Total Product Amount</th>
+                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Given Amount</th>
+                <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Rest Amount to Pay</th>
                 <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Status</th>
                 <th className="px-6 py-4.5 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Actions</th>
               </tr>
@@ -1138,55 +1469,63 @@ export default function SuppliersPage() {
                 paginatedSuppliers.map((sup) => (
                   <tr key={sup.id} className="hover:bg-slate-950/10 transition-colors group">
                     <td className="px-6 py-4.5">
-                      <div className="font-bold text-slate-200 group-hover:text-white transition-colors">
+                      {/* FIX: Supplier name hover state is high-contrast indigo in both light and dark modes */}
+                      <div className="font-bold text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors text-sm">
                         {sup.companyName}
                       </div>
-                      <div className="text-slate-400 text-xs mt-0.5 font-medium">
-                        {sup.contactPerson || '—'}
+                      <div className="text-slate-400 text-xs mt-0.5 font-medium flex items-center gap-2">
+                        {sup.contactPerson ? <span>{sup.contactPerson}</span> : null}
+                        {sup.phone ? <span className="text-slate-500 font-normal">({sup.phone})</span> : null}
                       </div>
                       {sup.gstin && (
                         <span className="inline-block px-1.5 py-0.5 rounded bg-slate-950 text-slate-500 font-mono text-[9px] font-semibold mt-1.5 uppercase tracking-wider border border-slate-800">
-                          {sup.gstin}
+                          GSTIN: {sup.gstin}
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4.5 text-xs text-slate-400 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <PhoneIcon />
-                        <span>{sup.phone || '—'}</span>
+                    <td className="px-6 py-4.5 whitespace-nowrap text-xs text-slate-400">
+                      <div className="flex items-center gap-1.5 font-medium text-slate-200 dark:text-slate-300">
+                        <CalendarClockIcon />
+                        <span>{formatDateTime(sup.lastTransactionDate)}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <EmailIcon />
-                        <span>{sup.email || '—'}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4.5 text-xs text-slate-400">
-                      <div className="flex items-center gap-1.5 font-semibold text-slate-300">
-                        <span>{sup.city || '—'}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
-                        {sup.address || '—'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4.5">
-                      <div className="flex flex-wrap gap-1.5 max-w-xs">
-                        {sup.productsSupplied && sup.productsSupplied.length > 0 ? (
-                          sup.productsSupplied.map((prod, i) => (
-                            <span key={i} className="px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-400 text-[10px] font-medium border border-indigo-500/10">
-                              {prod}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-slate-500 text-xs font-medium">—</span>
-                        )}
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        {sup.purchasesCount > 0 ? `${sup.purchasesCount} purchase record(s)` : 'Registered record'}
                       </div>
                     </td>
                     <td className="px-6 py-4.5 text-right whitespace-nowrap">
-                      <div className={`font-extrabold text-sm ${sup.outstandingBalance > 0 ? 'text-rose-400' : sup.outstandingBalance < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {formatINR(sup.outstandingBalance)}
+                      <div className="font-bold text-sm text-slate-100">
+                        {formatINR(sup.totalProductReceived || 0)}
                       </div>
-                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mt-0.5">
-                        {sup.outstandingBalance > 0 ? 'Payable' : sup.outstandingBalance < 0 ? 'Advance' : 'Clear'}
+                      <span className="text-[9px] text-slate-500 font-medium block mt-0.5">
+                        Product amount
+                      </span>
+                    </td>
+                    <td className="px-6 py-4.5 text-right whitespace-nowrap">
+                      <div className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                        {formatINR(sup.givenAmount || 0)}
+                      </div>
+                      <span className="text-[9px] text-slate-500 font-medium block mt-0.5">
+                        Given amount
+                      </span>
+                    </td>
+                    <td className="px-6 py-4.5 text-right whitespace-nowrap">
+                      <div className={`font-black text-sm ${
+                        sup.restAmountToPay > 0
+                          ? 'text-rose-500 dark:text-rose-400'
+                          : sup.restAmountToPay < 0
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-slate-400'
+                      }`}>
+                        {formatINR(Math.abs(sup.restAmountToPay))}
+                      </div>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider block mt-0.5 ${
+                        sup.restAmountToPay > 0
+                          ? 'text-rose-500 dark:text-rose-400'
+                          : sup.restAmountToPay < 0
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-slate-500'
+                      }`}>
+                        {sup.restAmountToPay > 0 ? 'To Pay (Due)' : sup.restAmountToPay < 0 ? 'Advance / Credit' : 'Settled (₹0)'}
                       </span>
                     </td>
                     <td className="px-6 py-4.5 text-center">
@@ -1230,12 +1569,12 @@ export default function SuppliersPage() {
       <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
         {filteredSuppliers.length > 0 ? (
           paginatedSuppliers.map((sup) => (
-            <div key={sup.id} className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5 hover:border-slate-700/60 transition-all duration-200">
-              <div className="flex items-start justify-between gap-3 mb-3">
+            <div key={sup.id} className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5 hover:border-slate-700/60 transition-all duration-200 group">
+              <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-bold text-slate-200 truncate">{sup.companyName}</h3>
+                  <h3 className="text-base font-bold text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">{sup.companyName}</h3>
                   {sup.contactPerson && (
-                    <p className="text-xs text-slate-500 font-medium truncate">{sup.contactPerson}</p>
+                    <p className="text-xs text-slate-400 font-medium truncate">{sup.contactPerson}</p>
                   )}
                 </div>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${sup.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-500/10 text-slate-400 border border-slate-800'}`}>
@@ -1243,6 +1582,13 @@ export default function SuppliersPage() {
                   {sup.status}
                 </span>
               </div>
+
+              {/* Date & Time badge */}
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium mb-3">
+                <CalendarClockIcon />
+                <span>{formatDateTime(sup.lastTransactionDate)}</span>
+              </div>
+
               {sup.gstin && (
                 <div className="mb-3">
                   <span className="inline-block px-1.5 py-0.5 rounded bg-slate-950 text-slate-500 font-mono text-[9px] font-semibold uppercase tracking-wider border border-slate-800">
@@ -1250,6 +1596,7 @@ export default function SuppliersPage() {
                   </span>
                 </div>
               )}
+
               <div className="space-y-1.5 text-xs text-slate-400 pb-3 mb-3 border-b border-slate-800/40">
                 {sup.phone && (
                   <div className="flex items-center gap-1.5">
@@ -1270,8 +1617,9 @@ export default function SuppliersPage() {
                   </div>
                 )}
               </div>
+
               {sup.productsSupplied && sup.productsSupplied.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-4">
+                <div className="flex flex-wrap gap-1.5 mb-3">
                   {sup.productsSupplied.map((prod, i) => (
                     <span key={i} className="px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-400 text-[9px] font-semibold border border-indigo-500/10">
                       {prod}
@@ -1279,16 +1627,41 @@ export default function SuppliersPage() {
                   ))}
                 </div>
               )}
-              <div className="flex items-center justify-between pt-1">
+
+              {/* Financial metrics breakdown */}
+              <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/80 mb-3 text-center">
                 <div>
-                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none mb-1">Balance</p>
-                  <p className={`text-sm font-extrabold ${sup.outstandingBalance > 0 ? 'text-rose-400' : sup.outstandingBalance < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                    {formatINR(sup.outstandingBalance)}
-                  </p>
-                  <span className="text-[9px] text-slate-500 font-medium capitalize mt-0.5 block">
-                    {sup.outstandingBalance > 0 ? 'Payable' : sup.outstandingBalance < 0 ? 'Advance' : 'Clear'}
-                  </span>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Total Product Amount</p>
+                  <p className="text-xs font-bold text-slate-100">{formatINR(sup.totalProductReceived || 0)}</p>
                 </div>
+                <div>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Given Amount</p>
+                  <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{formatINR(sup.givenAmount || 0)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Rest to Pay</p>
+                  <p className={`text-xs font-black ${
+                    sup.restAmountToPay > 0
+                      ? 'text-rose-500 dark:text-rose-400'
+                      : sup.restAmountToPay < 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-slate-400'
+                  }`}>
+                    {formatINR(Math.abs(sup.restAmountToPay))}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                  sup.restAmountToPay > 0
+                    ? 'text-rose-500 dark:text-rose-400'
+                    : sup.restAmountToPay < 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-slate-500'
+                }`}>
+                  {sup.restAmountToPay > 0 ? '⚠️ Due to Pay' : sup.restAmountToPay < 0 ? '🤝 Advance Credit' : '✅ Settled (₹0)'}
+                </span>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => { setSelectedLedgerSupplier(sup); setLedgerModalOpen(true) }} className="px-2 py-1.5 rounded-lg bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-slate-100 border border-indigo-500/10 font-bold text-[9px] transition-all flex items-center gap-1 cursor-pointer">
                     <LedgerIcon />

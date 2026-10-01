@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { supabase } from '../supabase/supabase'
+import { supabase } from '../supabase/supabase.js'
 
 function fail(error, operation) {
   if (!error) return
@@ -606,10 +606,10 @@ export async function savePurchaseBill(billData, items = [], existingId = null) 
 export async function deletePurchaseBill(id) {
   try {
     await supabase.from('payments').delete().eq('purchase_id', id);
-  } catch (e) {}
+  } catch (e) { }
   try {
     await supabase.from('purchase_items').delete().eq('purchase_id', id);
-  } catch (e) {}
+  } catch (e) { }
   const { error } = await supabase.from('purchases').delete().eq('id', id);
   if (error) {
     await supabase.from('purchases').update({ status: 'deleted', notes: 'Deleted purchase bill' }).eq('id', id);
@@ -626,7 +626,7 @@ export async function completeSalesReturn(ret, items) {
   try {
     window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { returnData: data, items } }));
     window.dispatchEvent(new CustomEvent('erp:inventory_change', { detail: { type: 'sales_return', items } }));
-  } catch (e) {}
+  } catch (e) { }
   return data;
 }
 export async function completePurchaseReturn(ret, items) { const { data, error } = await supabase.rpc('complete_purchase_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete purchase return'); invalidateCache('products'); return data }
@@ -643,7 +643,7 @@ export async function listPurchaseReturns() {
       try {
         const jsonPart = r.notes.split('--- RETURN ITEMS ---')[1];
         items = JSON.parse(jsonPart.trim());
-      } catch (e) {}
+      } catch (e) { }
     }
     return {
       ...r,
@@ -762,7 +762,7 @@ export async function deletePurchaseReturn(id) {
   if (!id) return false;
   try {
     await supabase.from('purchase_return_items').delete().eq('purchase_return_id', id);
-  } catch (e) {}
+  } catch (e) { }
   const { error } = await supabase.from('purchase_returns').delete().eq('id', id);
   fail(error, 'Unable to delete purchase return record');
   invalidateCache('products');
@@ -871,10 +871,10 @@ export async function listUISales() {
 
     let parsedNotes = {};
     if (typeof s.notes === 'string' && s.notes.trim().startsWith('{')) {
-      try { parsedNotes = JSON.parse(s.notes); } catch {}
+      try { parsedNotes = JSON.parse(s.notes); } catch { }
     }
     if (typeof s.payment_reference === 'string' && s.payment_reference.trim().startsWith('{')) {
-      try { parsedNotes = { ...parsedNotes, ...JSON.parse(s.payment_reference) }; } catch {}
+      try { parsedNotes = { ...parsedNotes, ...JSON.parse(s.payment_reference) }; } catch { }
     }
 
     const meta = { ...parsedNotes, ...rawMeta };
@@ -933,39 +933,40 @@ export async function listUIPurchases() {
   return (await listPurchases())
     .filter(p => p.status !== 'deleted')
     .map(p => {
-    const rawItems = (p.items && p.items.length > 0) ? p.items : (p.metadata?.items || []);
-    return {
-      id: p.id,
-      date: p.purchase_date,
-      supplier: p.supplier?.company_name || p.supplier?.name || p.metadata?.supplier_name || p.supplier_name || 'Unknown Supplier',
-      supplierContact: p.supplier?.phone || p.metadata?.supplier_contact || p.metadata?.supplier_phone || '',
-      supplierAddress: p.supplier?.address || p.metadata?.supplier_address || '',
-      invoice: p.invoice_number || p.supplier_invoice_number || (p.id ? String(p.id).slice(0, 8) : 'INV-000'),
-      billNo: p.supplier_invoice_number || p.invoice_number,
-      items: rawItems.map((i, idx) => ({
-        ...i,
-        id: i.id || `item-${idx}`,
-        product: i.product_name || i.product || i.name || 'Product',
-        purchasePrice: Number(i.unit_price ?? i.purchase_price ?? 0),
-        gst: Number(i.tax_rate ?? i.tax ?? 0),
-        quantity: Number(i.quantity || 1),
-        amount: Number(i.line_total ?? (Number(i.quantity || 1) * Number(i.unit_price ?? i.purchase_price ?? 0))),
-        total: Number(i.total ?? ((Number(i.quantity || 1) * Number(i.unit_price ?? i.purchase_price ?? 0)) + Number(i.tax_amount ?? 0))),
-        isManual: i.isManual ?? false
-      })),
-      itemCount: rawItems.length,
-      subtotal: Number(p.subtotal || 0),
-      gst: Number(p.tax_amount ?? p.tax ?? 0),
-      discount: Number(p.discount || 0),
-      total: Number(p.total_amount || 0),
-      status: p.status === 'completed' ? 'Completed' : (p.status || 'Completed'),
-      payment: p.payment_status === 'paid' ? 'Paid' : (p.payment_status || 'Paid'),
-      paymentMode: p.payment_method || 'Cash',
-      notes: p.notes || '',
-      metadata: p.metadata || {},
-      createdAt: p.created_at
-    };
-  });
+      const rawItems = (p.items && p.items.length > 0) ? p.items : (p.metadata?.items || []);
+      return {
+        id: p.id,
+        supplierId: p.supplier_id || p.supplier?.id || null,
+        date: p.purchase_date,
+        supplier: p.supplier?.company_name || p.supplier?.name || p.metadata?.supplier_name || p.supplier_name || 'Unknown Supplier',
+        supplierContact: p.supplier?.phone || p.metadata?.supplier_contact || p.metadata?.supplier_phone || '',
+        supplierAddress: p.supplier?.address || p.metadata?.supplier_address || '',
+        invoice: p.invoice_number || p.supplier_invoice_number || (p.id ? String(p.id).slice(0, 8) : 'INV-000'),
+        billNo: p.supplier_invoice_number || p.invoice_number,
+        items: rawItems.map((i, idx) => ({
+          ...i,
+          id: i.id || `item-${idx}`,
+          product: i.product_name || i.product || i.name || 'Product',
+          purchasePrice: Number(i.unit_price ?? i.purchase_price ?? 0),
+          gst: Number(i.tax_rate ?? i.tax ?? 0),
+          quantity: Number(i.quantity || 1),
+          amount: Number(i.line_total ?? (Number(i.quantity || 1) * Number(i.unit_price ?? i.purchase_price ?? 0))),
+          total: Number(i.total ?? ((Number(i.quantity || 1) * Number(i.unit_price ?? i.purchase_price ?? 0)) + Number(i.tax_amount ?? 0))),
+          isManual: i.isManual ?? false
+        })),
+        itemCount: rawItems.length,
+        subtotal: Number(p.subtotal || 0),
+        gst: Number(p.tax_amount ?? p.tax ?? 0),
+        discount: Number(p.discount || 0),
+        total: Number(p.total_amount || 0),
+        status: p.status === 'completed' ? 'Completed' : (p.status || 'Completed'),
+        payment: p.payment_status === 'paid' ? 'Paid' : (p.payment_status || 'Paid'),
+        paymentMode: p.payment_method || 'Cash',
+        notes: p.notes || '',
+        metadata: p.metadata || {},
+        createdAt: p.created_at
+      };
+    });
 }
 export async function listCustomers() { const { data, error } = await supabase.from('customers').select('*').is('deleted_at', null).order('name'); fail(error, 'Unable to load customers'); return data }
 export function customerToUI(c) { return { id: c.id, name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', city: c.city || '', gstin: c.gstin || c.gst_number || '', customerType: c.customer_type || 'retail', creditLimit: Number(c.credit_limit || 0), outstandingBalance: Number(c.balance ?? c.opening_balance ?? 0), status: c.status || 'active', profilePic: c.profile_image_url || '', createdAt: c.created_at, updatedAt: c.updated_at, metadata: c.metadata || {} } }
@@ -997,18 +998,89 @@ export async function saveCustomer(values, id) {
 }
 export async function deleteCustomer(id) { return softDeleteEntity('customer', id) }
 export async function listSuppliers() { const { data, error } = await supabase.from('suppliers').select('*').is('deleted_at', null).order('company_name'); fail(error, 'Unable to load suppliers'); return data }
-export function supplierToUI(s) { return { id: s.id, companyName: s.company_name, contactPerson: s.contact_person || '', phone: s.phone || '', email: s.email || '', address: s.address || '', city: s.city || '', gstin: s.gstin || '', outstandingBalance: Number(s.balance), creditLimit: Number(s.credit_limit), status: s.status, productsSupplied: s.metadata?.productsSupplied || [], createdAt: s.created_at, updatedAt: s.updated_at, metadata: s.metadata || {} } }
+export function supplierToUI(s) { const given = Number(s.opening_balance ?? s.openingBalance ?? 0); return { id: s.id, companyName: s.company_name, contactPerson: s.contact_person || '', phone: s.phone || '', email: s.email || '', address: s.address || '', city: s.city || '', gstin: s.gstin || '', outstandingBalance: Number(s.balance || 0), givenAmount: given, openingBalance: given, creditLimit: Number(s.credit_limit || 0), status: s.status, productsSupplied: s.metadata?.productsSupplied || [], createdAt: s.created_at, updatedAt: s.updated_at, metadata: s.metadata || {} } }
 export async function listUISuppliers() { const suppliers = (await listSuppliers()).map(supplierToUI); const { data: ledger, error } = await supabase.from('transactions').select('*').order('transaction_date', { ascending: false }); fail(error, 'Unable to load supplier ledgers'); return suppliers.map(s => ({ ...s, ledger: ledger.filter(x => x.reference_id === s.id).map(x => ({ id: x.id, date: x.transaction_date || x.date, type: x.type, description: x.description, amount: Number(x.amount || 0), balanceAfter: null })) })) }
-function supplierRow(v) { const company = v.companyName?.trim() || v.name?.trim(); return { name: company, company_name: company, contact_person: v.contactPerson?.trim() || null, phone: v.phone?.trim() || null, email: v.email?.trim() || null, address: v.address?.trim() || null, city: v.city?.trim() || null, state: v.state || null, postal_code: v.postalCode || null, gstin: v.gstin?.trim().toUpperCase() || null, status: v.status || 'active', credit_limit: Number(v.creditLimit || 0), notes: v.notes || null, metadata: { ...(v.metadata || {}), productsSupplied: v.productsSupplied || v.metadata?.productsSupplied || [] } } }
+function supplierRow(v) { const company = v.companyName?.trim() || v.name?.trim(); const given = Number(v.givenAmount ?? v.openingBalance ?? 0); return { name: company, company_name: company, contact_person: v.contactPerson?.trim() || null, phone: v.phone?.trim() || null, email: v.email?.trim() || null, address: v.address?.trim() || null, city: v.city?.trim() || null, state: v.state || null, postal_code: v.postalCode || null, gstin: v.gstin?.trim().toUpperCase() || null, status: v.status || 'active', credit_limit: Number(v.creditLimit || 0), opening_balance: given, notes: v.notes || null, metadata: { ...(v.metadata || {}), productsSupplied: v.productsSupplied || v.metadata?.productsSupplied || [] } } }
 export async function saveSupplier(values, id) {
   const row = supplierRow(values);
-  if (!id) row.balance = 0;
+  const totalReceived = Number(values.totalProductReceived || 0);
+  const paid = Number(values.paidAmount ?? values.givenAmount ?? values.openingBalance ?? 0);
+  const rest = totalReceived - paid;
+  const recordDate = values.recordDateTime ? new Date(values.recordDateTime).toISOString() : new Date().toISOString();
+
+  row.opening_balance = paid;
+  if (!id) row.balance = rest;
+  row.metadata = {
+    ...(row.metadata || {}),
+    totalProductReceived: totalReceived,
+    paidAmount: paid,
+    restAmount: rest,
+    recordDateTime: recordDate
+  };
+
   const query = id ? supabase.from('suppliers').update(row).eq('id', id) : supabase.from('suppliers').insert(row);
   const { data, error } = await query.select().single();
   fail(error, id ? 'Unable to update supplier' : 'Unable to create supplier');
-  if (!id && Number(values.openingBalance)) {
-    await recordPartyTransaction('supplier', data.id, { type: 'adjustment', amount: Number(values.openingBalance), description: 'Opening Balance' });
+
+  // Record payment transaction if paid amount is entered
+  if (paid > 0) {
+    try {
+      await recordPartyTransaction('supplier', data.id, {
+        type: 'payment',
+        amount: paid,
+        description: 'Given / Paid Amount',
+        date: recordDate
+      });
+    } catch (_) {}
   }
+
+  // If totalProductReceived is entered, sync purchase record for accurate ledger and totals
+  if (totalReceived > 0) {
+    try {
+      const { data: existingPurchases } = await supabase
+        .from('purchases')
+        .select('id')
+        .eq('supplier_id', data.id)
+        .neq('status', 'deleted')
+        .limit(1);
+
+      if (existingPurchases && existingPurchases.length > 0) {
+        await supabase
+          .from('purchases')
+          .update({
+            total_amount: totalReceived,
+            subtotal: totalReceived,
+            purchase_date: recordDate,
+            paid_amount: paid,
+            due_amount: Math.max(0, rest),
+            payment_status: paid >= totalReceived ? 'paid' : (paid > 0 ? 'partially_paid' : 'pending'),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingPurchases[0].id);
+      } else {
+        await supabase
+          .from('purchases')
+          .insert({
+            supplier_id: data.id,
+            supplier_name: data.company_name || data.name,
+            invoice_number: `REC-${Date.now().toString().slice(-6)}`,
+            purchase_date: recordDate,
+            subtotal: totalReceived,
+            total_amount: totalReceived,
+            paid_amount: paid,
+            due_amount: Math.max(0, rest),
+            payment_status: paid >= totalReceived ? 'paid' : (paid > 0 ? 'partially_paid' : 'pending'),
+            status: 'completed',
+            notes: 'Supplier product record',
+            metadata: {
+              isSupplierRecord: true,
+              items: [{ product: values.productsSupplied?.[0] || 'Product Supply', quantity: 1, unit_price: totalReceived, total: totalReceived }]
+            }
+          });
+      }
+    } catch (_) {}
+  }
+
   if (!id && data) {
     try {
       const { addNotification, buildNewSupplierNotification } = await import('./notificationService.js');
@@ -1016,17 +1088,108 @@ export async function saveSupplier(values, id) {
         id: data.id,
         supplierName: data.company_name || data.name,
         contact: data.phone || data.contact_person,
-        date: data.created_at
+        date: recordDate
       }));
     } catch (notifErr) {
       console.warn('Could not post supplier notification:', notifErr);
     }
   }
-  return supplierToUI({ ...data, balance: id ? data.balance : Number(values.openingBalance || 0) });
+  return supplierToUI({ ...data, balance: rest, opening_balance: paid, metadata: row.metadata });
 }
 export async function deleteSupplier(id) { return softDeleteEntity('supplier', id) }
 export async function listLedger(partyType, partyId) { const { data, error } = await supabase.from('transactions').select('*').eq('reference_id', partyId).order('transaction_date', { ascending: false }); fail(error, 'Unable to load ledger'); return data }
 export async function recordPartyTransaction(partyType, partyId, transaction) { const { data, error } = await supabase.rpc('record_party_transaction', { p_party_type: partyType, p_party_id: partyId, p_entry_type: transaction.type, p_amount: Number(transaction.amount), p_description: transaction.description, p_entry_date: transaction.date || new Date().toISOString() }); fail(error, 'Unable to record ledger transaction'); return data }
+export async function deletePartyTransaction(transactionId, partyId, partyType = 'supplier') {
+  const { data: txn } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('id', transactionId)
+    .maybeSingle();
+
+  const { error: delErr } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('id', transactionId);
+  fail(delErr, 'Unable to delete ledger entry');
+
+  if (partyId) {
+    try {
+      const { data: remainingTxns } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('reference_id', partyId);
+
+      const txns = remainingTxns || [];
+      const paymentSum = txns
+        .filter(t => t.type === 'payment' || (t.description || '').toLowerCase().includes('given') || (t.description || '').toLowerCase().includes('opening'))
+        .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0);
+
+      if (partyType === 'supplier') {
+        const { data: supRow } = await supabase
+          .from('suppliers')
+          .select('*')
+          .eq('id', partyId)
+          .maybeSingle();
+
+        if (supRow) {
+          const totalReceived = Number(supRow.metadata?.totalProductReceived || 0);
+          const newRest = totalReceived - paymentSum;
+          const updatedMeta = {
+            ...(supRow.metadata || {}),
+            paidAmount: paymentSum,
+            restAmount: newRest
+          };
+
+          await supabase
+            .from('suppliers')
+            .update({
+              balance: newRest,
+              opening_balance: paymentSum,
+              metadata: updatedMeta,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', partyId);
+        }
+
+        const { data: supPurchases } = await supabase
+          .from('purchases')
+          .select('id, total_amount')
+          .eq('supplier_id', partyId)
+          .neq('status', 'deleted');
+        if (supPurchases && supPurchases.length > 0) {
+          for (const p of supPurchases) {
+            const pTotal = Number(p.total_amount || 0);
+            await supabase
+              .from('purchases')
+              .update({
+                paid_amount: paymentSum,
+                due_amount: Math.max(0, pTotal - paymentSum),
+                payment_status: paymentSum >= pTotal ? 'paid' : (paymentSum > 0 ? 'partially_paid' : 'pending'),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', p.id);
+          }
+        }
+      } else if (partyType === 'customer') {
+        const netCustBal = txns.reduce((sum, t) => {
+          const amt = Number(t.amount || 0);
+          return t.type === 'payment' ? sum - Math.abs(amt) : sum + Math.abs(amt);
+        }, 0);
+        await supabase
+          .from('customers')
+          .update({
+            balance: netCustBal,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', partyId);
+      }
+    } catch (balErr) {
+      console.warn('Could not update party totals after transaction deletion:', balErr);
+    }
+  }
+
+  return true;
+}
 export async function listExpenses() { const { data, error } = await supabase.from('expenses').select('*').order('expense_date', { ascending: false }); fail(error, 'Unable to load expenses'); return data }
 export async function saveExpense(values, id) {
   const query = id ? supabase.from('expenses').update(values).eq('id', id) : supabase.from('expenses').insert(values);
@@ -1059,7 +1222,7 @@ export function getStoredBusinessSettings() {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') return parsed;
     }
-  } catch (e) {}
+  } catch (e) { }
   return {
     shop: {
       shopName: 'Gupta Trader & Superstore',
@@ -1102,7 +1265,7 @@ export async function getBusinessSettings() {
   };
   try {
     localStorage.setItem('businessSettings', JSON.stringify(res));
-  } catch (e) {}
+  } catch (e) { }
   return res;
 }
 
@@ -1136,7 +1299,7 @@ export async function saveBusinessSettings(values) {
       printer: values.printer || cached.printer
     };
     localStorage.setItem('businessSettings', JSON.stringify(updated));
-  } catch (e) {}
+  } catch (e) { }
   return data;
 }
 
@@ -1217,7 +1380,7 @@ export async function adminUsers(action, payload = {}) {
       let email = '';
       try {
         email = (isCurrent && currentUser.email) || localStorage.getItem(`user_email_${p.id}`) || '';
-      } catch (_) {}
+      } catch (_) { }
 
       if (!email) {
         if (p.phone && p.phone.includes('@')) {
@@ -1294,7 +1457,7 @@ export async function adminUsers(action, payload = {}) {
     if (payload.email) {
       try {
         localStorage.setItem(`user_email_${newUserId}`, payload.email);
-      } catch (_) {}
+      } catch (_) { }
     }
 
     return { id: newUserId };
@@ -1325,7 +1488,7 @@ export async function adminUsers(action, payload = {}) {
     if (payload.email) {
       try {
         localStorage.setItem(`user_email_${payload.id}`, payload.email);
-      } catch (_) {}
+      } catch (_) { }
     }
 
     return { id: payload.id };
@@ -1345,7 +1508,7 @@ export async function adminUsers(action, payload = {}) {
 
     try {
       localStorage.removeItem(`user_email_${payload.id}`);
-    } catch (_) {}
+    } catch (_) { }
 
     return { id: payload.id };
   }

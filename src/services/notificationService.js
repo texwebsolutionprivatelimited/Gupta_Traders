@@ -1,4 +1,4 @@
-import { supabase } from '../supabase/supabase';
+import { supabase } from '../supabase/supabase.js';
 import { formatINR } from '../utils/erp';
 
 const NOTIFICATIONS_STORAGE_KEY = 'erp_notifications';

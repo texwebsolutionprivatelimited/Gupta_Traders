@@ -66,10 +66,10 @@ export function normalizeBillData(rawBill) {
 
   let rawNotes = {};
   if (typeof rawBill.notes === 'string' && rawBill.notes.trim().startsWith('{')) {
-    try { rawNotes = JSON.parse(rawBill.notes); } catch {}
+    try { rawNotes = JSON.parse(rawBill.notes); } catch { }
   }
   if (typeof rawBill.payment_reference === 'string' && rawBill.payment_reference.trim().startsWith('{')) {
-    try { rawNotes = { ...rawNotes, ...JSON.parse(rawBill.payment_reference) }; } catch {}
+    try { rawNotes = { ...rawNotes, ...JSON.parse(rawBill.payment_reference) }; } catch { }
   }
 
   const rawSplit = rawBill.splitDetails || rawBill.splitPayment || rawMeta.splitDetails || rawMeta.splitPayment || rawNotes.splitDetails || rawNotes.splitPayment || {};
@@ -255,7 +255,7 @@ export function generateReceiptHtml(bill) {
       width: 100%;
       max-width: 78mm;
       margin: 0 auto;
-      padding: 4px 6px;
+      padding: 6px 8px;
       text-rendering: geometricPrecision;
       -webkit-font-smoothing: antialiased;
     }
@@ -264,8 +264,8 @@ export function generateReceiptHtml(bill) {
     .left { text-align: left; }
     .bold { font-weight: 900; }
     .dash-line {
-      border-top: 1px dashed #000000 !important;
-      margin: 4px 0;
+      border-top: 2px dashed #000000 !important;
+      margin: 5px 0;
     }
     .store-title {
       font-size: 17px;
@@ -284,7 +284,7 @@ export function generateReceiptHtml(bill) {
     .invoice-title {
       font-size: 13px;
       font-weight: 900;
-      margin: 3px 0 2px 0;
+      margin: 4px 0 2px 0;
       text-transform: uppercase;
       color: #000000 !important;
     }
@@ -293,39 +293,53 @@ export function generateReceiptHtml(bill) {
       justify-content: space-between;
       font-size: 12px;
       font-weight: 800;
-      line-height: 1.35;
+      line-height: 1.4;
+      padding: 1px 0;
       color: #000000 !important;
     }
     table.items-table {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
-      font-size: 12px;
+      font-size: 11.5px;
       color: #000000 !important;
-      margin: 2px 0;
+      margin: 4px 0;
     }
     table.items-table th {
-      border-top: 1px dashed #000000 !important;
-      border-bottom: 1px dashed #000000 !important;
-      padding: 3px 1px;
+      border-top: 2px dashed #000000 !important;
+      border-bottom: 2px dashed #000000 !important;
+      padding: 6px 3px;
       font-weight: 900;
       font-size: 11px;
+      line-height: 1.25;
       color: #000000 !important;
     }
     table.items-table td {
-      padding: 1.5px 1px;
+      padding: 5px 3px;
       vertical-align: top;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 800;
+      line-height: 1.3;
       color: #000000 !important;
+    }
+    table.items-table tbody tr:not(:last-child) td {
+      border-bottom: 1px dashed #e2e8f0 !important;
     }
     .totals-row {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       font-size: 12px;
       font-weight: 800;
-      line-height: 1.35;
+      line-height: 1.4;
+      padding: 2px 0;
       color: #000000 !important;
+    }
+    .totals-row .amount {
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      font-weight: 900;
     }
     .big-total-row {
       display: flex;
@@ -333,8 +347,13 @@ export function generateReceiptHtml(bill) {
       align-items: baseline;
       font-size: 19px;
       font-weight: 900;
-      margin: 2px 0;
+      margin: 3px 0;
       color: #000000 !important;
+    }
+    .big-total-row .amount {
+      font-size: 19px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
     }
     @media print {
       .no-print {
@@ -350,7 +369,7 @@ export function generateReceiptHtml(bill) {
         max-width: 78mm;
         background: #ffffff !important;
         color: #000000 !important;
-        padding: 4px 6px;
+        padding: 6px 8px;
       }
     }
   </style>
@@ -362,7 +381,7 @@ export function generateReceiptHtml(bill) {
     </button>
   </div>
 
-  <!-- Store Header -->
+  <!-- Store Header: Preserved exactly without shortening or repositioning -->
   <div class="center">
     <div class="store-title">${escapeReceiptText(norm.storeName)}</div>
     <div class="store-info">${escapeReceiptText(norm.storeAddress)}</div>
@@ -386,67 +405,53 @@ export function generateReceiptHtml(bill) {
     ${norm.customerName ? `<span>Cust: ${escapeReceiptText(norm.customerName)}</span>` : ''}
   </div>
 
-  <!-- Product Table: Product | Qty | MRP | RP | Amount (or Product | Qty | Rate | Amount) -->
+  <!-- Product Table: Product | Qty | MRP | Rate | Amount -->
   <table class="items-table">
     <colgroup>
-      ${norm.allProductsHaveMrp ? `
-        <col style="width: 36%;" />
-        <col style="width: 12%;" />
-        <col style="width: 17%;" />
-        <col style="width: 17%;" />
-        <col style="width: 18%;" />
-      ` : `
-        <col style="width: 50%;" />
-        <col style="width: 14%;" />
-        <col style="width: 18%;" />
-        <col style="width: 18%;" />
-      `}
+      <col style="width: 34%;" />
+      <col style="width: 11%;" />
+      <col style="width: 17%;" />
+      <col style="width: 18%;" />
+      <col style="width: 20%;" />
     </colgroup>
     <thead>
       <tr>
-        <th style="text-align: left; padding-left: 2px;">Product</th>
-        <th style="text-align: right;">Qty</th>
-        ${norm.allProductsHaveMrp ? `
-          <th style="text-align: right;">MRP</th>
-          <th style="text-align: right;">RP</th>
-        ` : `
-          <th style="text-align: right;">Rate</th>
-        `}
-        <th style="text-align: right;">Amount</th>
+        <th style="text-align: left; padding-left: 2px; padding-right: 4px;">Product</th>
+        <th style="text-align: center; padding-left: 2px; padding-right: 2px;">Qty</th>
+        <th style="text-align: right; padding-left: 3px; padding-right: 4px;">MRP</th>
+        <th style="text-align: right; padding-left: 4px; padding-right: 5px;">Rate</th>
+        <th style="text-align: right; padding-left: 4px; padding-right: 2px;">Amount</th>
       </tr>
     </thead>
     <tbody>
-      ${items.map(item => `
+      ${items.map(item => {
+    const itemMrp = (item.mrp && Number(item.mrp) > 0 ? Number(item.mrp) : Number(item.rate)).toFixed(2);
+    return `
         <tr>
-          <td style="text-align: left; word-break: break-word; padding-left: 2px; padding-right: 2px;">
-            <div style="font-weight: 800; font-size: 11.5px; line-height: 1.2;">${escapeReceiptText(item.name)}</div>
-            ${item.itemDiscount > 0 ? `<div style="font-size: 9px; font-weight: normal; color: #444;">Disc: -${(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>` : ''}
+          <td style="text-align: left; word-break: break-word; padding-left: 2px; padding-right: 4px;">
+            <div style="font-weight: 800; font-size: 11.5px; line-height: 1.25;">${escapeReceiptText(item.name)}</div>
+            ${item.itemDiscount > 0 ? `<div style="font-size: 9.5px; font-weight: normal; color: #444; margin-top: 1.5px;">Disc: -${(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>` : ''}
             ${item.returnedQuantity > 0 ? `
-              <div style="font-size: 9px; font-weight: 900; color: #b91c1c !important;">
+              <div style="font-size: 9px; font-weight: 900; color: #b91c1c !important; margin-top: 1.5px;">
                 [TAKEN BACK: -${formatReceiptQty(item.returnedQuantity)}${escapeReceiptText(mapUnitToShort(item.unit))}]
               </div>
             ` : ''}
           </td>
-          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
+          <td style="text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: 2px; padding-right: 2px;">
             ${formatReceiptQty(item.quantity)}
           </td>
-          ${norm.allProductsHaveMrp ? `
-            <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
-              ${Number(item.mrp).toFixed(2)}
-            </td>
-            <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
-              ${item.rate.toFixed(2)}
-            </td>
-          ` : `
-            <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;">
-              ${item.rate.toFixed(2)}
-            </td>
-          `}
-          <td style="text-align: right; white-space: nowrap; font-weight: 900; font-variant-numeric: tabular-nums;">
+          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: 3px; padding-right: 4px;">
+            ${itemMrp}
+          </td>
+          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: 4px; padding-right: 5px;">
+            ${item.rate.toFixed(2)}
+          </td>
+          <td style="text-align: right; white-space: nowrap; font-weight: 900; font-variant-numeric: tabular-nums; padding-left: 4px; padding-right: 2px;">
             ${item.amount.toFixed(2)}
           </td>
         </tr>
-      `).join('')}
+      `;
+  }).join('')}
     </tbody>
   </table>
 
@@ -455,13 +460,13 @@ export function generateReceiptHtml(bill) {
   <!-- Sub Total -->
   <div class="totals-row">
     <span>Sub Total</span>
-    <span class="bold">${summary.subtotal.toFixed(2)}</span>
+    <span class="amount bold">${summary.subtotal.toFixed(2)}</span>
   </div>
 
   ${summary.discountAmount > 0 ? `
     <div class="totals-row">
       <span>Discount</span>
-      <span class="bold">-${summary.discountAmount.toFixed(2)}</span>
+      <span class="amount bold">-${summary.discountAmount.toFixed(2)}</span>
     </div>
   ` : ''}
 
@@ -469,51 +474,51 @@ export function generateReceiptHtml(bill) {
 
   <!-- Total Qty and Big Bill Amount -->
   <div class="big-total-row">
-    <span style="font-size: 11px; font-weight: 700;">
+    <span style="font-size: 12px; font-weight: 800;">
       Total Qty: ${formatReceiptQty(norm.totalQuantity)} &nbsp; Amt:
     </span>
-    <span>${summary.grandTotal.toFixed(2)}</span>
+    <span class="amount">${summary.grandTotal.toFixed(2)}</span>
   </div>
 
   <!-- Rupees in words -->
-  <div style="font-size: 11px; font-style: italic; margin-bottom: 3px;">
+  <div style="font-size: 11px; font-style: italic; margin-bottom: 4px; padding-left: 1px;">
     (${escapeReceiptText(norm.wordsAmount)})
   </div>
 
   <!-- Tender and Payment Mode -->
   <div class="totals-row">
     <span>Tender:</span>
-    <span>${norm.amountPaid.toFixed(2)}</span>
+    <span class="amount">${norm.amountPaid.toFixed(2)}</span>
   </div>
   ${norm.isSplitPayment ? `
     <div class="totals-row bold">
       <span>Pay Mode: CASH + UPI:</span>
-      <span>${summary.grandTotal.toFixed(2)}</span>
+      <span class="amount">${summary.grandTotal.toFixed(2)}</span>
     </div>
     <div class="totals-row" style="padding-left: 10px; font-size: 11px;">
       <span>• Cash Paid:</span>
-      <span>₹${norm.cashAmount.toFixed(2)}</span>
+      <span class="amount">₹${norm.cashAmount.toFixed(2)}</span>
     </div>
     <div class="totals-row" style="padding-left: 10px; font-size: 11px;">
       <span>• Online/UPI Paid:</span>
-      <span>₹${norm.upiAmount.toFixed(2)}</span>
+      <span class="amount">₹${norm.upiAmount.toFixed(2)}</span>
     </div>
   ` : `
     <div class="totals-row">
       <span>Pay Mode: ${escapeReceiptText(norm.paymentMode.toUpperCase())}:</span>
-      <span>${summary.grandTotal.toFixed(2)}</span>
+      <span class="amount">${summary.grandTotal.toFixed(2)}</span>
     </div>
   `}
   ${norm.changeDue > 0 ? `
     <div class="totals-row">
       <span>Change:</span>
-      <span class="bold">${norm.changeDue.toFixed(2)}</span>
+      <span class="amount bold">${norm.changeDue.toFixed(2)}</span>
     </div>
   ` : ''}
   ${norm.balanceDue > 0 ? `
     <div class="totals-row">
       <span>Balance Due:</span>
-      <span class="bold">${norm.balanceDue.toFixed(2)}</span>
+      <span class="amount bold">${norm.balanceDue.toFixed(2)}</span>
     </div>
   ` : ''}
 
@@ -521,11 +526,11 @@ export function generateReceiptHtml(bill) {
     <div class="dash-line"></div>
     <div class="totals-row" style="font-weight: 900;">
       <span>RETURNED / REFUNDED:</span>
-      <span>-${norm.totalRefunded.toFixed(2)}</span>
+      <span class="amount">-${norm.totalRefunded.toFixed(2)}</span>
     </div>
     <div class="totals-row" style="font-weight: 900; font-size: 13px;">
       <span>ADJUSTED NET TOTAL:</span>
-      <span>${norm.netTotalAfterReturns.toFixed(2)}</span>
+      <span class="amount">${norm.netTotalAfterReturns.toFixed(2)}</span>
     </div>
   ` : ''}
 
@@ -534,20 +539,20 @@ export function generateReceiptHtml(bill) {
   <!-- Net Value -->
   <div class="totals-row bold" style="font-size: 13px;">
     <span>Net Value</span>
-    <span>${(norm.hasReturns ? norm.netTotalAfterReturns : summary.grandTotal).toFixed(2)}</span>
+    <span class="amount" style="font-size: 13px;">${(norm.hasReturns ? norm.netTotalAfterReturns : summary.grandTotal).toFixed(2)}</span>
   </div>
 
   ${norm.allProductsHaveMrp && norm.mrpSavings > 0 ? `
     <div class="dash-line"></div>
     <div class="totals-row">
       <span>Total MRP Value:</span>
-      <span class="bold">₹${norm.totalMrpAmount.toFixed(2)}</span>
+      <span class="amount bold">₹${norm.totalMrpAmount.toFixed(2)}</span>
     </div>
     <div class="totals-row" style="font-weight: 900;">
       <span>Total Savings on MRP:</span>
-      <span class="bold">₹${norm.mrpSavings.toFixed(2)} (${((norm.mrpSavings / norm.totalMrpAmount) * 100).toFixed(1)}%)</span>
+      <span class="amount bold">₹${norm.mrpSavings.toFixed(2)} (${((norm.mrpSavings / norm.totalMrpAmount) * 100).toFixed(1)}%)</span>
     </div>
-    <div class="center bold" style="font-size: 11px; margin: 4px 0; border: 1px dashed #000000; padding: 2px 4px;">
+    <div class="center bold" style="font-size: 11px; margin: 5px 0; border: 1.5px dashed #000000; padding: 3px 4px;">
       *** YOU SAVED ₹${norm.mrpSavings.toFixed(2)} ON MRP! ***
     </div>
   ` : ''}
@@ -555,9 +560,9 @@ export function generateReceiptHtml(bill) {
   <div class="dash-line"></div>
 
   <!-- Footer -->
-  <div class="center" style="margin-top: 6px;">
-    <div class="bold" style="font-size: 12px; letter-spacing: 0.5px;">THANKS, VISIT AGAIN</div>
-    <div style="font-size: 10px; margin-top: 3px;">${escapeReceiptText(norm.returnPolicy)}</div>
+  <div class="center" style="margin-top: 8px;">
+    <div class="bold" style="font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">THANKS, VISIT AGAIN</div>
+    <div style="font-size: 10px; margin-top: 3px; font-weight: 700;">${escapeReceiptText(norm.returnPolicy)}</div>
   </div>
 </body>
 </html>`;
@@ -660,7 +665,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               <p className="text-xs font-black uppercase pt-0.5 text-black">Retail Invoice</p>
             </div>
 
-            <div className="border-t border-dashed border-black my-1" />
+            <div className="border-t-2 border-dashed border-black my-1.5" />
 
             {/* Invoice Info */}
             <div className="space-y-0.5 text-xs font-bold text-black">
@@ -677,93 +682,73 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               </div>
             </div>
 
-            {/* Product Table: Product | Qty | MRP | RP | Amount (or Product | Qty | Rate | Amount) */}
+            {/* Product Table: Product | Qty | MRP | Rate | Amount */}
             <div className="pt-0.5">
               <table className="w-full text-xs font-bold border-collapse" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
-                  {norm.allProductsHaveMrp ? (
-                    <>
-                      <col style={{ width: '36%' }} />
-                      <col style={{ width: '12%' }} />
-                      <col style={{ width: '17%' }} />
-                      <col style={{ width: '17%' }} />
-                      <col style={{ width: '18%' }} />
-                    </>
-                  ) : (
-                    <>
-                      <col style={{ width: '50%' }} />
-                      <col style={{ width: '14%' }} />
-                      <col style={{ width: '18%' }} />
-                      <col style={{ width: '18%' }} />
-                    </>
-                  )}
+                  <col style={{ width: '34%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '20%' }} />
                 </colgroup>
                 <thead>
-                  <tr className="border-t border-b border-dashed border-black text-black">
-                    <th className="text-left py-1 px-1 font-black">Product</th>
-                    <th className="text-right py-1 px-1 font-black">Qty</th>
-                    {norm.allProductsHaveMrp ? (
-                      <>
-                        <th className="text-right py-1 px-1 font-black">MRP</th>
-                        <th className="text-right py-1 px-1 font-black">RP</th>
-                      </>
-                    ) : (
-                      <th className="text-right py-1 px-1 font-black">Rate</th>
-                    )}
-                    <th className="text-right py-1 px-1 font-black">Amount</th>
+                  <tr className="border-t-2 border-b-2 border-dashed border-black text-black">
+                    <th className="text-left py-2 pl-0.5 pr-1 font-black">Product</th>
+                    <th className="text-center py-2 px-0.5 font-black">Qty</th>
+                    <th className="text-right py-2 pl-1 pr-1 font-black">MRP</th>
+                    <th className="text-right py-2 pl-1 pr-1.5 font-black">Rate</th>
+                    <th className="text-right py-2 pl-1 pr-0.5 font-black">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {norm.items.map((item, idx) => (
-                    <tr key={item.id || item.cartId || idx} className="align-top leading-tight">
-                      <td className="text-left py-0.5 px-1 break-words font-bold text-black">
-                        <div className="text-[11.5px] leading-snug">{item.name}</div>
-                        {item.itemDiscount > 0 && (
-                          <div className="text-[10px] font-normal text-slate-700">Disc: -{(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>
-                        )}
-                        {item.returnedQuantity > 0 && (
-                          <div className="text-[9px] font-black text-rose-700">
-                            [TAKEN BACK: -{formatReceiptQty(item.returnedQuantity)}{mapUnitToShort(item.unit)}]
-                          </div>
-                        )}
-                      </td>
-                      <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{formatReceiptQty(item.quantity)}</td>
-                      {norm.allProductsHaveMrp ? (
-                        <>
-                          <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{Number(item.mrp).toFixed(2)}</td>
-                          <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{item.rate.toFixed(2)}</td>
-                        </>
-                      ) : (
-                        <td className="text-right py-0.5 px-1 whitespace-nowrap font-bold text-black tabular-nums">{item.rate.toFixed(2)}</td>
-                      )}
-                      <td className="text-right py-0.5 px-1 whitespace-nowrap font-black text-black tabular-nums">{item.amount.toFixed(2)}</td>
-                    </tr>
-                  ))}
+                  {norm.items.map((item, idx) => {
+                    const itemMrp = (item.mrp && Number(item.mrp) > 0 ? Number(item.mrp) : Number(item.rate)).toFixed(2);
+                    return (
+                      <tr key={item.id || item.cartId || idx} className="align-top leading-tight border-b border-dashed border-slate-200 last:border-b-0">
+                        <td className="text-left py-1.5 pl-0.5 pr-1 break-words font-bold text-black">
+                          <div className="text-[11.5px] leading-snug">{item.name}</div>
+                          {item.itemDiscount > 0 && (
+                            <div className="text-[10px] font-normal text-slate-700 mt-0.5">Disc: -{(item.rate * item.quantity * item.itemDiscount / 100).toFixed(2)}</div>
+                          )}
+                          {item.returnedQuantity > 0 && (
+                            <div className="text-[9px] font-black text-rose-700 mt-0.5">
+                              [TAKEN BACK: -{formatReceiptQty(item.returnedQuantity)}{mapUnitToShort(item.unit)}]
+                            </div>
+                          )}
+                        </td>
+                        <td className="text-center py-1.5 px-0.5 whitespace-nowrap font-bold text-black tabular-nums">{formatReceiptQty(item.quantity)}</td>
+                        <td className="text-right py-1.5 pl-1 pr-1 whitespace-nowrap font-bold text-black tabular-nums">{itemMrp}</td>
+                        <td className="text-right py-1.5 pl-1 pr-1.5 whitespace-nowrap font-bold text-black tabular-nums">{item.rate.toFixed(2)}</td>
+                        <td className="text-right py-1.5 pl-1 pr-0.5 whitespace-nowrap font-black text-black tabular-nums">{item.amount.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
-            <div className="border-t border-dashed border-black my-1" />
+            <div className="border-t-2 border-dashed border-black my-1.5" />
 
             {/* Sub Total */}
             <div className="flex justify-between text-xs font-extrabold text-black">
               <span>Sub Total</span>
-              <span className="font-black">{norm.summary.subtotal.toFixed(2)}</span>
+              <span className="font-black tabular-nums">{norm.summary.subtotal.toFixed(2)}</span>
             </div>
 
             {norm.summary.discountAmount > 0 && (
               <div className="flex justify-between text-xs font-extrabold text-black">
                 <span>Discount</span>
-                <span className="font-black">-{norm.summary.discountAmount.toFixed(2)}</span>
+                <span className="font-black tabular-nums">-{norm.summary.discountAmount.toFixed(2)}</span>
               </div>
             )}
 
-            <div className="border-t border-dashed border-black my-1" />
+            <div className="border-t-2 border-dashed border-black my-1.5" />
 
             {/* Total Qty & Large Bill Total */}
             <div className="flex justify-between items-baseline pt-0.5 text-black">
               <span className="text-xs font-bold">Total Qty: {formatReceiptQty(norm.totalQuantity)} &nbsp; Amt:</span>
-              <span className="text-xl font-black">{norm.summary.grandTotal.toFixed(2)}</span>
+              <span className="text-xl font-black tabular-nums">{norm.summary.grandTotal.toFixed(2)}</span>
             </div>
 
             {/* Rupees in Words */}
@@ -775,83 +760,83 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
             <div className="space-y-0.5 text-xs pt-1 font-bold text-black">
               <div className="flex justify-between">
                 <span>Tender:</span>
-                <span>{norm.amountPaid.toFixed(2)}</span>
+                <span className="tabular-nums">{norm.amountPaid.toFixed(2)}</span>
               </div>
               {norm.isSplitPayment ? (
                 <>
                   <div className="flex justify-between font-black text-black">
                     <span>Pay Mode: CASH + UPI:</span>
-                    <span>{norm.summary.grandTotal.toFixed(2)}</span>
+                    <span className="tabular-nums">{norm.summary.grandTotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between pl-3 text-[11px] font-semibold text-slate-800">
                     <span>• Cash Paid:</span>
-                    <span>₹{norm.cashAmount.toFixed(2)}</span>
+                    <span className="tabular-nums">₹{norm.cashAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between pl-3 text-[11px] font-semibold text-slate-800">
                     <span>• Online/UPI Paid:</span>
-                    <span>₹{norm.upiAmount.toFixed(2)}</span>
+                    <span className="tabular-nums">₹{norm.upiAmount.toFixed(2)}</span>
                   </div>
                 </>
               ) : (
                 <div className="flex justify-between">
                   <span>Pay Mode: {norm.paymentMode.toUpperCase()}:</span>
-                  <span>{norm.summary.grandTotal.toFixed(2)}</span>
+                  <span className="tabular-nums">{norm.summary.grandTotal.toFixed(2)}</span>
                 </div>
               )}
               {norm.changeDue > 0 && (
                 <div className="flex justify-between">
                   <span>Change:</span>
-                  <span className="font-black">{norm.changeDue.toFixed(2)}</span>
+                  <span className="font-black tabular-nums">{norm.changeDue.toFixed(2)}</span>
                 </div>
               )}
               {norm.balanceDue > 0 && (
                 <div className="flex justify-between">
                   <span>Balance Due:</span>
-                  <span className="font-black">{norm.balanceDue.toFixed(2)}</span>
+                  <span className="font-black tabular-nums">{norm.balanceDue.toFixed(2)}</span>
                 </div>
               )}
             </div>
 
             {norm.hasReturns && (
               <>
-                <div className="border-t border-dashed border-black my-1" />
+                <div className="border-t-2 border-dashed border-black my-1.5" />
                 <div className="flex justify-between text-xs font-black text-rose-700">
                   <span>RETURNED / REFUNDED:</span>
-                  <span>-{norm.totalRefunded.toFixed(2)}</span>
+                  <span className="tabular-nums">-{norm.totalRefunded.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-black">
                   <span>ADJUSTED NET TOTAL:</span>
-                  <span>{norm.netTotalAfterReturns.toFixed(2)}</span>
+                  <span className="tabular-nums">{norm.netTotalAfterReturns.toFixed(2)}</span>
                 </div>
               </>
             )}
 
-            <div className="border-t border-dashed border-black my-1" />
+            <div className="border-t-2 border-dashed border-black my-1.5" />
 
             {/* Net Value */}
             <div className="flex justify-between text-sm font-black text-black">
               <span>Net Value</span>
-              <span>{(norm.hasReturns ? norm.netTotalAfterReturns : norm.summary.grandTotal).toFixed(2)}</span>
+              <span className="tabular-nums">{(norm.hasReturns ? norm.netTotalAfterReturns : norm.summary.grandTotal).toFixed(2)}</span>
             </div>
 
             {norm.allProductsHaveMrp && norm.mrpSavings > 0 && (
               <>
-                <div className="border-t border-dashed border-black my-1" />
+                <div className="border-t-2 border-dashed border-black my-1.5" />
                 <div className="flex justify-between text-xs font-bold text-black">
                   <span>Total MRP Value:</span>
-                  <span className="font-black">₹{norm.totalMrpAmount.toFixed(2)}</span>
+                  <span className="font-black tabular-nums">₹{norm.totalMrpAmount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-black text-black">
                   <span>Total Savings on MRP:</span>
-                  <span className="font-black">₹{norm.mrpSavings.toFixed(2)} ({((norm.mrpSavings / norm.totalMrpAmount) * 100).toFixed(1)}%)</span>
+                  <span className="font-black tabular-nums">₹{norm.mrpSavings.toFixed(2)} ({((norm.mrpSavings / norm.totalMrpAmount) * 100).toFixed(1)}%)</span>
                 </div>
-                <div className="text-center font-black text-xs py-1 border border-dashed border-black my-1">
+                <div className="text-center font-black text-xs py-1 border-2 border-dashed border-black my-1">
                   *** YOU SAVED ₹{norm.mrpSavings.toFixed(2)} ON MRP! ***
                 </div>
               </>
             )}
 
-            <div className="border-t border-dashed border-black my-1" />
+            <div className="border-t-2 border-dashed border-black my-1.5" />
 
             {/* Footer */}
             <div className="text-center pt-1 space-y-0.5 text-black">
@@ -1024,11 +1009,10 @@ export function ReprintDrawer({ onClose, onSelectBill }) {
                 key={tab.id}
                 type="button"
                 onClick={() => setFilterMode(tab.id)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all whitespace-nowrap cursor-pointer ${
-                  filterMode === tab.id
-                    ? 'bg-indigo-500 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-700/60'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all whitespace-nowrap cursor-pointer ${filterMode === tab.id
+                  ? 'bg-indigo-500 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-700/60'
+                  }`}
               >
                 {tab.label}
               </button>
@@ -1074,15 +1058,14 @@ export function ReprintDrawer({ onClose, onSelectBill }) {
                       <span className="font-mono font-bold text-slate-100 text-sm group-hover:text-indigo-400 transition-colors">
                         {bill.billNumber}
                       </span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        (bill.paymentMode || '').toLowerCase() === 'cash'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : (bill.paymentMode || '').toLowerCase() === 'upi'
-                            ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
-                            : (bill.paymentMode || '').toLowerCase() === 'cash_upi' || (bill.paymentMode || '').toLowerCase() === 'cash+upi'
-                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${(bill.paymentMode || '').toLowerCase() === 'cash'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : (bill.paymentMode || '').toLowerCase() === 'upi'
+                          ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
+                          : (bill.paymentMode || '').toLowerCase() === 'cash_upi' || (bill.paymentMode || '').toLowerCase() === 'cash+upi'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                        }`}>
                         {(bill.paymentMode || '').toLowerCase() === 'cash_upi' ? 'Cash + UPI' : (bill.paymentMode || 'CASH')}
                       </span>
                       {bill.hasReturns && (

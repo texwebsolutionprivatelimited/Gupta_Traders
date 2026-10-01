@@ -75,7 +75,7 @@ export default function InventoryPage() {
     setProducts(sorted)
     setLogs(movements.map(x=>({id:x.id,productId:x.product_id,productName:x.product?.name,type:x.movement_type,adjustment:x.quantity_delta,newStock:x.quantity_after,reason:x.reason,operator:'Authenticated user',timestamp:x.created_at})))
     setCategories(cats.map(c=>({id:c.slug,name:c.name})))
-    setSummary({totalCostValue:all.reduce((n,p)=>n+p.currentStock*p.purchasePrice,0),totalRetailValue:all.reduce((n,p)=>n+p.currentStock*(p.rate??p.sellingPrice??0),0),totalItems:all.reduce((n,p)=>n+p.currentStock,0),lowStockCount:all.filter(p=>p.currentStock>0&&p.currentStock<=p.minStock).length,outOfStockCount:all.filter(p=>p.currentStock<=0).length})
+    setSummary({totalCostValue:all.reduce((n,p)=>n+p.currentStock*p.purchasePrice,0),totalRetailValue:all.reduce((n,p)=>n+p.currentStock*(p.rate??p.sellingPrice??0),0),totalItems:all.reduce((n,p)=>n+p.currentStock,0),lowStockCount:all.filter(p=>p.currentStock>0&&p.currentStock<=p.minStock).length,outOfStockCount:all.filter(p=>p.currentStock<=0).length,missingMrpCount:all.filter(p=>!p.mrp||Number(p.mrp)<=0).length})
     } catch(error){setToast({message:error.message,type:'error'})}
   }
 
@@ -211,6 +211,44 @@ export default function InventoryPage() {
         />
       </div>
 
+      {/* Missing MRP Warning Banner */}
+      {summary.missingMrpCount > 0 && (
+        <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fadeIn shadow-lg shadow-amber-500/5">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-xl font-bold shrink-0">
+              ⚠️
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-amber-300">
+                  {summary.missingMrpCount === 1 ? '1 Inventory product has missing MRP' : `${summary.missingMrpCount} Inventory products have missing MRP`}
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Action Required
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                MRP is missing for these items. Please add the MRP to keep Products, Inventory, and Receipts synchronized.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const missing = products.filter(p => !p.mrp || Number(p.mrp) <= 0)
+              window.dispatchEvent(
+                new CustomEvent('erp:open_missing_mrp_modal', {
+                  detail: { products: missing },
+                })
+              )
+            }}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto flex items-center gap-1.5"
+          >
+            <span>Review & Add MRP</span>
+            <span>→</span>
+          </button>
+        </div>
+      )}
+
       {/* ─── TAB CONTENT: STOCK MANAGEMENT ─── */}
       {activeTab === 'stock' && (
         <div className="space-y-4">
@@ -299,6 +337,7 @@ export default function InventoryPage() {
                         <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">SKU / Code</th>
                         <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
                         <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Cost Price</th>
+                        <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">MRP</th>
                         <th className="text-right py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Rate (Our Price)</th>
                         <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Stock Alert Level</th>
                         <th className="text-center py-3 px-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Stock Quantity</th>
@@ -335,6 +374,20 @@ export default function InventoryPage() {
                             {/* Cost Price */}
                             <td className="py-3.5 px-4 text-right text-xs font-medium text-slate-400">
                               {formatINR(product.purchasePrice || 0)}
+                            </td>
+                            {/* MRP */}
+                            <td className="py-3.5 px-4 text-right text-xs">
+                              {product.mrp && Number(product.mrp) > 0 ? (
+                                <span className="font-semibold text-slate-300">{formatINR(product.mrp)}</span>
+                              ) : (
+                                <button
+                                  onClick={() => window.dispatchEvent(new CustomEvent('erp:open_missing_mrp_modal', { detail: { product } }))}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-all cursor-pointer"
+                                  title="MRP is missing. Click to add MRP"
+                                >
+                                  ⚠️ Missing
+                                </button>
+                              )}
                             </td>
                             {/* Selling Price */}
                             <td className="py-3.5 px-4 text-right text-xs font-bold text-slate-200">
@@ -407,6 +460,21 @@ export default function InventoryPage() {
                           <span className="text-[10px] font-mono text-slate-400 bg-slate-900 border border-slate-700/40 px-1.5 py-0.5 rounded">
                             {product.sku || product.productCode}
                           </span>
+                        </div>
+
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500">MRP:</span>
+                          {product.mrp && Number(product.mrp) > 0 ? (
+                            <span className="font-semibold text-slate-300">{formatINR(product.mrp)}</span>
+                          ) : (
+                            <button
+                              onClick={() => window.dispatchEvent(new CustomEvent('erp:open_missing_mrp_modal', { detail: { product } }))}
+                              className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                              title="MRP is missing. Click to add MRP"
+                            >
+                              ⚠️ Add MRP
+                            </button>
+                          )}
                         </div>
 
                         <div className="flex justify-between items-center text-xs">

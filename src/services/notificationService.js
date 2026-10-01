@@ -654,3 +654,26 @@ export function setupRealtimeNotificationSubscriptions() {
     channels.forEach(ch => supabase.removeChannel(ch));
   };
 }
+
+/**
+ * Build notification for missing MRP alert
+ */
+export function buildMissingMrpNotification({ count, productNames = [], firstProductId = null }) {
+  const namesStr = productNames.slice(0, 3).join(', ') + (productNames.length > 3 ? ` and ${productNames.length - 3} more` : '');
+  const isSingle = count === 1;
+  const targetUrl = firstProductId ? `/products?productId=${firstProductId}&action=edit-mrp` : '/products';
+
+  return {
+    id: `missing_mrp-${count}-${productNames.slice(0, 2).join('-')}`,
+    dedupKey: `missing_mrp-${count}-${productNames.slice(0, 2).join('-')}`,
+    title: '⚠️ Missing MRP Alert',
+    message: isSingle
+      ? `MRP is missing for "${namesStr}". Please add the MRP to continue.`
+      : `MRP is missing for ${count} products (${namesStr}). Please add MRPs to continue.`,
+    type: 'missing_mrp',
+    targetUrl,
+    recordId: firstProductId ? String(firstProductId) : 'missing_mrp',
+    createdAt: new Date().toISOString(),
+    meta: { count, productNames },
+  };
+}

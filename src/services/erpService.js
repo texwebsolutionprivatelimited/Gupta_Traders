@@ -351,6 +351,47 @@ export async function adjustStock(productId, delta, type = 'adjustment', reason 
   invalidateCache('products');
   return data
 }
+
+export function isProductMissingMrp(product) {
+  if (!product) return false;
+  const raw = product.mrp !== undefined && product.mrp !== null && product.mrp !== ''
+    ? product.mrp
+    : (product.metadata?.mrp !== undefined && product.metadata?.mrp !== null ? product.metadata.mrp : null);
+  if (raw === undefined || raw === null || raw === '') return true;
+  const num = Number(raw);
+  return isNaN(num) || num <= 0;
+}
+
+export async function updateProductMRP(productId, mrp) {
+  const cleanMrp = mrp !== null && mrp !== undefined && mrp !== '' && !isNaN(Number(mrp)) && Number(mrp) > 0 ? Number(mrp) : null;
+  // Fetch existing product to preserve existing metadata
+  const { data: current, error: getErr } = await supabase.from('products').select('metadata').eq('id', productId).single();
+  fail(getErr, 'Product not found');
+  const existingMeta = (current?.metadata && typeof current.metadata === 'object') ? { ...current.metadata } : {};
+  if (cleanMrp !== null) {
+    existingMeta.mrp = cleanMrp;
+  } else {
+    delete existingMeta.mrp;
+  }
+
+  // Update metadata.mrp and optionally column mrp if it exists in DB schema
+  let updateData = { metadata: existingMeta, mrp: cleanMrp };
+  let { data: refetched, error } = await supabase.from('products').update(updateData).eq('id', productId).select(productSelect).single();
+  if (error && (error.message?.includes('column "mrp"') || error.code === '42703')) {
+    delete updateData.mrp;
+    const retry = await supabase.from('products').update(updateData).eq('id', productId).select(productSelect).single();
+    fail(retry.error, 'Unable to update MRP');
+    refetched = retry.data;
+  } else if (error) {
+    fail(error, 'Unable to update MRP');
+  }
+
+  invalidateCache('products');
+  const uiProduct = productToUI(refetched);
+  window.dispatchEvent(new CustomEvent('erp:mrp_updated', { detail: { productId, mrp: cleanMrp, product: uiProduct } }));
+  window.dispatchEvent(new CustomEvent('erp:inventory_change', { detail: { productId } }));
+  return uiProduct;
+}
 export async function listInventoryMovements() { const { data, error } = await supabase.from('stock_movements').select('*, product:products(name,sku,barcode)').order('created_at', { ascending: false }).limit(1000); fail(error, 'Unable to load inventory ledger'); return data }
 export async function setMinimumStock(productId, minimum) { const { data, error } = await supabase.from('products').update({ minimum_stock: Number(minimum) }).eq('id', productId).select().single(); fail(error, 'Unable to update minimum stock'); invalidateCache('products'); return data }
 export async function completeSale(sale, items) {

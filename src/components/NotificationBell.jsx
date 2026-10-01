@@ -192,6 +192,14 @@ export default function NotificationBell() {
           badgeColor: 'text-pink-700 dark:text-pink-300 bg-pink-50 dark:bg-pink-950/60 border-pink-200 dark:border-pink-800',
           actionText: 'View Expense Record'
         };
+      case 'missing_mrp':
+        return {
+          icon: <FaTag className="w-3.5 h-3.5 text-amber-500" />,
+          bg: 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60',
+          badgeText: 'Missing MRP',
+          badgeColor: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
+          actionText: 'Add Product MRP'
+        };
       default:
         return {
           icon: <FaBell className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />,

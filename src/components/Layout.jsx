@@ -24,8 +24,6 @@ import {
   FaDownload,
   FaFilePdf,
   FaFileExcel,
-  FaBell,
-  FaUndoAlt,
 } from 'react-icons/fa'
 import NotificationBell from './NotificationBell'
 
@@ -1656,6 +1654,15 @@ export default function Layout() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark')
   }
 
+  const [missingMrpCount, setMissingMrpCount] = useState(0)
+  useEffect(() => {
+    const handleCountChange = (e) => {
+      setMissingMrpCount(e.detail?.count || 0)
+    }
+    window.addEventListener('erp:missing_mrp_count_changed', handleCountChange)
+    return () => window.removeEventListener('erp:missing_mrp_count_changed', handleCountChange)
+  }, [])
+
   return (
     <div className="h-screen h-[100dvh] bg-slate-950 text-slate-100 flex overflow-hidden">
       {/* ─── Mobile Overlay ────────────────────────────────── */}
@@ -1950,6 +1957,19 @@ export default function Layout() {
                 </div>
               )}
             </div>
+            )}
+
+            {/* Missing MRP Alert Header Indicator */}
+            {missingMrpCount > 0 && (
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('erp:open_missing_mrp_modal'))}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 text-xs font-bold transition-all cursor-pointer shadow-sm shadow-amber-500/5 animate-pulse"
+                title={`${missingMrpCount} products missing MRP. Click to review.`}
+              >
+                <span>⚠️</span>
+                <span className="hidden sm:inline">{missingMrpCount} Missing MRP</span>
+                <span className="sm:hidden">{missingMrpCount}</span>
+              </button>
             )}
 
             {/* Notification Bell */}

@@ -36,7 +36,7 @@ export default function Cart({ items, onUpdateQuantity, onUpdateDiscount, onRemo
         </div>
         <button
           onClick={onClearCart}
-          className="text-xs font-medium text-rose-400 hover:text-rose-300 px-2 py-1 rounded-lg hover:bg-rose-500/10 transition-all"
+          className="text-xs font-medium text-rose-400 hover:text-rose-300 px-2 py-1 rounded-lg hover:bg-rose-500/10 transition-all cursor-pointer"
           title="Clear all items"
         >
           Clear All
@@ -48,6 +48,7 @@ export default function Cart({ items, onUpdateQuantity, onUpdateDiscount, onRemo
         {items.map((item, index) => {
           const isLoose = item.isLoose || item.unit === 'kg' || item.unit === 'g' || item.unit === 'ltr'
           const isCustom = item.isCustomItem || String(item.id || '').startsWith('loose-')
+          const isMissingMrp = !isCustom && (!item.mrp || Number(item.mrp) <= 0)
 
           return (
             <div
@@ -65,15 +66,35 @@ export default function Cart({ items, onUpdateQuantity, onUpdateDiscount, onRemo
                         CUSTOM
                       </span>
                     )}
+                    {isMissingMrp && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          window.dispatchEvent(
+                            new CustomEvent('erp:open_missing_mrp_modal', {
+                              detail: { product: item, isBillingContext: true, source: 'billing' },
+                            })
+                          )
+                        }}
+                        className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-all cursor-pointer"
+                        title="MRP is missing for this product. Click to add MRP"
+                      >
+                        ⚠️ Missing MRP
+                      </button>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                    <span className="font-semibold text-emerald-400">Rate: {formatINR(item.rate ?? item.price)}</span>{item.mrp && Number(item.mrp) > Number(item.rate ?? item.price) ? <span className="text-[10px] text-slate-500 line-through">MRP: {formatINR(item.mrp)}</span> : null}<span>× {item.quantity} {item.unit || 'Pcs'}</span>
+                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 flex-wrap">
+                    <span className="font-semibold text-emerald-400">Rate: {formatINR(item.rate ?? item.price)}</span>
+                    {item.mrp && Number(item.mrp) > Number(item.rate ?? item.price) ? (
+                      <span className="text-[10px] text-slate-500 line-through">MRP: {formatINR(item.mrp)}</span>
+                    ) : null}
+                    <span>× {item.quantity} {item.unit || 'Pcs'}</span>
                     {isLoose && <ScaleIcon className="w-3.5 h-3.5 text-violet-400" title="Loose Item" />}
                   </p>
                 </div>
                 <button
                   onClick={() => onRemoveItem(item.cartId)}
-                  className="p-1 rounded-lg text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                  className="p-1 rounded-lg text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 cursor-pointer"
                   title="Remove item"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -93,7 +114,7 @@ export default function Cart({ items, onUpdateQuantity, onUpdateDiscount, onRemo
                       const nextQty = Math.max(minVal, Number((item.quantity - step).toFixed(3)))
                       onUpdateQuantity(item.cartId, nextQty)
                     }}
-                    className="w-8 h-8 flex items-center justify-center bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white transition-all text-lg font-bold select-none"
+                    className="w-8 h-8 flex items-center justify-center bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white transition-all text-lg font-bold select-none cursor-pointer"
                   >
                     −
                   </button>
@@ -114,7 +135,7 @@ export default function Cart({ items, onUpdateQuantity, onUpdateDiscount, onRemo
                       const nextQty = Number((item.quantity + step).toFixed(3))
                       onUpdateQuantity(item.cartId, nextQty)
                     }}
-                    className="w-8 h-8 flex items-center justify-center bg-slate-800/80 text-slate-300 hover:bg-emerald-600 hover:text-white transition-all text-lg font-bold select-none"
+                    className="w-8 h-8 flex items-center justify-center bg-slate-800/80 text-slate-300 hover:bg-emerald-600 hover:text-white transition-all text-lg font-bold select-none cursor-pointer"
                   >
                     +
                   </button>
@@ -148,7 +169,7 @@ export default function Cart({ items, onUpdateQuantity, onUpdateDiscount, onRemo
                   ) : (
                     <button
                       onClick={() => setEditingDiscount(item.cartId)}
-                      className={`text-[10px] font-medium px-1.5 py-0.5 rounded transition-all ${
+                      className={`text-[10px] font-medium px-1.5 py-0.5 rounded transition-all cursor-pointer ${
                         item.itemDiscount > 0
                           ? 'bg-amber-500/15 text-amber-400 border border-amber-500/25'
                           : 'text-slate-600 hover:text-slate-400 hover:bg-slate-800/40'

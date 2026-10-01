@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
-  formatINR, unitOptions, gstOptions, generateNextSKU, generateNextProductCode,
+  formatINR, unitOptions, generateNextSKU, generateNextProductCode,
 } from '../../utils/erp'
 import { createProduct, listCategories, listUIProducts, removeProduct, subscribeToTable, updateProduct as updateRemoteProduct } from '../../services/erpService'
 import { isProductInCategory } from '../Categories/CategoriesPage'
@@ -161,7 +161,7 @@ function DeleteConfirmModal({ product, onConfirm, onCancel }) {
 }
 
 // ─── Form field renderer (simple, big, clear) ──────────
-const Field = ({ label, field, type: inputType = 'text', placeholder, required, prefix, options, disabled, helpText }) => {
+const Field = ({ label, field, type: inputType = 'text', placeholder, required, prefix, options, disabled, helpText, autoFocus }) => {
   const context = useContext(FormContext)
   if (!context) return null
   const { form, errors, handleChange, handleBlur } = context
@@ -214,6 +214,7 @@ const Field = ({ label, field, type: inputType = 'text', placeholder, required, 
             }}
             placeholder={placeholder}
             disabled={disabled}
+            autoFocus={autoFocus}
             className={`
               w-full py-3 rounded-xl text-sm font-medium
               bg-slate-800/80 border text-slate-200
@@ -235,7 +236,7 @@ const Field = ({ label, field, type: inputType = 'text', placeholder, required, 
 }
 
 // PRODUCT FORM MODAL (shared for Packaged & Loose)
-function ProductFormModal({ product, type, categories, onSave, onClose }) {
+function ProductFormModal({ product, type, categories, onSave, onClose, autoFocusMrp = false }) {
   const isEditing = !!product
   const formRef = useRef(null)
 
@@ -473,12 +474,13 @@ function ProductFormModal({ product, type, categories, onSave, onClose }) {
                 helpText="Actual cost paid to purchase"
               />
               <Field
-                label="2. MRP (Optional)"
+                label="2. Maximum Retail Price (MRP)"
                 field="mrp"
                 type="number"
-                placeholder="Optional"
+                placeholder="0.00"
                 prefix="₹"
-                helpText="Maximum Retail Price (leave blank if not applicable)"
+                autoFocus={autoFocusMrp}
+                helpText="Required for MRP receipt savings & sync (Rate ≤ MRP)"
               />
               <Field
                 label="3. Rate (Our Price)"
@@ -634,7 +636,17 @@ function ProductCard({ product, type, onEdit, onDelete }) {
         </div>
         <div>
           <p className="text-[10px] text-slate-500 font-medium mb-0.5">MRP</p>
-          <p className="text-xs font-bold text-slate-400 opacity-80">{product.mrp && Number(product.mrp) > 0 ? formatINR(product.mrp) : '—'}</p>
+          {product.mrp && Number(product.mrp) > 0 ? (
+            <p className="text-xs font-bold text-slate-300">{formatINR(product.mrp)}</p>
+          ) : (
+            <button
+              onClick={() => onEdit(product)}
+              className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer"
+              title="MRP is missing. Click to add MRP"
+            >
+              ⚠️ Add MRP
+            </button>
+          )}
         </div>
         <div>
           <p className="text-[10px] text-slate-500 font-medium mb-0.5">Rate</p>
@@ -730,9 +742,17 @@ function ProductTable({ products, type, onEdit, onDelete }) {
                     <span className="text-sm font-medium text-slate-300">{formatINR(product.purchasePrice)}</span>
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <span className="text-sm font-medium text-slate-400 opacity-80">
-                      {product.mrp && Number(product.mrp) > 0 ? formatINR(product.mrp) : '—'}
-                    </span>
+                    {product.mrp && Number(product.mrp) > 0 ? (
+                      <span className="text-sm font-medium text-slate-300">{formatINR(product.mrp)}</span>
+                    ) : (
+                      <button
+                        onClick={() => handleEdit(product)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-all cursor-pointer"
+                        title="MRP is missing. Click to add MRP"
+                      >
+                        ⚠️ Add MRP
+                      </button>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-right">
                     <span className="text-sm font-bold text-emerald-400">{formatINR(product.rate || product.sellingPrice)}</span>
@@ -822,15 +842,18 @@ export default function ProductsPage() {
   // Auto-open product modal when navigated from notification with ?productId=...
   useEffect(() => {
     const targetProdId = searchParams.get('productId');
-    if (targetProdId && products.length > 0) {
-      const match = products.find(p => String(p.id) === String(targetProdId));
+    if (targetProdId && (allProducts.length > 0 || products.length > 0)) {
+      const match = allProducts.find(p => String(p.id) === String(targetProdId)) || products.find(p => String(p.id) === String(targetProdId));
       if (match) {
+        if (match.type && match.type !== activeTab) {
+          setActiveTab(match.type);
+        }
         setEditingProduct(match);
         setFormType(match.type || 'packaged');
         setShowForm(true);
       }
     }
-  }, [searchParams, products]);
+  }, [searchParams, allProducts, products, activeTab]);
 
   const handleSearchChange = (val) => {
     setSearchQuery(val)
@@ -950,6 +973,8 @@ export default function ProductsPage() {
   const allLoose = allProducts.filter(p=>p.type==='loose')
   const totalProducts = allPackaged.length + allLoose.length
   const lowStockCount = allProducts.filter(p => p.currentStock <= (p.minStock || 10)).length
+  const missingMrpProducts = allProducts.filter(p => !p.mrp || Number(p.mrp) <= 0)
+  const missingMrpCount = missingMrpProducts.length
 
   return (
     <div className="px-3 sm:px-6 py-4 sm:py-6 lg:p-8 max-w-[1400px] mx-auto">
@@ -961,6 +986,43 @@ export default function ProductsPage() {
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+
+      {/* ── Missing MRP Alert Banner ──────────────── */}
+      {missingMrpCount > 0 && (
+        <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fadeIn shadow-lg shadow-amber-500/5">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-xl font-bold shrink-0">
+              ⚠️
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-amber-300">
+                  {missingMrpCount === 1 ? '1 Product has missing MRP' : `${missingMrpCount} Products have missing MRP`}
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Action Required
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                MRP is missing for these products. Please add the MRP to continue price synchronization.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent('erp:open_missing_mrp_modal', {
+                  detail: { products: missingMrpProducts },
+                })
+              )
+            }}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto flex items-center gap-1.5"
+          >
+            <span>Review & Add MRP</span>
+            <span>→</span>
+          </button>
+        </div>
       )}
 
       {/* ── Page Header ───────────────────────────── */}
@@ -1286,7 +1348,17 @@ export default function ProductsPage() {
           type={formType}
           categories={categories}
           onSave={handleSave}
-          onClose={() => { setShowForm(false); setEditingProduct(null) }}
+          autoFocusMrp={searchParams.get('action') === 'edit-mrp'}
+          onClose={() => {
+            setShowForm(false)
+            setEditingProduct(null)
+            if (searchParams.get('productId') || searchParams.get('action')) {
+              const p = new URLSearchParams(searchParams)
+              p.delete('productId')
+              p.delete('action')
+              setSearchParams(p)
+            }
+          }}
         />
       )}
 

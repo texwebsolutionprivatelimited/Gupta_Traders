@@ -88,6 +88,28 @@ export default function POSBilling() {
     load()
     return subscribeToTable('products', load)
   }, [])
+
+  // Keep cart items and product index synchronized in real time when MRP is updated
+  useEffect(() => {
+    const handleMrpUpdated = (e) => {
+      const { productId, mrp } = e.detail || {}
+      if (!productId) return
+      setProductIndex(prev => prev.map(p => {
+        if (String(p.supabase_id || p.id) === String(productId)) {
+          return { ...p, mrp: mrp ? Number(mrp) : null }
+        }
+        return p
+      }))
+      setCart(prev => prev.map(item => {
+        if (String(item.supabase_id || item.id) === String(productId)) {
+          return { ...item, mrp: mrp ? Number(mrp) : null }
+        }
+        return item
+      }))
+    }
+    window.addEventListener('erp:mrp_updated', handleMrpUpdated)
+    return () => window.removeEventListener('erp:mrp_updated', handleMrpUpdated)
+  }, [])
   useEffect(()=>{listUICustomers().then(setCustomerIndex).catch(console.error)},[])
   const [billDiscount, setBillDiscount] = useState(0)
   const [isGSTInclusive, setIsGSTInclusive] = useState(true)
@@ -200,6 +222,33 @@ export default function POSBilling() {
 
   // ─── Complete Sale ──────────────────────────────────────────
   const completeSale = useCallback(async (paymentMode, amountPaid, splitDetails = null) => {
+    // Detect if any items in cart are missing MRP
+    const missingMrpItems = cart.filter(x => {
+      const isCustom = x.isCustomItem || String(x.id || '').startsWith('loose-')
+      if (isCustom) return false
+      return x.mrp === null || x.mrp === undefined || x.mrp === '' || isNaN(Number(x.mrp)) || Number(x.mrp) <= 0
+    })
+
+    if (missingMrpItems.length > 0 && !window._erp_skip_mrp_check_once) {
+      window.dispatchEvent(
+        new CustomEvent('erp:open_missing_mrp_modal', {
+          detail: {
+            products: missingMrpItems,
+            isBillingContext: true,
+            source: 'billing',
+            onProceedAnyway: () => {
+              window._erp_skip_mrp_check_once = true
+              completeSale(paymentMode, amountPaid, splitDetails).finally(() => {
+                window._erp_skip_mrp_check_once = false
+              })
+            },
+          },
+        })
+      )
+      return
+    }
+    window._erp_skip_mrp_check_once = false
+
     const summary = calculateBillSummary(cart, billDiscount, isGSTInclusive)
     const userProfile = (() => {
       try { return JSON.parse(localStorage.getItem('user_profile') || '{}') } catch { return {} }

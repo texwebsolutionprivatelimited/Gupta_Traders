@@ -11,6 +11,7 @@ import SuppliersPage from './pages/Suppliers'
 import LoginPage from './pages/login'
 import TrashPage from './pages/Trash'
 import PackagedProductScanner from './pages/Products/PackagedProductScanner'
+import MissingMrpAlertManager from './alert/MissingMrpAlertManager'
 
 // Context Providers
 import { ExpenseProvider } from './context/ExpenseContext'
@@ -100,7 +101,7 @@ function App() {
         } else {
           document.documentElement.classList.remove('light');
         }
-      } catch (e) {}
+      } catch (e) { }
     };
 
     applyTheme();
@@ -122,25 +123,25 @@ function App() {
       const lowerName = devName.toLowerCase();
 
       // Check if it's a USB Printer
-      const isUsbPrinter = (dev.vendorId === 0x03f0 && dev.productId === 0x0117) || 
-                          lowerName.includes("usb printer") || 
-                          lowerName.includes("laserjet") ||
-                          lowerName.includes("inkjet");
-      
+      const isUsbPrinter = (dev.vendorId === 0x03f0 && dev.productId === 0x0117) ||
+        lowerName.includes("usb printer") ||
+        lowerName.includes("laserjet") ||
+        lowerName.includes("inkjet");
+
       // Check if it's a Thermal Printer
-      const isThermal = (dev.vendorId === 0x0fe6 && dev.productId === 0x811e) || 
-                        (dev.vendorId === 0x04b8 && dev.productId === 0x0202) || 
-                        lowerName.includes("thermal") || 
-                        lowerName.includes("receipt printer") ||
-                        lowerName.includes("epson") || 
-                        lowerName.includes("pos-58") || 
-                        lowerName.includes("pos-80");
+      const isThermal = (dev.vendorId === 0x0fe6 && dev.productId === 0x811e) ||
+        (dev.vendorId === 0x04b8 && dev.productId === 0x0202) ||
+        lowerName.includes("thermal") ||
+        lowerName.includes("receipt printer") ||
+        lowerName.includes("epson") ||
+        lowerName.includes("pos-58") ||
+        lowerName.includes("pos-80");
 
       // Check if it's a Barcode Scanner
-      const isScanner = (dev.vendorId === 0x05f9 && dev.productId === 0x2201) || 
-                        lowerName.includes("scanner") || 
-                        lowerName.includes("barcode") || 
-                        lowerName.includes("hid scanner");
+      const isScanner = (dev.vendorId === 0x05f9 && dev.productId === 0x2201) ||
+        lowerName.includes("scanner") ||
+        lowerName.includes("barcode") ||
+        lowerName.includes("hid scanner");
 
       if (isUsbPrinter) {
         try {
@@ -201,25 +202,25 @@ function App() {
       const lowerName = devName.toLowerCase();
 
       // Check if it's a USB Printer
-      const isUsbPrinter = (dev.vendorId === 0x03f0 && dev.productId === 0x0117) || 
-                          lowerName.includes("usb printer") || 
-                          lowerName.includes("laserjet") ||
-                          lowerName.includes("inkjet");
-      
+      const isUsbPrinter = (dev.vendorId === 0x03f0 && dev.productId === 0x0117) ||
+        lowerName.includes("usb printer") ||
+        lowerName.includes("laserjet") ||
+        lowerName.includes("inkjet");
+
       // Check if it's a Thermal Printer
-      const isThermal = (dev.vendorId === 0x0fe6 && dev.productId === 0x811e) || 
-                        (dev.vendorId === 0x04b8 && dev.productId === 0x0202) || 
-                        lowerName.includes("thermal") || 
-                        lowerName.includes("receipt printer") ||
-                        lowerName.includes("epson") || 
-                        lowerName.includes("pos-58") || 
-                        lowerName.includes("pos-80");
+      const isThermal = (dev.vendorId === 0x0fe6 && dev.productId === 0x811e) ||
+        (dev.vendorId === 0x04b8 && dev.productId === 0x0202) ||
+        lowerName.includes("thermal") ||
+        lowerName.includes("receipt printer") ||
+        lowerName.includes("epson") ||
+        lowerName.includes("pos-58") ||
+        lowerName.includes("pos-80");
 
       // Check if it's a Barcode Scanner
-      const isScanner = (dev.vendorId === 0x05f9 && dev.productId === 0x2201) || 
-                        lowerName.includes("scanner") || 
-                        lowerName.includes("barcode") || 
-                        lowerName.includes("hid scanner");
+      const isScanner = (dev.vendorId === 0x05f9 && dev.productId === 0x2201) ||
+        lowerName.includes("scanner") ||
+        lowerName.includes("barcode") ||
+        lowerName.includes("hid scanner");
 
       if (isUsbPrinter) {
         try {
@@ -354,6 +355,7 @@ function App() {
     <ReportProvider>
       <ExpenseProvider>
         <Router>
+          <MissingMrpAlertManager />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 

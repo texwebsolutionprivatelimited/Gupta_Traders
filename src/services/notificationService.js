@@ -629,7 +629,9 @@ export async function syncRecentActivitiesFromDB() {
         }));
       });
 
-    return batchAddNotifications(generated);
+    const result = batchAddNotifications(generated);
+    checkMonthlyBackupReminder();
+    return result;
   } catch (err) {
     console.warn('Failed to sync recent activities from DB:', err);
     return getNotifications();
@@ -676,4 +678,96 @@ export function buildMissingMrpNotification({ count, productNames = [], firstPro
     createdAt: new Date().toISOString(),
     meta: { count, productNames },
   };
+}
+
+/**
+ * Build notification for monthly backup reminder
+ */
+export function buildBackupReminderNotification({ lastBackupDate = null } = {}) {
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  let message = 'No ERP database backup has been created yet. Please create a backup now to keep your business records safe.';
+
+  if (lastBackupDate) {
+    try {
+      const dt = new Date(lastBackupDate);
+      const dateText = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      const daysAgo = Math.max(0, Math.floor((now.getTime() - dt.getTime()) / (1000 * 60 * 60 * 24)));
+      message = `Last ERP backup was performed on ${dateText} (${daysAgo} days ago). Please create a new database backup to secure current records.`;
+    } catch (_) {}
+  }
+
+  return {
+    id: `backup_reminder-${currentMonthKey}`,
+    dedupKey: `backup_reminder-${currentMonthKey}`,
+    title: 'Monthly Backup Reminder',
+    message,
+    type: 'backup_reminder',
+    targetUrl: '/settings/backup',
+    recordId: `backup-${currentMonthKey}`,
+    createdAt: new Date().toISOString(),
+    meta: {
+      lastBackupDate,
+      monthKey: currentMonthKey
+    }
+  };
+}
+
+/**
+ * Check if a monthly backup reminder is needed and add it without duplicates
+ */
+export function checkMonthlyBackupReminder() {
+  try {
+    const rawDate = localStorage.getItem('erp_last_backup_date');
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // If backup was created within the current calendar month AND less than 30 days ago, no reminder
+    if (rawDate) {
+      const lastDate = new Date(rawDate);
+      const backupMonthKey = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, '0')}`;
+      const daysAgo = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
+
+      if (backupMonthKey === currentMonthKey || daysAgo < 30) {
+        return null;
+      }
+    }
+
+    // Deduplication check: do not create duplicate reminder if one already exists for this month
+    const existing = getNotifications();
+    const alreadyReminded = existing.some(
+      n => n.dedupKey === `backup_reminder-${currentMonthKey}` || n.id === `backup_reminder-${currentMonthKey}`
+    );
+    if (alreadyReminded) return null;
+
+    const notif = buildBackupReminderNotification({ lastBackupDate: rawDate });
+    return addNotification(notif);
+  } catch (err) {
+    console.warn('Failed to check monthly backup reminder:', err);
+    return null;
+  }
+}
+
+/**
+ * Clear or dismiss monthly backup reminder once a fresh backup is performed
+ */
+export function clearMonthlyBackupReminder() {
+  try {
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const list = getNotifications();
+    const updated = list.filter(
+      n => n.id !== `backup_reminder-${currentMonthKey}` && n.dedupKey !== `backup_reminder-${currentMonthKey}`
+    );
+
+    if (updated.length !== list.length) {
+      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(updated));
+      window.dispatchEvent(
+        new CustomEvent('erp:notifications_updated', {
+          detail: { notifications: updated }
+        })
+      );
+    }
+  } catch (_) {}
 }

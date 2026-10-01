@@ -16,7 +16,8 @@ import {
   FaMoneyBillWave,
   FaSyncAlt,
   FaArrowRight,
-  FaTag
+  FaTag,
+  FaDatabase
 } from 'react-icons/fa';
 import {
   getNotifications,
@@ -24,7 +25,8 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   clearAllNotifications,
-  syncRecentActivitiesFromDB
+  syncRecentActivitiesFromDB,
+  checkMonthlyBackupReminder
 } from '../services/notificationService';
 
 export default function NotificationBell() {
@@ -45,8 +47,12 @@ export default function NotificationBell() {
 
   useEffect(() => {
     refreshList();
+    checkMonthlyBackupReminder();
     // Run an initial authentic database activity sync on mount
-    syncRecentActivitiesFromDB().then(() => refreshList());
+    syncRecentActivitiesFromDB().then(() => {
+      checkMonthlyBackupReminder();
+      refreshList();
+    });
 
     const handleUpdate = () => refreshList();
     window.addEventListener('erp:notifications_updated', handleUpdate);
@@ -200,6 +206,14 @@ export default function NotificationBell() {
           badgeText: 'Missing MRP',
           badgeColor: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
           actionText: 'Add Product MRP'
+        };
+      case 'backup_reminder':
+        return {
+          icon: <FaDatabase className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />,
+          bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60',
+          badgeText: 'Monthly Backup Reminder',
+          badgeColor: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800',
+          actionText: 'Backup ERP Now'
         };
       default:
         return {

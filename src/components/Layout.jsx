@@ -25,6 +25,7 @@ import {
   FaFileExcel,
 } from 'react-icons/fa'
 import NotificationBell from './NotificationBell'
+import { listCategories, listUICustomers, listUIProducts, listUISales, listUISuppliers } from '../services/erpService'
 
 // Emoji map for category icons fallback
 const emojiToFaMap = {

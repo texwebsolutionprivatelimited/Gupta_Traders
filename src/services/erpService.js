@@ -853,7 +853,7 @@ export async function listSales({ forceRefresh = false } = {}) {
   return getCachedOrFetch('sales', async () => {
     const { data, error } = await supabase
       .from('sales')
-      .select('id,customer_id,invoice_number,sale_date,subtotal,discount,tax,tax_amount,total_amount,paid_amount,due_amount,payment_status,payment_method,payment_reference,notes,metadata,status,created_at,customer:customers(id,name,phone),items:sale_items(id,sale_id,product_id,product_name,sku,unit,quantity,unit_price,selling_price,unit_cost,discount,tax_rate,tax_amount,line_total,total,display_price,metadata,returns:sale_return_items(quantity,total,price),product:products(id,name,unit,selling_price,purchase_price,pack_size)),returns:sales_returns(id,return_number,total_amount,return_date,refund_method,items:sale_return_items(quantity,line_total,product_id,product:products(id,name,unit,sku,pack_size)))')
+      .select('id,customer_id,invoice_number,sale_date,subtotal,discount,tax,tax_amount,total_amount,paid_amount,due_amount,payment_status,payment_method,payment_reference,notes,metadata,status,created_at,customer:customers(id,name,phone),items:sale_items(id,sale_id,product_id,product_name,sku,unit,quantity,unit_price,selling_price,unit_cost,discount,tax_rate,tax_amount,line_total,total,metadata,returns:sale_return_items(quantity,total,price),product:products(id,name,unit,selling_price,purchase_price,pack_size)),returns:sales_returns(id,return_number,total_amount,return_date,refund_method,items:sale_return_items(quantity,line_total,product_id,product:products(id,name,unit,sku,pack_size)))')
       .order('sale_date', { ascending: false })
       .limit(150);
     fail(error, 'Unable to load sales');

@@ -1486,18 +1486,36 @@ export function getStoredBusinessSettings() {
     const raw = localStorage.getItem('businessSettings');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') return parsed;
+      if (parsed && typeof parsed === 'object') {
+        const addr = parsed.shop?.address || '';
+        // If address was missing or set to Lucknow, restore authentic Balaji Nagar address
+        if (!addr || addr.toLowerCase().includes('lucknow')) {
+          parsed.shop = {
+            ...parsed.shop,
+            shopName: 'GUPTA TRADERS & SUPERSTORE',
+            address: 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
+            city: 'Bhopal',
+            state: 'Madhya Pradesh',
+            pincode: '462022'
+          };
+          localStorage.setItem('businessSettings', JSON.stringify(parsed));
+        }
+        return parsed;
+      }
     }
   } catch (e) { }
   return {
     shop: {
-      shopName: 'Gupta Trader & Superstore',
+      shopName: 'GUPTA TRADERS & SUPERSTORE',
       address: 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
+      city: 'Bhopal',
+      state: 'Madhya Pradesh',
+      pincode: '462022',
       phone: '',
       email: ''
     },
     gst: {
-      gstin: ''
+      gstin: '09XXXXXXXXXXXXXXX'
     },
     invoice: {
       prefix: 'INV-',
@@ -1511,16 +1529,24 @@ export function getStoredBusinessSettings() {
 export async function getBusinessSettings() {
   const { data, error } = await supabase.from('settings').select('*').order('created_at').limit(1).single();
   fail(error, 'Unable to load settings');
+  const rawAddress = data.shop_address || data.address;
+  const safeAddress = (!rawAddress || rawAddress.toLowerCase().includes('lucknow'))
+    ? 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)'
+    : rawAddress;
+
   const res = {
     ...data,
     shop: {
-      shopName: data.shop_name || 'Gupta Trader & Superstore',
-      address: data.shop_address || data.address || 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
+      shopName: data.shop_name || 'GUPTA TRADERS & SUPERSTORE',
+      address: safeAddress,
+      city: data.city || 'Bhopal',
+      state: data.state || 'Madhya Pradesh',
+      pincode: data.pincode || '462022',
       phone: data.phone || '',
       email: data.email || ''
     },
     gst: {
-      gstin: data.gst_number || ''
+      gstin: data.gst_number || '09XXXXXXXXXXXXXXX'
     },
     invoice: {
       prefix: data.invoice_prefix || 'INV-',

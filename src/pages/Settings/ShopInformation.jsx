@@ -3,14 +3,14 @@ import { Store, Save, ArrowLeft } from "lucide-react";
 import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 
 const defaultData = {
-  shopName: "Gupta Traders",
+  shopName: "Gupta Traders & Superstore",
   ownerName: "",
   phone: "",
   email: "",
-  address: "Lucknow",
-  city: "Lucknow",
-  state: "Uttar Pradesh",
-  pincode: "226001",
+  address: "Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir",
+  city: "Bhopal",
+  state: "Madhya Pradesh",
+  pincode: "462022",
 };
 
 export default function ShopInformation() {

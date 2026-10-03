@@ -4,7 +4,7 @@ import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 
 const defaultGST = {
   enabled: true,
-  gstin: "",
+  gstin: "09XXXXXXXXXXXXXXX",
   registrationType: "Regular",
   defaultRate: "18",
   cgst: true,
@@ -67,7 +67,7 @@ export default function GSTSettings() {
             label="GSTIN"
             value={form.gstin}
             onChange={(e) => update("gstin", e.target.value)}
-            placeholder="09ABCDE1234F1Z5"
+            placeholder="09XXXXXXXXXXXXXXX"
           />
 
           <SelectField

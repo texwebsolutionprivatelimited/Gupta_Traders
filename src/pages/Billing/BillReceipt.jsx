@@ -48,10 +48,15 @@ export function normalizeBillData(rawBill) {
   if (!rawBill) return null;
 
   const storeSettings = getStoredBusinessSettings();
-  const storeName = storeSettings.shop?.shopName || 'GUPTA TRADER & SUPERSTORE';
-  const storeAddress = rawBill.storeAddress || rawBill.address || storeSettings.shop?.address || storeSettings.address || 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)';
-  const storePhone = rawBill.storePhone || rawBill.phone || storeSettings.shop?.phone || storeSettings.phone || '';
-  const storeGstin = rawBill.storeGstin || rawBill.gstin || storeSettings.gst?.gstin || storeSettings.gstin || '';
+  const storeName = storeSettings.shop?.shopName || 'GUPTA TRADERS & SUPERSTORE';
+  const configuredAddress = storeSettings.shop?.address || storeSettings.address;
+  const storeAddress = (configuredAddress && !configuredAddress.toLowerCase().includes('lucknow'))
+    ? configuredAddress
+    : 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)';
+  const storeAddressLine1 = 'Plot no. 12 Balaji Nagar, Narela Shankari';
+  const storeAddressLine2 = 'Near khedapati Mandir, Bhopal MP(462022)';
+  const storePhone = rawBill.storePhone || storeSettings.shop?.phone || '';
+  const storeGstin = rawBill.storeGstin || storeSettings.gst?.gstin || storeSettings.gstin || '09XXXXXXXXXXXXXXX';
   const returnPolicy = rawBill.returnPolicy || storeSettings.invoice?.footer || storeSettings.receiptFooter || 'Items sold after 10 days will not be returned';
 
   const billNumber = rawBill.billNumber || rawBill.invoice_number || rawBill.invoice || rawBill.billNo || rawBill.id || '—';
@@ -186,6 +191,8 @@ export function normalizeBillData(rawBill) {
     ...rawBill,
     storeName,
     storeAddress,
+    storeAddressLine1,
+    storeAddressLine2,
     storePhone,
     storeGstin,
     returnPolicy,
@@ -397,12 +404,13 @@ export function generateReceiptHtml(bill) {
     </button>
   </div>
 
-  <!-- Store Header: Preserved exactly without shortening or repositioning -->
+  <!-- Store Header: Preserved exactly as Balaji Nagar Bhopal -->
   <div class="center">
     <div class="store-title">${escapeReceiptText(norm.storeName)}</div>
-    <div class="store-info">${escapeReceiptText(norm.storeAddress)}</div>
-    <div class="store-info">Mob.no ${escapeReceiptText(norm.storePhone)}</div>
-    <div class="store-info">GSTIN-${escapeReceiptText(norm.storeGstin)}</div>
+    <div class="store-info">${escapeReceiptText(norm.storeAddressLine1 || 'Plot no. 12 Balaji Nagar, Narela Shankari')}</div>
+    <div class="store-info">${escapeReceiptText(norm.storeAddressLine2 || 'Near khedapati Mandir, Bhopal MP(462022)')}</div>
+    ${norm.storePhone ? `<div class="store-info">Mob.no ${escapeReceiptText(norm.storePhone)}</div>` : ''}
+    <div class="store-info">GSTIN: ${escapeReceiptText(norm.storeGstin)}</div>
     <div class="invoice-title">Retail Invoice</div>
   </div>
 
@@ -667,9 +675,10 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
             {/* Store Header */}
             <div className="text-center space-y-0.5">
               <p className="text-base font-black uppercase tracking-wide leading-tight text-black">{norm.storeName}</p>
-              <p className="text-xs font-bold text-black leading-tight">{norm.storeAddress}</p>
-              <p className="text-xs font-bold text-black">Mob.no {norm.storePhone}</p>
-              <p className="text-xs font-bold text-black">GSTIN-{norm.storeGstin}</p>
+              <p className="text-xs font-bold text-black leading-tight">{norm.storeAddressLine1 || 'Plot no. 12 Balaji Nagar, Narela Shankari'}</p>
+              <p className="text-xs font-bold text-black leading-tight">{norm.storeAddressLine2 || 'Near khedapati Mandir, Bhopal MP(462022)'}</p>
+              {norm.storePhone && <p className="text-xs font-bold text-black">Mob.no {norm.storePhone}</p>}
+              <p className="text-xs font-bold text-black">GSTIN: {norm.storeGstin}</p>
               <p className="text-xs font-black uppercase pt-0.5 text-black">Retail Invoice</p>
             </div>
 

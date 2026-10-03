@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { formatINR } from '../utils/erp'
 import Footer from './footer'
@@ -457,8 +457,26 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
   const [custResults, setCustResults] = useState([])
   const [catResults, setCatResults] = useState([])
   const [billResults, setBillResults] = useState([])
-  const [searchData,setSearchData]=useState({products:[],suppliers:[],customers:[],categories:[],bills:[]})
-  useEffect(()=>{Promise.all([listUIProducts(),listUISuppliers(),listUICustomers(),listCategories(),listUISales()]).then(([products,suppliers,customers,categories,bills])=>setSearchData({products,suppliers,customers,categories,bills})).catch(console.error)},[])
+  const [searchData, setSearchData] = useState({ products: [], suppliers: [], customers: [], categories: [], bills: [] })
+  const searchDataLoadingRef = useRef(false)
+  const searchDataLoadedRef = useRef(false)
+
+  const ensureSearchData = useCallback(() => {
+    if (searchDataLoadedRef.current || searchDataLoadingRef.current) return
+    searchDataLoadingRef.current = true
+    Promise.all([
+      listUIProducts(),
+      listUISuppliers(),
+      listUICustomers(),
+      listCategories(),
+      listUISales()
+    ]).then(([products, suppliers, customers, categories, bills]) => {
+      setSearchData({ products, suppliers, customers, categories, bills })
+      searchDataLoadedRef.current = true
+    }).catch(console.error).finally(() => {
+      searchDataLoadingRef.current = false
+    })
+  }, [])
   const [actionResults, setActionResults] = useState([])
   const [aiAnswer, setAiAnswer] = useState(null)
   const [selectableItems, setSelectableItems] = useState([])
@@ -477,6 +495,7 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
   }, [])
 
   const handleChange = (val) => {
+    ensureSearchData()
     setQuery(val)
     setHighlightIdx(-1)
     if (val.trim().length > 0) {
@@ -654,7 +673,7 @@ function HeaderSearch({ navigate, isMobile, onClose }) {
           type="text"
           value={query}
           onChange={e => handleChange(e.target.value)}
-          onFocus={() => { if (query.trim() && selectableItems.length > 0) setShowDropdown(true) }}
+          onFocus={() => { ensureSearchData(); if (query.trim() && selectableItems.length > 0) setShowDropdown(true) }}
           onKeyDown={handleKeyDown}
           placeholder="Search products, suppliers, bills, ask questions..."
           className="w-full pl-10 pr-9 py-2 rounded-xl bg-slate-900/80 border border-slate-800/60 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20 transition-all"

@@ -84,16 +84,26 @@ export default function InventoryPage() {
   }, [])
 
   useEffect(() => {
-    const offInventory=subscribeToTable('inventory',reloadData),offProducts=subscribeToTable('products',reloadData),offMovements=subscribeToTable('stock_movements',reloadData)
-    const handleEventUpdate = () => reloadData()
-    window.addEventListener('inventory-updated', handleEventUpdate)
-    window.addEventListener('erp:inventory_change', handleEventUpdate)
+    let refreshTimer = null
+    const debouncedReload = () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(() => {
+        reloadData()
+      }, 500)
+    }
+
+    const offInventory = subscribeToTable('inventory', debouncedReload)
+    const offProducts = subscribeToTable('products', debouncedReload)
+    const offMovements = subscribeToTable('stock_movements', debouncedReload)
+    window.addEventListener('inventory-updated', debouncedReload)
+    window.addEventListener('erp:inventory_change', debouncedReload)
     return () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
       offInventory();
       offProducts();
       offMovements();
-      window.removeEventListener('inventory-updated', handleEventUpdate)
-      window.removeEventListener('erp:inventory_change', handleEventUpdate)
+      window.removeEventListener('inventory-updated', debouncedReload)
+      window.removeEventListener('erp:inventory_change', debouncedReload)
     }
   }, [])
 

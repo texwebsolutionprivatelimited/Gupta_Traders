@@ -84,8 +84,16 @@ export default function MissingMrpAlertManager() {
 
   // Real-time synchronization
   useEffect(() => {
-    const unsubProducts = subscribeToTable('products', () => checkMissingProducts())
-    const handleUpdate = () => checkMissingProducts()
+    let timer = null
+    const debouncedCheck = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        checkMissingProducts()
+      }, 500)
+    }
+
+    const unsubProducts = subscribeToTable('products', debouncedCheck)
+    const handleUpdate = () => debouncedCheck()
 
     window.addEventListener('erp:inventory_change', handleUpdate)
     window.addEventListener('erp:mrp_updated', (e) => {
@@ -100,7 +108,7 @@ export default function MissingMrpAlertManager() {
           return next
         })
       }
-      checkMissingProducts()
+      debouncedCheck()
     })
 
     // Listen for manual trigger anywhere in the app

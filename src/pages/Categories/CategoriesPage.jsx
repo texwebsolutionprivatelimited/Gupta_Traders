@@ -1310,9 +1310,22 @@ export default function CategoriesPage() {
   }
 
   useEffect(() => {
+    let refreshTimer = null
+    const debouncedLoad = () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(() => {
+        loadData()
+      }, 500)
+    }
+
     loadData()
-    const offCategories=subscribeToTable('categories',loadData),offProducts=subscribeToTable('products',loadData)
-    return()=>{offCategories();offProducts()}
+    const offCategories = subscribeToTable('categories', debouncedLoad)
+    const offProducts = subscribeToTable('products', debouncedLoad)
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
+      offCategories();
+      offProducts();
+    }
   }, [])
 
   // Filter categories

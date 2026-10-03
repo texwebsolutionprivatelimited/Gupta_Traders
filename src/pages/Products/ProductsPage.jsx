@@ -912,17 +912,24 @@ export default function ProductsPage() {
     loadProducts(searchQuery, activeTab, categoryFilter)
   }
 
+  const filtersRef = useRef({ searchQuery, activeTab, categoryFilter })
+  filtersRef.current = { searchQuery, activeTab, categoryFilter }
+
   useEffect(() => {
-    loadProducts(searchQuery, activeTab, categoryFilter)
-    setCurrentPage(1)
+    const timer = setTimeout(() => {
+      loadProducts(searchQuery, activeTab, categoryFilter)
+      setCurrentPage(1)
+    }, 250)
+    return () => clearTimeout(timer)
   }, [activeTab, searchQuery, categoryFilter])
 
   useEffect(() => {
     const handleUpdate = () => {
-      loadProducts(searchQuery, activeTab, categoryFilter)
+      const { searchQuery: q, activeTab: tab, categoryFilter: cat } = filtersRef.current
+      loadProducts(q, tab, cat)
     }
-    const unsubscribeProducts=subscribeToTable('products',handleUpdate)
-    const unsubscribeInventory=subscribeToTable('inventory',handleUpdate)
+    const unsubscribeProducts = subscribeToTable('products', handleUpdate)
+    const unsubscribeInventory = subscribeToTable('inventory', handleUpdate)
     window.addEventListener('inventory-updated', handleUpdate)
     window.addEventListener('erp:inventory_change', handleUpdate)
     return () => {
@@ -931,7 +938,7 @@ export default function ProductsPage() {
       window.removeEventListener('inventory-updated', handleUpdate);
       window.removeEventListener('erp:inventory_change', handleUpdate);
     }
-  }, [searchQuery, activeTab, categoryFilter])
+  }, [])
 
   // ─── Handlers ─────────────────────────────────────────
   const handleAddNew = (typeValue) => {

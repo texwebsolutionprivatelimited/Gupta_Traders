@@ -186,14 +186,23 @@ export default function AdminAccess() {
       }).catch(error => console.error('Unable to load dashboard', error))
     }
 
+    let refreshTimer = null
+    const triggerDashboardReload = () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(() => {
+        if (isMounted) loadDashboardData()
+      }, 500)
+    }
+
     loadDashboardData()
 
-    const unsubSales = subscribeToTable('sales', loadDashboardData)
-    const unsubPurchases = subscribeToTable('purchases', loadDashboardData)
-    const unsubProducts = subscribeToTable('products', loadDashboardData)
+    const unsubSales = subscribeToTable('sales', triggerDashboardReload)
+    const unsubPurchases = subscribeToTable('purchases', triggerDashboardReload)
+    const unsubProducts = subscribeToTable('products', triggerDashboardReload)
 
     return () => {
       isMounted = false
+      if (refreshTimer) clearTimeout(refreshTimer)
       if (typeof unsubSales === 'function') unsubSales()
       if (typeof unsubPurchases === 'function') unsubPurchases()
       if (typeof unsubProducts === 'function') unsubProducts()

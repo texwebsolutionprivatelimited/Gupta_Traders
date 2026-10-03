@@ -1109,10 +1109,19 @@ export default function SuppliersPage() {
   }
 
   useEffect(() => {
+    let refreshTimer = null
+    const debouncedRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
+      refreshTimer = setTimeout(() => {
+        refreshData()
+      }, 500)
+    }
+
     refreshData()
-    const unsubSuppliers = subscribeToTable('suppliers', refreshData)
-    const unsubPurchases = subscribeToTable('purchases', refreshData)
+    const unsubSuppliers = subscribeToTable('suppliers', debouncedRefresh)
+    const unsubPurchases = subscribeToTable('purchases', debouncedRefresh)
     return () => {
+      if (refreshTimer) clearTimeout(refreshTimer)
       if (typeof unsubSuppliers === 'function') unsubSuppliers()
       if (typeof unsubPurchases === 'function') unsubPurchases()
     }

@@ -25,17 +25,17 @@ export async function getCurrentProfile() {
 
 // ─── High Performance In-Memory Caching & Request Deduplication ───
 const cacheStore = {
-  products: { data: null, timestamp: 0, ttl: 60 * 1000 },
-  categories: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 },
-  sales: { data: null, timestamp: 0, ttl: 30 * 1000 },
-  purchases: { data: null, timestamp: 0, ttl: 45 * 1000 },
-  customers: { data: null, timestamp: 0, ttl: 60 * 1000 },
-  suppliers: { data: null, timestamp: 0, ttl: 60 * 1000 },
-  expenses: { data: null, timestamp: 0, ttl: 45 * 1000 },
-  movements: { data: null, timestamp: 0, ttl: 30 * 1000 },
-  heldBills: { data: null, timestamp: 0, ttl: 15 * 1000 },
-  recentLedger: { data: null, timestamp: 0, ttl: 60 * 1000 },
-  recentActivities: { data: null, timestamp: 0, ttl: 60 * 1000 },
+  products: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 },
+  categories: { data: null, timestamp: 0, ttl: 10 * 60 * 1000 },
+  sales: { data: null, timestamp: 0, ttl: 2 * 60 * 1000 },
+  purchases: { data: null, timestamp: 0, ttl: 2 * 60 * 1000 },
+  customers: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 },
+  suppliers: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 },
+  expenses: { data: null, timestamp: 0, ttl: 3 * 60 * 1000 },
+  movements: { data: null, timestamp: 0, ttl: 2 * 60 * 1000 },
+  heldBills: { data: null, timestamp: 0, ttl: 60 * 1000 },
+  recentLedger: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 },
+  recentActivities: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 },
 }
 
 const inFlightRequests = new Map()
@@ -191,9 +191,6 @@ export function productToUI(row) {
   const inv = Array.isArray(row.inventory) ? row.inventory[0] : row.inventory;
   const rawRate = row.rate !== undefined && row.rate !== null ? row.rate : (row.selling_price !== undefined ? row.selling_price : 0);
   const rate = Number(rawRate || 0);
-
-  // Manual MRP: Only present if explicitly set and > 0.
-  // By default, MRP is blank/null for all existing products. NEVER use 0 or rate as fake MRP!
   const rawMrp = (row.mrp !== undefined && row.mrp !== null && row.mrp !== '')
     ? row.mrp
     : (row.metadata?.mrp !== undefined && row.metadata?.mrp !== null && row.metadata?.mrp !== '' ? row.metadata.mrp : null);
@@ -491,12 +488,24 @@ export async function completeSale(sale, items) {
       cashAmount: cashVal,
       upiAmount: upiVal,
     };
-    await supabase.from('sales').update({
-      metadata: metaToSave,
-      paid_amount: Number(paidVal || 0),
-      payment_reference: salePayload.payment_reference || null,
-      notes: salePayload.notes || null,
-    }).eq('id', data.id);
+    const { data: updatedSale, error: updateErr } = await supabase
+      .from('sales')
+      .update({
+        metadata: metaToSave,
+        paid_amount: Number(paidVal || 0),
+        payment_reference: salePayload.payment_reference || null,
+        notes: salePayload.notes || null,
+      })
+      .eq('id', data.id)
+      .select('id,invoice_number,subtotal,tax_amount,total_amount,paid_amount,due_amount,payment_method,payment_reference,notes,metadata')
+      .single();
+
+    if (!updateErr && updatedSale) {
+      return updatedSale;
+    }
+    if (updateErr) {
+      console.warn('Could not update metadata on sales row:', updateErr);
+    }
   } catch (updateErr) {
     console.warn('Could not update metadata on sales row:', updateErr);
   }
@@ -1249,379 +1258,375 @@ export async function saveSupplier(values, id) {
   return supplierToUI({ ...data, balance: rest, opening_balance: paid, metadata: row.metadata });
 }
 export async function deleteSupplier(id) {
-    const res = await softDeleteEntity('supplier', id);
-    invalidateCache('suppliers');
-    return res;
-  }
-  export async function listLedger(partyType, partyId) { const { data, error } = await supabase.from('transactions').select('*').eq('reference_id', partyId).order('transaction_date', { ascending: false }); fail(error, 'Unable to load ledger'); return data }
-  export async function recordPartyTransaction(partyType, partyId, transaction) { const { data, error } = await supabase.rpc('record_party_transaction', { p_party_type: partyType, p_party_id: partyId, p_entry_type: transaction.type, p_amount: Number(transaction.amount), p_description: transaction.description, p_entry_date: transaction.date || new Date().toISOString() }); fail(error, 'Unable to record ledger transaction'); return data }
-  export async function deletePartyTransaction(transactionId, partyId, partyType = 'supplier') {
-    const { data: txn } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('id', transactionId)
-      .maybeSingle();
+  const res = await softDeleteEntity('supplier', id);
+  invalidateCache('suppliers');
+  return res;
+}
+export async function listLedger(partyType, partyId) { const { data, error } = await supabase.from('transactions').select('*').eq('reference_id', partyId).order('transaction_date', { ascending: false }); fail(error, 'Unable to load ledger'); return data }
+export async function recordPartyTransaction(partyType, partyId, transaction) { const { data, error } = await supabase.rpc('record_party_transaction', { p_party_type: partyType, p_party_id: partyId, p_entry_type: transaction.type, p_amount: Number(transaction.amount), p_description: transaction.description, p_entry_date: transaction.date || new Date().toISOString() }); fail(error, 'Unable to record ledger transaction'); return data }
+export async function deletePartyTransaction(transactionId, partyId, partyType = 'supplier') {
+  const { data: txn } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('id', transactionId)
+    .maybeSingle();
 
-    const { error: delErr } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', transactionId);
-    fail(delErr, 'Unable to delete ledger entry');
+  const { error: delErr } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('id', transactionId);
+  fail(delErr, 'Unable to delete ledger entry');
 
-    if (partyId) {
-      try {
-        const { data: remainingTxns } = await supabase
-          .from('transactions')
+  if (partyId) {
+    try {
+      const { data: remainingTxns } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('reference_id', partyId);
+
+      const txns = remainingTxns || [];
+      const paymentSum = txns
+        .filter(t => t.type === 'payment' || (t.description || '').toLowerCase().includes('given') || (t.description || '').toLowerCase().includes('opening'))
+        .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0);
+
+      if (partyType === 'supplier') {
+        const { data: supRow } = await supabase
+          .from('suppliers')
           .select('*')
-          .eq('reference_id', partyId);
+          .eq('id', partyId)
+          .maybeSingle();
 
-        const txns = remainingTxns || [];
-        const paymentSum = txns
-          .filter(t => t.type === 'payment' || (t.description || '').toLowerCase().includes('given') || (t.description || '').toLowerCase().includes('opening'))
-          .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0);
+        if (supRow) {
+          const totalReceived = Number(supRow.metadata?.totalProductReceived || 0);
+          const newRest = totalReceived - paymentSum;
+          const updatedMeta = {
+            ...(supRow.metadata || {}),
+            paidAmount: paymentSum,
+            restAmount: newRest
+          };
 
-        if (partyType === 'supplier') {
-          const { data: supRow } = await supabase
-            .from('suppliers')
-            .select('*')
-            .eq('id', partyId)
-            .maybeSingle();
-
-          if (supRow) {
-            const totalReceived = Number(supRow.metadata?.totalProductReceived || 0);
-            const newRest = totalReceived - paymentSum;
-            const updatedMeta = {
-              ...(supRow.metadata || {}),
-              paidAmount: paymentSum,
-              restAmount: newRest
-            };
-
-            await supabase
-              .from('suppliers')
-              .update({
-                balance: newRest,
-                opening_balance: paymentSum,
-                metadata: updatedMeta,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', partyId);
-          }
-
-          const { data: supPurchases } = await supabase
-            .from('purchases')
-            .select('id, total_amount')
-            .eq('supplier_id', partyId)
-            .neq('status', 'deleted');
-          if (supPurchases && supPurchases.length > 0) {
-            for (const p of supPurchases) {
-              const pTotal = Number(p.total_amount || 0);
-              await supabase
-                .from('purchases')
-                .update({
-                  paid_amount: paymentSum,
-                  due_amount: Math.max(0, pTotal - paymentSum),
-                  payment_status: paymentSum >= pTotal ? 'paid' : (paymentSum > 0 ? 'partially_paid' : 'pending'),
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', p.id);
-            }
-          }
-        } else if (partyType === 'customer') {
-          const netCustBal = txns.reduce((sum, t) => {
-            const amt = Number(t.amount || 0);
-            return t.type === 'payment' ? sum - Math.abs(amt) : sum + Math.abs(amt);
-          }, 0);
           await supabase
-            .from('customers')
+            .from('suppliers')
             .update({
-              balance: netCustBal,
+              balance: newRest,
+              opening_balance: paymentSum,
+              metadata: updatedMeta,
               updated_at: new Date().toISOString()
             })
             .eq('id', partyId);
         }
-      } catch (balErr) {
-        console.warn('Could not update party totals after transaction deletion:', balErr);
-      }
-    }
 
-    return true;
-  }
-  export async function listExpenses({ forceRefresh = false } = {}) {
-    return getCachedOrFetch('expenses', async () => {
-      const { data, error } = await supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(200);
-      fail(error, 'Unable to load expenses');
-      return data || [];
-    }, 45 * 1000, forceRefresh);
-  }
-  export async function saveExpense(values, id) {
-    const query = id ? supabase.from('expenses').update(values).eq('id', id) : supabase.from('expenses').insert(values);
-    const { data, error } = await query.select().single();
-    fail(error, 'Unable to save expense');
-    invalidateCache('expenses');
-    if (!id && data) {
-      try {
-        const { addNotification, buildExpenseNotification } = await import('./notificationService.js');
-        addNotification(buildExpenseNotification({
-          id: data.id,
-          category: data.expense_type || data.category,
-          amount: data.amount,
-          description: data.description,
-          date: data.expense_date || data.created_at
-        }));
-      } catch (notifErr) {
-        console.warn('Could not post expense notification:', notifErr);
-      }
-    }
-    return data;
-  }
-  export async function deleteExpense(id) {
-    const { error } = await supabase.from('expenses').delete().eq('id', id);
-    fail(error, 'Unable to delete expense');
-    invalidateCache('expenses');
-  }
-  export async function listHeldBills({ forceRefresh = false } = {}) {
-    return getCachedOrFetch('heldBills', async () => {
-      const { data, error } = await supabase.from('held_bills').select('*').order('held_at', { ascending: false });
-      fail(error, 'Unable to load held bills');
-      return data || [];
-    }, 15 * 1000, forceRefresh);
-  }
-  export async function saveHeldBill(values) {
-    const user = await requireSession();
-    const { data, error } = await supabase.from('held_bills').insert({ ...values, held_by: user.id }).select().single();
-    fail(error, 'Unable to hold bill');
-    invalidateCache('held_bills');
-    return data;
-  }
-  export async function deleteHeldBill(id) {
-    const { error } = await supabase.from('held_bills').delete().eq('id', id);
-    fail(error, 'Unable to remove held bill');
-    invalidateCache('held_bills');
-  }
-  export function getStoredBusinessSettings() {
-    try {
-      const raw = localStorage.getItem('businessSettings');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') return parsed;
-      }
-    } catch (e) { }
-    return {
-      shop: {
-        shopName: 'Gupta Trader & Superstore',
-        address: 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
-        phone: '9876543210',
-        email: 'guptatraders@example.com'
-      },
-      gst: {
-        gstin: '09ABCDE1234F1Z5'
-      },
-      invoice: {
-        prefix: 'INV-',
-        footer: 'Items sold after 10 days will not be returned',
-        currency: 'INR'
-      },
-      printer: {}
-    };
-  }
-
-  export async function getBusinessSettings() {
-    const { data, error } = await supabase.from('settings').select('*').order('created_at').limit(1).single();
-    fail(error, 'Unable to load settings');
-    const res = {
-      ...data,
-      shop: {
-        shopName: data.shop_name || 'Gupta Trader & Superstore',
-        address: data.shop_address || data.address || 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
-        phone: data.phone || '9876543210',
-        email: data.email || 'guptatraders@example.com'
-      },
-      gst: {
-        gstin: data.gst_number || '09ABCDE1234F1Z5'
-      },
-      invoice: {
-        prefix: data.invoice_prefix || 'INV-',
-        footer: data.invoice_footer || 'Items sold after 10 days will not be returned',
-        currency: data.currency || 'INR'
-      },
-      printer: data.printer_config || {}
-    };
-    try {
-      localStorage.setItem('businessSettings', JSON.stringify(res));
-    } catch (e) { }
-    return res;
-  }
-
-  export async function saveBusinessSettings(values) {
-    await requireSession();
-    const current = await supabase.from('settings').select('id').order('created_at').limit(1).single();
-    fail(current.error, 'Unable to load settings');
-    const shop = values.shop || {}, gst = values.gst || {}, invoice = values.invoice || {};
-    const row = {
-      shop_name: shop.shopName,
-      address: shop.address,
-      shop_address: shop.address,
-      phone: shop.phone,
-      email: shop.email,
-      gst_number: gst.gstin || gst.gstNumber,
-      invoice_prefix: invoice.prefix,
-      invoice_footer: invoice.footer,
-      currency: invoice.currency,
-      printer_config: values.printer
-    };
-    delete row.address;
-    const { data, error } = await supabase.from('settings').update(row).eq('id', current.data.id).select().single();
-    fail(error, 'Unable to save settings');
-    try {
-      const cached = getStoredBusinessSettings();
-      const updated = {
-        ...cached,
-        shop: { ...cached.shop, ...shop },
-        gst: { ...cached.gst, ...gst },
-        invoice: { ...cached.invoice, ...invoice },
-        printer: values.printer || cached.printer
-      };
-      localStorage.setItem('businessSettings', JSON.stringify(updated));
-    } catch (e) { }
-    return data;
-  }
-
-  // ─── Singleton Multiplexed Realtime Table Channel Registry ───
-  const activeTableChannels = new Map(); // table -> { channel, listeners: Set, debounceTimer }
-
-  export function subscribeToTable(table, onChange) {
-    if (!table || typeof onChange !== 'function') return () => { };
-
-    let record = activeTableChannels.get(table);
-    if (!record) {
-      const listeners = new Set();
-      let debounceTimer = null;
-
-      const channel = supabase.channel(`erp:shared:${table}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
-          if (table === 'products' || table === 'inventory' || table === 'stock_movements') {
-            invalidateCache('products');
-          } else if (table === 'categories') {
-            invalidateCache('categories');
-          } else if (table === 'sales' || table === 'sale_items' || table === 'sales_returns') {
-            invalidateCache('sales');
-          } else if (table === 'purchases' || table === 'purchase_items' || table === 'purchase_returns') {
-            invalidateCache('purchases');
-          } else if (table === 'customers') {
-            invalidateCache('customers');
-          } else if (table === 'suppliers') {
-            invalidateCache('suppliers');
-          } else if (table === 'expenses') {
-            invalidateCache('expenses');
-          } else if (table === 'held_bills') {
-            invalidateCache('held_bills');
+        const { data: supPurchases } = await supabase
+          .from('purchases')
+          .select('id, total_amount')
+          .eq('supplier_id', partyId)
+          .neq('status', 'deleted');
+        if (supPurchases && supPurchases.length > 0) {
+          for (const p of supPurchases) {
+            const pTotal = Number(p.total_amount || 0);
+            await supabase
+              .from('purchases')
+              .update({
+                paid_amount: paymentSum,
+                due_amount: Math.max(0, pTotal - paymentSum),
+                payment_status: paymentSum >= pTotal ? 'paid' : (paymentSum > 0 ? 'partially_paid' : 'pending'),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', p.id);
           }
-
-          if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => {
-            listeners.forEach((listener) => {
-              try {
-                listener(payload);
-              } catch (err) {
-                console.error(`Error in realtime listener for ${table}:`, err);
-              }
-            });
-          }, 250);
-        })
-        .subscribe();
-
-      record = { channel, listeners, debounceTimer };
-      activeTableChannels.set(table, record);
-    }
-
-    record.listeners.add(onChange);
-
-    return () => {
-      const current = activeTableChannels.get(table);
-      if (!current) return;
-      current.listeners.delete(onChange);
-      if (current.listeners.size === 0) {
-        if (current.debounceTimer) clearTimeout(current.debounceTimer);
-        supabase.removeChannel(current.channel);
-        activeTableChannels.delete(table);
-      }
-    };
-  }
-
-  export async function listRecentNotificationActivities({ forceRefresh = false } = {}) {
-    return getCachedOrFetch('recentActivities', async () => {
-      const [purchases, purchaseReturns, sales, salesReturns, suppliers, lowStockProducts, newProducts, expenses, movements] = await Promise.all([
-        supabase.from('purchases').select('id, supplier_invoice_number, invoice_number, total_amount, purchase_date, created_at, supplier:suppliers(company_name)').neq('status', 'deleted').order('created_at', { ascending: false }).limit(5),
-        supabase.from('purchase_returns').select('id, return_number, total_amount, return_date, created_at, supplier:suppliers(company_name)').order('created_at', { ascending: false }).limit(5),
-        supabase.from('sales').select('id, invoice_number, total_amount, sale_date, created_at, payment_method, customer:customers(name)').order('created_at', { ascending: false }).limit(5),
-        supabase.from('sales_returns').select('id, return_number, total_amount, return_date, created_at, sale:sales(invoice_number)').order('created_at', { ascending: false }).limit(5),
-        supabase.from('suppliers').select('id, company_name, phone, contact_person, created_at').is('deleted_at', null).order('created_at', { ascending: false }).limit(5),
-        supabase.from('products').select('id, name, unit, minimum_stock, inventory(quantity)').is('deleted_at', null).gt('minimum_stock', 0).limit(20),
-        supabase.from('products').select('id, name, unit, created_at, inventory(quantity)').is('deleted_at', null).order('created_at', { ascending: false }).limit(5),
-        supabase.from('expenses').select('id, expense_type, amount, description, expense_date, created_at').order('created_at', { ascending: false }).limit(5),
-        supabase.from('stock_movements').select('id, product_id, quantity, reason, movement_type, product:products(name,unit)').in('movement_type', ['adjustment', 'reconciliation']).order('created_at', { ascending: false }).limit(5)
-      ]);
-      return {
-        purchases: purchases.data || [],
-        purchaseReturns: purchaseReturns.data || [],
-        sales: sales.data || [],
-        salesReturns: salesReturns.data || [],
-        suppliers: suppliers.data || [],
-        lowStockProducts: lowStockProducts.data || [],
-        newProducts: newProducts.data || [],
-        expenses: expenses.data || [],
-        movements: movements.data || []
-      };
-    }, 60 * 1000, forceRefresh);
-  }
-  export async function softDeleteEntity(entityType, id) { const { error } = await supabase.rpc('soft_delete_entity', { p_entity_type: entityType, p_id: id }); fail(error, `Unable to move ${entityType} to trash`) }
-  export async function listTrash() { const { data, error } = await supabase.from('trash_items').select('*').order('deleted_at', { ascending: false }); fail(error, 'Unable to load trash'); return data }
-  export async function restoreTrashItem(entityType, id) { const { error } = await supabase.rpc('restore_entity', { p_entity_type: entityType, p_id: id }); fail(error, 'Unable to restore item') }
-  export async function permanentlyDeleteTrashItem(entityType, id) { const { error } = await supabase.rpc('permanently_delete_entity', { p_entity_type: entityType, p_id: id }); fail(error, 'Unable to permanently delete item') }
-  export async function emptyDatabaseTrash() { const { error } = await supabase.rpc('empty_trash'); fail(error, 'Unable to empty trash') }
-  export async function saveBarcodePrintJob(values) { const user = await requireSession(); const { data, error } = await supabase.from('barcode_print_jobs').insert({ ...values, printed_by: user.id }).select().single(); fail(error, 'Unable to save barcode print history'); return data }
-  export async function adminUsers(action, payload = {}) {
-    // 1. First attempt to invoke Edge Function if deployed
-    try {
-      const { data, error } = await supabase.functions.invoke('admin-users', { body: { action, ...payload } });
-      if (!error && !data?.error && data?.data !== undefined) {
-        return data.data;
-      }
-      if (data?.error && !data.error.includes('Edge Function') && !data.error.includes('Failed to send a request')) {
-        throw new Error(data.error);
-      }
-    } catch (err) {
-      if (err.message && !err.message.includes('Edge Function') && !err.message.includes('Failed to send a request') && !err.message.includes('FunctionsFetchError')) {
-        throw err;
-      }
-    }
-
-    // 2. Fallback to direct Supabase Database and Auth operations
-    if (action === 'list') {
-      const { data: profiles, error: pe } = await supabase
-        .from('profiles')
-        .select('*, role:roles(name)')
-        .order('created_at', { ascending: false });
-
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user;
-
-      if (pe) {
-        if (currentUser) {
-          return [{
-            id: currentUser.id,
-            name: currentUser.user_metadata?.name || 'Admin User',
-            email: currentUser.email || 'admin@guptatraders.com',
-            mobile: currentUser.phone || '9876543210',
-            created_at: currentUser.created_at || new Date().toISOString(),
-            role: 'admin',
-            status: 'active'
-          }];
         }
-        fail(pe, 'Unable to load users');
+      } else if (partyType === 'customer') {
+        const netCustBal = txns.reduce((sum, t) => {
+          const amt = Number(t.amount || 0);
+          return t.type === 'payment' ? sum - Math.abs(amt) : sum + Math.abs(amt);
+        }, 0);
+        await supabase
+          .from('customers')
+          .update({
+            balance: netCustBal,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', partyId);
       }
+    } catch (balErr) {
+      console.warn('Could not update party totals after transaction deletion:', balErr);
+    }
+  }
 
-      if ((!profiles || profiles.length === 0) && currentUser) {
+  return true;
+}
+export async function listExpenses({ forceRefresh = false } = {}) {
+  return getCachedOrFetch('expenses', async () => {
+    const { data, error } = await supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(200);
+    fail(error, 'Unable to load expenses');
+    return data || [];
+  }, 45 * 1000, forceRefresh);
+}
+export async function saveExpense(values, id) {
+  const query = id ? supabase.from('expenses').update(values).eq('id', id) : supabase.from('expenses').insert(values);
+  const { data, error } = await query.select().single();
+  fail(error, 'Unable to save expense');
+  invalidateCache('expenses');
+  if (!id && data) {
+    try {
+      const { addNotification, buildExpenseNotification } = await import('./notificationService.js');
+      addNotification(buildExpenseNotification({
+        id: data.id,
+        category: data.expense_type || data.category,
+        amount: data.amount,
+        description: data.description,
+        date: data.expense_date || data.created_at
+      }));
+    } catch (notifErr) {
+      console.warn('Could not post expense notification:', notifErr);
+    }
+  }
+  return data;
+}
+export async function deleteExpense(id) {
+  const { error } = await supabase.from('expenses').delete().eq('id', id);
+  fail(error, 'Unable to delete expense');
+  invalidateCache('expenses');
+}
+export async function listHeldBills({ forceRefresh = false } = {}) {
+  return getCachedOrFetch('heldBills', async () => {
+    const { data, error } = await supabase.from('held_bills').select('*').order('held_at', { ascending: false });
+    fail(error, 'Unable to load held bills');
+    return data || [];
+  }, 15 * 1000, forceRefresh);
+}
+export async function saveHeldBill(values) {
+  const user = await requireSession();
+  const { data, error } = await supabase.from('held_bills').insert({ ...values, held_by: user.id }).select().single();
+  fail(error, 'Unable to hold bill');
+  invalidateCache('held_bills');
+  return data;
+}
+export async function deleteHeldBill(id) {
+  const { error } = await supabase.from('held_bills').delete().eq('id', id);
+  fail(error, 'Unable to remove held bill');
+  invalidateCache('held_bills');
+}
+export function getStoredBusinessSettings() {
+  try {
+    const raw = localStorage.getItem('businessSettings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (e) { }
+  return {
+    shop: {
+      shopName: 'Gupta Trader & Superstore',
+      address: 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
+      phone: '9876543210',
+      email: 'guptatraders@example.com'
+    },
+    gst: {
+      gstin: '09ABCDE1234F1Z5'
+    },
+    invoice: {
+      prefix: 'INV-',
+      footer: 'Items sold after 10 days will not be returned',
+      currency: 'INR'
+    },
+    printer: {}
+  };
+}
+
+export async function getBusinessSettings() {
+  const { data, error } = await supabase.from('settings').select('*').order('created_at').limit(1).single();
+  fail(error, 'Unable to load settings');
+  const res = {
+    ...data,
+    shop: {
+      shopName: data.shop_name || 'Gupta Trader & Superstore',
+      address: data.shop_address || data.address || 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
+      phone: data.phone || '9876543210',
+      email: data.email || 'guptatraders@example.com'
+    },
+    gst: {
+      gstin: data.gst_number || '09ABCDE1234F1Z5'
+    },
+    invoice: {
+      prefix: data.invoice_prefix || 'INV-',
+      footer: data.invoice_footer || 'Items sold after 10 days will not be returned',
+      currency: data.currency || 'INR'
+    },
+    printer: data.printer_config || {}
+  };
+  try {
+    localStorage.setItem('businessSettings', JSON.stringify(res));
+  } catch (e) { }
+  return res;
+}
+
+export async function saveBusinessSettings(values) {
+  await requireSession();
+  const current = await supabase.from('settings').select('id').order('created_at').limit(1).single();
+  fail(current.error, 'Unable to load settings');
+  const shop = values.shop || {}, gst = values.gst || {}, invoice = values.invoice || {};
+  const row = {
+    shop_name: shop.shopName,
+    address: shop.address,
+    shop_address: shop.address,
+    phone: shop.phone,
+    email: shop.email,
+    gst_number: gst.gstin || gst.gstNumber,
+    invoice_prefix: invoice.prefix,
+    invoice_footer: invoice.footer,
+    currency: invoice.currency,
+    printer_config: values.printer
+  };
+  delete row.address;
+  const { data, error } = await supabase.from('settings').update(row).eq('id', current.data.id).select().single();
+  fail(error, 'Unable to save settings');
+  try {
+    const cached = getStoredBusinessSettings();
+    const updated = {
+      ...cached,
+      shop: { ...cached.shop, ...shop },
+      gst: { ...cached.gst, ...gst },
+      invoice: { ...cached.invoice, ...invoice },
+      printer: values.printer || cached.printer
+    };
+    localStorage.setItem('businessSettings', JSON.stringify(updated));
+  } catch (e) { }
+  return data;
+}
+
+// ─── Singleton Multiplexed Realtime Table Channel Registry ───
+const activeTableChannels = new Map(); // table -> { channel, listeners: Set, debounceTimer, teardownTimer }
+
+export function subscribeToTable(table, onChange) {
+  if (!table || typeof onChange !== 'function') return () => { };
+
+  let record = activeTableChannels.get(table);
+  if (!record) {
+    const listeners = new Set();
+    let debounceTimer = null;
+    let teardownTimer = null;
+
+    const channel = supabase.channel(`erp:shared:${table}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
+        if (table === 'products' || table === 'inventory' || table === 'stock_movements') {
+          invalidateCache('products');
+        } else if (table === 'categories') {
+          invalidateCache('categories');
+        } else if (table === 'sales' || table === 'sale_items' || table === 'sales_returns') {
+          invalidateCache('sales');
+        } else if (table === 'purchases' || table === 'purchase_items' || table === 'purchase_returns') {
+          invalidateCache('purchases');
+        } else if (table === 'customers') {
+          invalidateCache('customers');
+        } else if (table === 'suppliers') {
+          invalidateCache('suppliers');
+        } else if (table === 'expenses') {
+          invalidateCache('expenses');
+        } else if (table === 'held_bills') {
+          invalidateCache('held_bills');
+        }
+
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          listeners.forEach((listener) => {
+            try {
+              listener(payload);
+            } catch (err) {
+              console.error(`Error in realtime listener for ${table}:`, err);
+            }
+          });
+        }, 800);
+      })
+      .subscribe();
+
+    record = { channel, listeners, debounceTimer, teardownTimer };
+    activeTableChannels.set(table, record);
+  } else if (record.teardownTimer) {
+    clearTimeout(record.teardownTimer);
+    record.teardownTimer = null;
+  }
+
+  record.listeners.add(onChange);
+
+  return () => {
+    const current = activeTableChannels.get(table);
+    if (!current) return;
+    current.listeners.delete(onChange);
+    if (current.listeners.size === 0) {
+      if (current.teardownTimer) clearTimeout(current.teardownTimer);
+      // Linger for 10s to avoid reconnect cycling on quick route changes
+      current.teardownTimer = setTimeout(() => {
+        if (current.listeners.size === 0) {
+          if (current.debounceTimer) clearTimeout(current.debounceTimer);
+          supabase.removeChannel(current.channel);
+          activeTableChannels.delete(table);
+        }
+      }, 10000);
+    }
+  };
+}
+
+export async function listRecentNotificationActivities({ forceRefresh = false } = {}) {
+  return getCachedOrFetch('recentActivities', async () => {
+    const [purchases, purchaseReturns, sales, salesReturns, suppliers, lowStockProducts, newProducts, expenses, movements] = await Promise.all([
+      supabase.from('purchases').select('id, supplier_invoice_number, invoice_number, total_amount, purchase_date, created_at, supplier:suppliers(company_name)').neq('status', 'deleted').order('created_at', { ascending: false }).limit(5),
+      supabase.from('purchase_returns').select('id, return_number, total_amount, return_date, created_at, supplier:suppliers(company_name)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('sales').select('id, invoice_number, total_amount, sale_date, created_at, payment_method, customer:customers(name)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('sales_returns').select('id, return_number, total_amount, return_date, created_at, sale:sales(invoice_number)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('suppliers').select('id, company_name, phone, contact_person, created_at').is('deleted_at', null).order('created_at', { ascending: false }).limit(5),
+      supabase.from('products').select('id, name, unit, minimum_stock, inventory(quantity)').is('deleted_at', null).gt('minimum_stock', 0).limit(20),
+      supabase.from('products').select('id, name, unit, created_at, inventory(quantity)').is('deleted_at', null).order('created_at', { ascending: false }).limit(5),
+      supabase.from('expenses').select('id, expense_type, amount, description, expense_date, created_at').order('created_at', { ascending: false }).limit(5),
+      supabase.from('stock_movements').select('id, product_id, quantity, reason, movement_type, product:products(name,unit)').in('movement_type', ['adjustment', 'reconciliation']).order('created_at', { ascending: false }).limit(5)
+    ]);
+    return {
+      purchases: purchases.data || [],
+      purchaseReturns: purchaseReturns.data || [],
+      sales: sales.data || [],
+      salesReturns: salesReturns.data || [],
+      suppliers: suppliers.data || [],
+      lowStockProducts: lowStockProducts.data || [],
+      newProducts: newProducts.data || [],
+      expenses: expenses.data || [],
+      movements: movements.data || []
+    };
+  }, 5 * 60 * 1000, forceRefresh);
+}
+export async function softDeleteEntity(entityType, id) { const { error } = await supabase.rpc('soft_delete_entity', { p_entity_type: entityType, p_id: id }); fail(error, `Unable to move ${entityType} to trash`) }
+export async function listTrash() { const { data, error } = await supabase.from('trash_items').select('*').order('deleted_at', { ascending: false }); fail(error, 'Unable to load trash'); return data }
+export async function restoreTrashItem(entityType, id) { const { error } = await supabase.rpc('restore_entity', { p_entity_type: entityType, p_id: id }); fail(error, 'Unable to restore item') }
+export async function permanentlyDeleteTrashItem(entityType, id) { const { error } = await supabase.rpc('permanently_delete_entity', { p_entity_type: entityType, p_id: id }); fail(error, 'Unable to permanently delete item') }
+export async function emptyDatabaseTrash() { const { error } = await supabase.rpc('empty_trash'); fail(error, 'Unable to empty trash') }
+export async function saveBarcodePrintJob(values) { const user = await requireSession(); const { data, error } = await supabase.from('barcode_print_jobs').insert({ ...values, printed_by: user.id }).select().single(); fail(error, 'Unable to save barcode print history'); return data }
+export async function adminUsers(action, payload = {}) {
+  // 1. First attempt to invoke Edge Function if deployed
+  try {
+    const { data, error } = await supabase.functions.invoke('admin-users', { body: { action, ...payload } });
+    if (!error && !data?.error && data?.data !== undefined) {
+      return data.data;
+    }
+    if (data?.error && !data.error.includes('Edge Function') && !data.error.includes('Failed to send a request')) {
+      throw new Error(data.error);
+    }
+  } catch (err) {
+    if (err.message && !err.message.includes('Edge Function') && !err.message.includes('Failed to send a request') && !err.message.includes('FunctionsFetchError')) {
+      throw err;
+    }
+  }
+
+  // 2. Fallback to direct Supabase Database and Auth operations
+  if (action === 'list') {
+    const { data: profiles, error: pe } = await supabase
+      .from('profiles')
+      .select('*, role:roles(name)')
+      .order('created_at', { ascending: false });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const currentUser = session?.user;
+
+    if (pe) {
+      if (currentUser) {
         return [{
           id: currentUser.id,
           name: currentUser.user_metadata?.name || 'Admin User',
@@ -1632,147 +1637,161 @@ export async function deleteSupplier(id) {
           status: 'active'
         }];
       }
-
-      return (profiles || []).map((p) => {
-        const isCurrent = currentUser && currentUser.id === p.id;
-        let email = '';
-        try {
-          email = (isCurrent && currentUser.email) || localStorage.getItem(`user_email_${p.id}`) || '';
-        } catch (_) { }
-
-        if (!email) {
-          if (p.phone && p.phone.includes('@')) {
-            email = p.phone;
-          } else if (p.phone) {
-            email = `${p.phone}@guptatraders.local`;
-          } else {
-            email = `${(p.full_name || 'user').toLowerCase().replace(/[^a-z0-9]/g, '')}@guptatraders.local`;
-          }
-        }
-
-        return {
-          ...p,
-          id: p.id,
-          name: p.full_name || 'Staff User',
-          email,
-          mobile: p.phone || '',
-          created_at: p.created_at || new Date().toISOString(),
-          role: p.role?.name?.toLowerCase() || 'cashier',
-          status: p.is_active ? 'active' : 'inactive'
-        };
-      });
+      fail(pe, 'Unable to load users');
     }
 
-    if (action === 'create') {
-      const roleName = payload.role === 'admin' ? 'Admin' : 'Cashier';
-      const { data: role, error: re } = await supabase
-        .from('roles')
-        .select('id')
-        .ilike('name', roleName)
-        .single();
-      fail(re, 'Unable to resolve user role');
-
-      let newUserId = null;
-      if (payload.email && payload.password) {
-        try {
-          const anonClient = createClient(
-            import.meta.env.VITE_SUPABASE_URL,
-            import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-          );
-          const { data: authData, error: authError } = await anonClient.auth.signUp({
-            email: payload.email,
-            password: payload.password,
-            options: {
-              data: {
-                name: payload.name,
-                full_name: payload.name,
-                phone: payload.mobile
-              }
-            }
-          });
-          if (!authError && authData?.user?.id) {
-            newUserId = authData.user.id;
-          }
-        } catch (authErr) {
-          console.warn('Auth user registration skipped/failed, creating profile directly:', authErr);
-        }
-      }
-
-      if (!newUserId) {
-        newUserId = crypto.randomUUID();
-      }
-
-      const { error: pe } = await supabase.from('profiles').upsert({
-        id: newUserId,
-        full_name: payload.name,
-        phone: payload.mobile,
-        role_id: role.id,
-        is_active: (payload.status || 'active') === 'active'
-      });
-      fail(pe, 'Unable to create user profile');
-
-      if (payload.email) {
-        try {
-          localStorage.setItem(`user_email_${newUserId}`, payload.email);
-        } catch (_) { }
-      }
-
-      return { id: newUserId };
+    if ((!profiles || profiles.length === 0) && currentUser) {
+      return [{
+        id: currentUser.id,
+        name: currentUser.user_metadata?.name || 'Admin User',
+        email: currentUser.email || 'admin@guptatraders.com',
+        mobile: currentUser.phone || '9876543210',
+        created_at: currentUser.created_at || new Date().toISOString(),
+        role: 'admin',
+        status: 'active'
+      }];
     }
 
-    if (action === 'update') {
-      const roleName = payload.role === 'admin' ? 'Admin' : 'Cashier';
-      const { data: role, error: re } = await supabase
-        .from('roles')
-        .select('id')
-        .ilike('name', roleName)
-        .single();
-      fail(re, 'Unable to resolve user role');
-
-      const updateObj = {
-        full_name: payload.name,
-        phone: payload.mobile,
-        role_id: role.id,
-        is_active: payload.status === 'active'
-      };
-
-      const { error: pe } = await supabase
-        .from('profiles')
-        .update(updateObj)
-        .eq('id', payload.id);
-      fail(pe, 'Unable to update user profile');
-
-      if (payload.email) {
-        try {
-          localStorage.setItem(`user_email_${payload.id}`, payload.email);
-        } catch (_) { }
-      }
-
-      return { id: payload.id };
-    }
-
-    if (action === 'delete') {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id === payload.id) {
-        throw new Error('You cannot delete your own account');
-      }
-
-      const { error: de } = await supabase.from('profiles').delete().eq('id', payload.id);
-      if (de) {
-        const { error: ue } = await supabase.from('profiles').update({ is_active: false }).eq('id', payload.id);
-        fail(ue, 'Unable to delete or deactivate user');
-      }
-
+    return (profiles || []).map((p) => {
+      const isCurrent = currentUser && currentUser.id === p.id;
+      let email = '';
       try {
-        localStorage.removeItem(`user_email_${payload.id}`);
+        email = (isCurrent && currentUser.email) || localStorage.getItem(`user_email_${p.id}`) || '';
       } catch (_) { }
 
-      return { id: payload.id };
+      if (!email) {
+        if (p.phone && p.phone.includes('@')) {
+          email = p.phone;
+        } else if (p.phone) {
+          email = `${p.phone}@guptatraders.local`;
+        } else {
+          email = `${(p.full_name || 'user').toLowerCase().replace(/[^a-z0-9]/g, '')}@guptatraders.local`;
+        }
+      }
+
+      return {
+        ...p,
+        id: p.id,
+        name: p.full_name || 'Staff User',
+        email,
+        mobile: p.phone || '',
+        created_at: p.created_at || new Date().toISOString(),
+        role: p.role?.name?.toLowerCase() || 'cashier',
+        status: p.is_active ? 'active' : 'inactive'
+      };
+    });
+  }
+
+  if (action === 'create') {
+    const roleName = payload.role === 'admin' ? 'Admin' : 'Cashier';
+    const { data: role, error: re } = await supabase
+      .from('roles')
+      .select('id')
+      .ilike('name', roleName)
+      .single();
+    fail(re, 'Unable to resolve user role');
+
+    let newUserId = null;
+    if (payload.email && payload.password) {
+      try {
+        const anonClient = createClient(
+          import.meta.env.VITE_SUPABASE_URL,
+          import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+        );
+        const { data: authData, error: authError } = await anonClient.auth.signUp({
+          email: payload.email,
+          password: payload.password,
+          options: {
+            data: {
+              name: payload.name,
+              full_name: payload.name,
+              phone: payload.mobile
+            }
+          }
+        });
+        if (!authError && authData?.user?.id) {
+          newUserId = authData.user.id;
+        }
+      } catch (authErr) {
+        console.warn('Auth user registration skipped/failed, creating profile directly:', authErr);
+      }
     }
 
-    throw new Error(`Unknown user action: ${action}`);
+    if (!newUserId) {
+      newUserId = crypto.randomUUID();
+    }
+
+    const { error: pe } = await supabase.from('profiles').upsert({
+      id: newUserId,
+      full_name: payload.name,
+      phone: payload.mobile,
+      role_id: role.id,
+      is_active: (payload.status || 'active') === 'active'
+    });
+    fail(pe, 'Unable to create user profile');
+
+    if (payload.email) {
+      try {
+        localStorage.setItem(`user_email_${newUserId}`, payload.email);
+      } catch (_) { }
+    }
+
+    return { id: newUserId };
   }
-  export async function listRoles() { const { data, error } = await supabase.from('roles').select('*, role_permissions(*)').order('name'); fail(error, 'Unable to load roles'); return data.map(r => ({ ...r, role: r.name.toLowerCase(), permissions: { modules: (r.role_permissions || []).map(p => p.permission) } })) }
-  export async function updateRolePermissions(roleId, permissions) { if (typeof roleId === 'string' && !/^[0-9a-f-]{36}$/i.test(roleId)) { const { data, error } = await supabase.from('roles').select('id').ilike('name', roleId).single(); fail(error, 'Unable to resolve role'); roleId = data.id } const { error: de } = await supabase.from('role_permissions').delete().eq('role_id', roleId); fail(de, 'Unable to clear role permissions'); const rows = (permissions?.modules || permissions || []).map(permission => ({ role_id: roleId, permission })); if (rows.length) { const { error } = await supabase.from('role_permissions').insert(rows); fail(error, 'Unable to update role permissions') } return listRoles() }
-  export async function exportDatabaseBackup() { const tables = ['roles', 'role_permissions', 'profiles', 'categories', 'products', 'inventory', 'stock_movements', 'customers', 'suppliers', 'sales', 'sale_items', 'purchases', 'purchase_items', 'sales_returns', 'sale_return_items', 'purchase_returns', 'purchase_return_items', 'transactions', 'expenses', 'held_bills', 'held_bill_items', 'payments', 'settings']; const entries = await Promise.all(tables.map(async table => { const { data, error } = await supabase.from(table).select('*'); fail(error, `Unable to export ${table}`); return [table, data] })); return { app: 'Gupta Traders', format: 'supabase-existing-v1', createdAt: new Date().toISOString(), data: Object.fromEntries(entries) } }
+
+  if (action === 'update') {
+    const roleName = payload.role === 'admin' ? 'Admin' : 'Cashier';
+    const { data: role, error: re } = await supabase
+      .from('roles')
+      .select('id')
+      .ilike('name', roleName)
+      .single();
+    fail(re, 'Unable to resolve user role');
+
+    const updateObj = {
+      full_name: payload.name,
+      phone: payload.mobile,
+      role_id: role.id,
+      is_active: payload.status === 'active'
+    };
+
+    const { error: pe } = await supabase
+      .from('profiles')
+      .update(updateObj)
+      .eq('id', payload.id);
+    fail(pe, 'Unable to update user profile');
+
+    if (payload.email) {
+      try {
+        localStorage.setItem(`user_email_${payload.id}`, payload.email);
+      } catch (_) { }
+    }
+
+    return { id: payload.id };
+  }
+
+  if (action === 'delete') {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id === payload.id) {
+      throw new Error('You cannot delete your own account');
+    }
+
+    const { error: de } = await supabase.from('profiles').delete().eq('id', payload.id);
+    if (de) {
+      const { error: ue } = await supabase.from('profiles').update({ is_active: false }).eq('id', payload.id);
+      fail(ue, 'Unable to delete or deactivate user');
+    }
+
+    try {
+      localStorage.removeItem(`user_email_${payload.id}`);
+    } catch (_) { }
+
+    return { id: payload.id };
+  }
+
+  throw new Error(`Unknown user action: ${action}`);
+}
+export async function listRoles() { const { data, error } = await supabase.from('roles').select('*, role_permissions(*)').order('name'); fail(error, 'Unable to load roles'); return data.map(r => ({ ...r, role: r.name.toLowerCase(), permissions: { modules: (r.role_permissions || []).map(p => p.permission) } })) }
+export async function updateRolePermissions(roleId, permissions) { if (typeof roleId === 'string' && !/^[0-9a-f-]{36}$/i.test(roleId)) { const { data, error } = await supabase.from('roles').select('id').ilike('name', roleId).single(); fail(error, 'Unable to resolve role'); roleId = data.id } const { error: de } = await supabase.from('role_permissions').delete().eq('role_id', roleId); fail(de, 'Unable to clear role permissions'); const rows = (permissions?.modules || permissions || []).map(permission => ({ role_id: roleId, permission })); if (rows.length) { const { error } = await supabase.from('role_permissions').insert(rows); fail(error, 'Unable to update role permissions') } return listRoles() }
+export async function exportDatabaseBackup() { const tables = ['roles', 'role_permissions', 'profiles', 'categories', 'products', 'inventory', 'stock_movements', 'customers', 'suppliers', 'sales', 'sale_items', 'purchases', 'purchase_items', 'sales_returns', 'sale_return_items', 'purchase_returns', 'purchase_return_items', 'transactions', 'expenses', 'held_bills', 'held_bill_items', 'payments', 'settings']; const entries = await Promise.all(tables.map(async table => { const { data, error } = await supabase.from(table).select('*'); fail(error, `Unable to export ${table}`); return [table, data] })); return { app: 'Gupta Traders', format: 'supabase-existing-v1', createdAt: new Date().toISOString(), data: Object.fromEntries(entries) } }

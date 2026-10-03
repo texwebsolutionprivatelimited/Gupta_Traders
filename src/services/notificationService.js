@@ -487,7 +487,15 @@ export function buildNewCustomerNotification({ id, customerName, phone, date }) 
   };
 }
 
-let lastSyncTimestamp = 0;
+const NOTIF_SYNC_STORAGE_KEY = 'erp_last_notif_sync_time';
+let lastSyncTimestamp = (() => {
+  try {
+    const saved = typeof window !== 'undefined' ? sessionStorage.getItem(NOTIF_SYNC_STORAGE_KEY) : null;
+    return saved ? Number(saved) : 0;
+  } catch {
+    return 0;
+  }
+})();
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown between automatic syncs
 
 export async function syncRecentActivitiesFromDB(force = false) {
@@ -511,6 +519,11 @@ export async function syncRecentActivitiesFromDB(force = false) {
     } = await listRecentNotificationActivities({ forceRefresh: force });
 
     lastSyncTimestamp = Date.now();
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(NOTIF_SYNC_STORAGE_KEY, String(lastSyncTimestamp));
+      }
+    } catch {}
     const generated = [];
 
     // 1. Recent Purchase Returns

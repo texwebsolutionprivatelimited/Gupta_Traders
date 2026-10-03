@@ -4,9 +4,9 @@ import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 
 const defaultData = {
   shopName: "Gupta Traders",
-  ownerName: "Sanjana Yadav",
-  phone: "9876543210",
-  email: "guptatraders@example.com",
+  ownerName: "",
+  phone: "",
+  email: "",
   address: "Lucknow",
   city: "Lucknow",
   state: "Uttar Pradesh",

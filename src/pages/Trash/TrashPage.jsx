@@ -35,14 +35,46 @@ function WarningIcon() {
   )
 }
 
+// Helper to safely extract an entity display name from trash record
+function getItemName(item) {
+  if (!item) return 'Unnamed Item';
+  const data = (item.data && typeof item.data === 'object') ? item.data : {};
+  return (
+    item.entityName ||
+    data.name ||
+    data.product_name ||
+    data.company_name ||
+    data.companyName ||
+    data.full_name ||
+    data.customer_name ||
+    data.title ||
+    data.category_name ||
+    (item.originalId ? `Item #${item.originalId}` : 'Unnamed Item')
+  );
+}
+
+// Helper to safely extract secondary details
+function getItemSecondaryDetails(item) {
+  if (!item) return '';
+  const data = (item.data && typeof item.data === 'object') ? item.data : {};
+  if (item.type === 'product') {
+    return data.type === 'packaged'
+      ? `Brand: ${data.brand || 'General'} | Category: ${data.category || data.category_name || 'N/A'}`
+      : `Unit: ${data.unit || 'pcs'}`;
+  }
+  if (item.type === 'supplier') {
+    return `Contact: ${data.contact_person || data.contactPerson || 'N/A'} | City: ${data.city || 'N/A'}`;
+  }
+  if (item.type === 'customer') {
+    return `Phone: ${data.phone || 'N/A'} | City: ${data.city || 'N/A'}`;
+  }
+  return data.description || 'No description';
+}
+
 // ─── CONFIRMATION MODALS ───────────────────────────────────────
 
 function ConfirmRestoreModal({ item, onConfirm, onCancel }) {
-  const name =
-    item.type === 'product' ? item.data.name :
-    item.type === 'category' ? item.data.name :
-    item.type === 'supplier' ? item.data.companyName :
-    item.data.name
+  const name = getItemName(item);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
@@ -55,7 +87,7 @@ function ConfirmRestoreModal({ item, onConfirm, onCancel }) {
           </div>
           <h3 className="text-lg font-bold text-slate-100">Recover Item?</h3>
           <p className="text-sm text-slate-400">
-            Are you sure you want to recover the {item.type} <strong>{name}</strong>? It will be restored to active status.
+            Are you sure you want to recover the {item?.type || 'item'} <strong>{name}</strong>? It will be restored to active status.
           </p>
           <div className="flex items-center gap-3 w-full mt-4">
             <button
@@ -65,7 +97,7 @@ function ConfirmRestoreModal({ item, onConfirm, onCancel }) {
               Cancel
             </button>
             <button
-              onClick={() => onConfirm(item.trashId)}
+              onClick={() => onConfirm(item?.trashId)}
               className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-slate-50 font-semibold rounded-2xl transition-colors cursor-pointer text-sm shadow-lg shadow-emerald-600/20"
             >
               Yes, Recover
@@ -78,13 +110,8 @@ function ConfirmRestoreModal({ item, onConfirm, onCancel }) {
 }
 
 function ConfirmDeleteModal({ item, onConfirm, onCancel }) {
-  const name =
-    item.type === 'product' ? item.data.name :
-    item.type === 'category' ? item.data.name :
-    item.type === 'supplier' ? item.data.companyName :
-    item.data.name
-
-  const typeName = item.type.charAt(0).toUpperCase() + item.type.slice(1)
+  const name = getItemName(item);
+  const typeName = (item?.type || 'item').charAt(0).toUpperCase() + (item?.type || 'item').slice(1);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
@@ -93,7 +120,7 @@ function ConfirmDeleteModal({ item, onConfirm, onCancel }) {
           <WarningIcon />
           <h3 className="text-lg font-bold text-slate-100">Delete Permanently?</h3>
           <p className="text-sm text-slate-400">
-            Are you sure you want to permanently delete the {item.type} <strong>{name}</strong>?
+            Are you sure you want to permanently delete the {item?.type || 'item'} <strong>{name}</strong>?
             This action is irreversible.
           </p>
           <div className="flex items-center gap-3 w-full mt-4">
@@ -163,7 +190,31 @@ export default function TrashPage() {
   const [itemToRestore, setItemToRestore] = useState(null)
 
   const loadTrash = async () => {
-    try { const rows=await listTrash();setTrashItems(rows.map(row=>({trashId:row.id,originalId:row.id,type:row.entity_type,data:row.data,deletedAt:row.deleted_at}))) } catch(error){triggerToast(error.message,'error')}
+    try {
+      const rows = await listTrash()
+      setTrashItems(
+        (rows || []).map(row => {
+          let parsedData = row.data
+          if (typeof parsedData === 'string') {
+            try {
+              parsedData = JSON.parse(parsedData)
+            } catch {
+              parsedData = {}
+            }
+          }
+          return {
+            trashId: row.id,
+            originalId: row.id,
+            entityName: row.entity_name,
+            type: row.entity_type || 'item',
+            data: (parsedData && typeof parsedData === 'object') ? parsedData : {},
+            deletedAt: row.deleted_at
+          }
+        })
+      )
+    } catch (error) {
+      triggerToast(error.message, 'error')
+    }
   }
 
   useEffect(() => {
@@ -182,13 +233,7 @@ export default function TrashPage() {
     setItemToRestore(null)
     try {
       await restoreTrashItem(item.type, trashId)
-      const restored = item.data || {}
-      const name =
-        item.type === 'product' ? restored.name :
-        item.type === 'category' ? restored.name :
-        item.type === 'supplier' ? restored.companyName :
-        restored.name || 'Item'
-
+      const name = getItemName(item)
       let restoredMessage = `Restored "${name}" successfully`
       triggerToast(restoredMessage, 'success')
       await loadTrash()
@@ -223,15 +268,13 @@ export default function TrashPage() {
   }
 
   // Filtered trash items
-  const filteredItems = trashItems.filter(item => {
-    const name = (
-      item.type === 'product' ? item.data.name :
-      item.type === 'category' ? item.data.name :
-      item.type === 'supplier' ? item.data.companyName :
-      item.data.name
-    ).toLowerCase()
+  const filteredItems = (trashItems || []).filter(item => {
+    if (!item) return false
+    const name = String(getItemName(item) || '').toLowerCase()
+    const query = String(searchQuery || '').trim().toLowerCase()
+    const originalId = String(item.originalId || item.trashId || '').toLowerCase()
 
-    const matchesSearch = name.includes(searchQuery.toLowerCase()) || item.originalId.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesSearch = !query || name.includes(query) || originalId.includes(query)
     const matchesType = selectedType === 'all' || item.type === selectedType
 
     return matchesSearch && matchesType
@@ -383,18 +426,8 @@ export default function TrashPage() {
               </thead>
               <tbody className="divide-y divide-slate-850">
                 {filteredItems.map(item => {
-                  const name =
-                    item.type === 'product' ? item.data.name :
-                    item.type === 'category' ? item.data.name :
-                    item.type === 'supplier' ? item.data.companyName :
-                    item.data.name
-
-                  const secondaryDetails =
-                    item.type === 'product' ? (item.data.type === 'packaged' ? `Brand: ${item.data.brand || 'General'} | Category: ${item.data.category}` : `Unit: ${item.data.unit}`) :
-                    item.type === 'supplier' ? `Contact: ${item.data.contactPerson || 'N/A'} | City: ${item.data.city || 'N/A'}` :
-                    item.type === 'customer' ? `Phone: ${item.data.phone || 'N/A'} | City: ${item.data.city || 'N/A'}` :
-                    item.data.description || 'No description'
-
+                  const name = getItemName(item)
+                  const secondaryDetails = getItemSecondaryDetails(item)
                   const daysLeft = getDaysLeft(item.deletedAt)
 
                   return (

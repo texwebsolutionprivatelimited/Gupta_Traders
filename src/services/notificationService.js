@@ -2,7 +2,18 @@ import { supabase } from '../supabase/supabase.js';
 import { formatINR } from '../utils/erp';
 
 const NOTIFICATIONS_STORAGE_KEY = 'erp_notifications';
+const NOTIF_CLEARED_FLAG = 'erp_notif_cleared_zero_v3';
 const MAX_NOTIFICATIONS = 80;
+
+// Immediately clear notifications to start fresh from 0
+if (typeof window !== 'undefined') {
+  try {
+    if (localStorage.getItem(NOTIF_CLEARED_FLAG) !== 'true') {
+      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify([]));
+      localStorage.setItem(NOTIF_CLEARED_FLAG, 'true');
+    }
+  } catch {}
+}
 
 /**
  * Get all stored notifications from localStorage, sorted newest first
@@ -499,8 +510,7 @@ let lastSyncTimestamp = (() => {
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown between automatic syncs
 
 export async function syncRecentActivitiesFromDB(force = false) {
-  const now = Date.now();
-  if (!force && lastSyncTimestamp > 0 && (now - lastSyncTimestamp < SYNC_COOLDOWN_MS)) {
+  if (!force) {
     return getNotifications();
   }
 
@@ -634,7 +644,6 @@ export async function syncRecentActivitiesFromDB(force = false) {
     });
 
     const result = batchAddNotifications(generated);
-    checkMonthlyBackupReminder();
     return result;
   } catch (err) {
     console.warn('Failed to sync recent activities from DB:', err);

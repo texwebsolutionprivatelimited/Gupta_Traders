@@ -25,8 +25,7 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   clearAllNotifications,
-  syncRecentActivitiesFromDB,
-  checkMonthlyBackupReminder
+  syncRecentActivitiesFromDB
 } from '../services/notificationService';
 
 export default function NotificationBell() {
@@ -46,13 +45,13 @@ export default function NotificationBell() {
   };
 
   useEffect(() => {
+    // Clear all existing notifications immediately so it starts clean at 0
+    if (typeof window !== 'undefined' && localStorage.getItem('erp_notif_cleared_zero_v3') !== 'true') {
+      clearAllNotifications();
+      localStorage.setItem('erp_notif_cleared_zero_v3', 'true');
+    }
+
     refreshList();
-    checkMonthlyBackupReminder();
-    // Run an initial authentic database activity sync on mount
-    syncRecentActivitiesFromDB().then(() => {
-      checkMonthlyBackupReminder();
-      refreshList();
-    });
 
     const handleUpdate = () => refreshList();
     window.addEventListener('erp:notifications_updated', handleUpdate);
@@ -79,10 +78,9 @@ export default function NotificationBell() {
     e.stopPropagation();
     setIsSyncing(true);
     try {
-      await syncRecentActivitiesFromDB(true);
       refreshList();
     } finally {
-      setTimeout(() => setIsSyncing(false), 500);
+      setTimeout(() => setIsSyncing(false), 300);
     }
   };
 
@@ -107,6 +105,7 @@ export default function NotificationBell() {
   const handleClearAll = (e) => {
     e.stopPropagation();
     clearAllNotifications();
+    refreshList();
   };
 
   const formatTime = (isoString) => {

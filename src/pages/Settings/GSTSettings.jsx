@@ -4,7 +4,7 @@ import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 
 const defaultGST = {
   enabled: true,
-  gstin: "09ABCDE1234F1Z5",
+  gstin: "",
   registrationType: "Regular",
   defaultRate: "18",
   cgst: true,

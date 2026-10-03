@@ -52,8 +52,6 @@ export default function Footer() {
           <div className="flex items-center gap-4 text-xs text-slate-500">
             <Link to="/settings" className="hover:text-emerald-400 transition-colors">Settings</Link>
             <span className="text-slate-800">&bull;</span>
-            <Link to="/reports" className="hover:text-emerald-400 transition-colors">Reports</Link>
-            <span className="text-slate-800">&bull;</span>
             <span className="font-mono text-[10px] bg-slate-900 border border-slate-800/80 px-2 py-0.5 rounded text-slate-400">
               v2.4.0
             </span>

@@ -20,10 +20,8 @@ const MODULES = [
     "Suppliers",
     "Customers",
     "Expenses",
-    "Reports",
     "Users",
     "Settings",
-    "Hardware",
 ];
 
 const DEFAULT_PERMISSIONS = {

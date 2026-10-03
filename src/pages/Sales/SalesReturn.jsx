@@ -201,10 +201,19 @@ export default function SalesReturn() {
   }, [initialInvoiceParam, handleSelectSale]);
 
   useEffect(() => {
+    let timer = null;
+    const debouncedLoad = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        loadData();
+      }, 500);
+    };
+
     loadData();
-    const unsubSales = subscribeToTable("sales", loadData);
-    const unsubReturns = subscribeToTable("sales_returns", loadData);
+    const unsubSales = subscribeToTable("sales", debouncedLoad);
+    const unsubReturns = subscribeToTable("sales_returns", debouncedLoad);
     return () => {
+      if (timer) clearTimeout(timer);
       unsubSales();
       unsubReturns();
     };

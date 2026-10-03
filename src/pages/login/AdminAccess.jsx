@@ -16,15 +16,10 @@ import {
   FaFileInvoiceDollar,
   FaKey,
   FaCog,
-  FaPlug,
   FaLock,
   FaExclamationTriangle,
   FaChartBar
 } from 'react-icons/fa'
-
-// Dashboard data is loaded from Supabase.
-
-// ─── Icons ─────────────────────────────────────────
 
 function AnimatedNumber({ value, isCurrency = false }) {
   const [display, setDisplay] = useState(0)
@@ -146,8 +141,8 @@ export default function AdminAccess() {
         })
 
         const recent = sales.slice(0, 5).map(s => {
-          const itemsDesc = Array.isArray(s.items) 
-            ? s.items.map(it => `${it.product || it.name} (${it.quantity})`).join(', ') 
+          const itemsDesc = Array.isArray(s.items)
+            ? s.items.map(it => `${it.product || it.name} (${it.quantity})`).join(', ')
             : ''
           return {
             id: s.invoice || s.invoice_number || s.id,
@@ -165,7 +160,7 @@ export default function AdminAccess() {
         const last7Days = Array.from({ length: 7 }, (_, idx) => {
           const d = new Date(today)
           d.setDate(today.getDate() - (6 - idx))
-          
+
           const daySales = sales
             .filter(s => {
               const sDate = s.date || s.sale_date || s.createdAt
@@ -221,10 +216,8 @@ export default function AdminAccess() {
     { label: 'Suppliers', path: '/suppliers', desc: 'Vendor directory', icon: <FaBuilding className="text-sky-400" />, color: 'border-sky-500/20 bg-sky-500/5' },
 
     { label: 'Expenses', path: '/expenses', desc: 'Store spendings', icon: <FaMoneyBillWave className="text-rose-400" />, color: 'border-rose-500/20 bg-rose-500/5' },
-    { label: 'Reports', path: '/reports', desc: 'Store reports', icon: <FaFileInvoiceDollar className="text-teal-400" />, color: 'border-teal-500/20 bg-teal-500/5' },
     { label: 'Users', path: '/users', desc: 'Staff access config', icon: <FaKey className="text-violet-400" />, color: 'border-violet-500/20 bg-violet-500/5' },
-    { label: 'Settings', path: '/settings', desc: 'ERP Preferences', icon: <FaCog className="text-slate-400" />, color: 'border-slate-500/20 bg-slate-500/5' },
-    { label: 'Hardware', path: '/hardware', desc: 'Printers & scales', icon: <FaPlug className="text-pink-400" />, color: 'border-pink-500/20 bg-pink-500/5' },
+    { label: 'Settings', path: '/settings', desc: 'ERP Preferences', icon: <FaCog className="text-slate-400" />, color: 'border-slate-500/20 bg-slate-500/5' }
   ]
 
   const stats = [

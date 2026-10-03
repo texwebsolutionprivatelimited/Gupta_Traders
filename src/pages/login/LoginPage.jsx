@@ -75,9 +75,11 @@ export default function LoginPage() {
     setError('')
 
     try {
+      sessionStorage.setItem('erp_just_logged_in', 'true')
       await signIn(email.trim(), password)
       setSuccess(true)
     } catch (err) {
+      sessionStorage.removeItem('erp_just_logged_in')
       setError(err.message || 'Unable to sign in')
     } finally {
       setLoading(false)

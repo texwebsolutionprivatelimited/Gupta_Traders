@@ -3,7 +3,6 @@ import {
   Store,
   ReceiptText,
   FileText,
-  Printer,
   DatabaseBackup,
   ChevronRight,
 } from "lucide-react";
@@ -29,13 +28,6 @@ const settingsItems = [
     icon: FileText,
     path: "/settings/invoice",
     iconClass: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-  },
-  {
-    title: "Printer Settings",
-    description: "Configure invoice printer and printing preferences.",
-    icon: Printer,
-    path: "/settings/printer",
-    iconClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   },
   {
     title: "Backup & Restore",
@@ -69,7 +61,7 @@ export default function Settings() {
           </h1>
 
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Manage your shop, billing, printer and application settings.
+            Manage your shop, billing, and application settings.
           </p>
         </div>
 

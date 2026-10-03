@@ -52,25 +52,31 @@ export default function MissingMrpAlertManager() {
       const currentPath = typeof window !== 'undefined' ? window.location.pathname : location.pathname;
       if (currentPath === '/login') return
 
-      if (missing.length > 0) {
-        const ackIds = new Set(getAcknowledgedMissingMrpIds().map(String))
-        const hasUnacknowledged = missing.some(p => !ackIds.has(String(p.id)))
+      const isFreshLogin = typeof window !== 'undefined' && sessionStorage.getItem('erp_just_logged_in') === 'true'
 
-        if (hasUnacknowledged && !hasCheckedInitialRef.current) {
-          hasCheckedInitialRef.current = true
-          try {
-            addNotification(
-              buildMissingMrpNotification({
-                count: missing.length,
-                productNames: missing.map(p => p.name),
-                firstProductId: missing[0]?.id,
-              })
-            )
-          } catch { }
-          // Short delay to allow page UI to settle
-          setTimeout(() => {
-            setIsOpen(true)
-          }, 600)
+      if (isFreshLogin && !hasCheckedInitialRef.current) {
+        hasCheckedInitialRef.current = true
+        try { sessionStorage.removeItem('erp_just_logged_in') } catch (_) {}
+
+        if (missing.length > 0) {
+          const ackIds = new Set(getAcknowledgedMissingMrpIds().map(String))
+          const hasUnacknowledged = missing.some(p => !ackIds.has(String(p.id)))
+
+          if (hasUnacknowledged) {
+            try {
+              addNotification(
+                buildMissingMrpNotification({
+                  count: missing.length,
+                  productNames: missing.map(p => p.name),
+                  firstProductId: missing[0]?.id,
+                })
+              )
+            } catch { }
+            // Short delay to allow dashboard/POS UI to settle after login
+            setTimeout(() => {
+              setIsOpen(true)
+            }, 800)
+          }
         }
       }
     } catch (err) {

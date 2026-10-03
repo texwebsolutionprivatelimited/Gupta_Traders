@@ -50,8 +50,16 @@ export function AuthProvider({ children }) {
     })
     return()=>{active=false;clearTimeout(authTimer);subscription.unsubscribe()}
   },[])
-  async function signIn(email,password){ const {error:e}=await supabase.auth.signInWithPassword({email,password}); if(e)throw new Error(e.message) }
-  async function signOut(){ const {error:e}=await supabase.auth.signOut(); if(e)throw new Error(e.message) }
+  async function signIn(email,password){ 
+    const {error:e}=await supabase.auth.signInWithPassword({email,password}); 
+    if(e)throw new Error(e.message);
+    try { sessionStorage.setItem('erp_just_logged_in', 'true') } catch (_) {}
+  }
+  async function signOut(){ 
+    try { sessionStorage.removeItem('erp_just_logged_in') } catch (_) {}
+    const {error:e}=await supabase.auth.signOut(); 
+    if(e)throw new Error(e.message) 
+  }
   return <AuthContext.Provider value={{session,user:session?.user||null,profile,role:profile?.role||null,loading,error,signIn,signOut}}>{children}</AuthContext.Provider>
 }
 export function useAuth(){ const value=useContext(AuthContext); if(!value)throw new Error('useAuth must be inside AuthProvider'); return value }

@@ -50,8 +50,8 @@ export function normalizeBillData(rawBill) {
   const storeSettings = getStoredBusinessSettings();
   const storeName = storeSettings.shop?.shopName || 'GUPTA TRADER & SUPERSTORE';
   const storeAddress = rawBill.storeAddress || rawBill.address || storeSettings.shop?.address || storeSettings.address || 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)';
-  const storePhone = rawBill.storePhone || rawBill.phone || storeSettings.shop?.phone || storeSettings.phone || '9876543210';
-  const storeGstin = rawBill.storeGstin || rawBill.gstin || storeSettings.gst?.gstin || storeSettings.gstin || '09ABCDE1234F1Z5';
+  const storePhone = rawBill.storePhone || rawBill.phone || storeSettings.shop?.phone || storeSettings.phone || '';
+  const storeGstin = rawBill.storeGstin || rawBill.gstin || storeSettings.gst?.gstin || storeSettings.gstin || '';
   const returnPolicy = rawBill.returnPolicy || storeSettings.invoice?.footer || storeSettings.receiptFooter || 'Items sold after 10 days will not be returned';
 
   const billNumber = rawBill.billNumber || rawBill.invoice_number || rawBill.invoice || rawBill.billNo || rawBill.id || '—';

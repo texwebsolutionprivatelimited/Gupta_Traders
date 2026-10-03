@@ -64,11 +64,11 @@ export default function BackupRestore() {
     user?.email ||
     getLastBackupEmail() ||
     businessSettings?.shop?.email ||
-    'owner@gmail.com';
+    '';
 
   const defaultOwnerPhone =
     businessSettings?.shop?.phone ||
-    '9876543210';
+    '';
 
   // Active Backup Tab: 'whatsapp' | 'email'
   const [activeBackupTab, setActiveBackupTab] = useState('whatsapp');

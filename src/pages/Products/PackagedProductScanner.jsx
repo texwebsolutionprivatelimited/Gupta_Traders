@@ -11,7 +11,6 @@ import {
   Plus,
   ArrowRight,
   RefreshCw,
-  Sparkles,
   ShoppingBag,
   ExternalLink,
   Volume2,
@@ -490,13 +489,7 @@ export default function PackagedProductScanner() {
   const customerSavings = mrpNum > 0 && mrpNum > rateNum && rateNum > 0 ? mrpNum - rateNum : 0
   const savingsPct = mrpNum > 0 && customerSavings > 0 ? ((customerSavings / mrpNum) * 100).toFixed(1) : '0'
 
-  // Quick preset samples for demo / testing
-  const sampleBarcodes = [
-    { code: '8901491101837', label: "Lay's Salted", brand: "Lay's" },
-    { code: '8901719134845', label: 'Parle-G Biscuit', brand: 'Parle' },
-    { code: '8901063139329', label: 'Britannia Bourbon', brand: 'Britannia' },
-    { code: '05507022650', label: 'Kurkure (Existing DB Check)', brand: 'Existing in DB' },
-  ]
+
 
   // ── Camera Barcode Scanner ──
   const startCameraScanner = async () => {
@@ -588,26 +581,23 @@ export default function PackagedProductScanner() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          {/* Audio toggle button */}
           <button
             type="button"
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
-              soundEnabled
+            className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${soundEnabled
                 ? 'bg-slate-800/80 text-emerald-400 border-slate-700/60 hover:bg-slate-700'
                 : 'bg-slate-800/40 text-slate-500 border-slate-800 hover:text-slate-400'
-            }`}
+              }`}
             title={soundEnabled ? 'Beep sound enabled' : 'Muted'}
           >
             {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline">{soundEnabled ? 'Sound On' : 'Muted'}</span>
           </button>
 
-          {/* Hardware Scanner Status Indicator */}
-          <Link
-            to="/hardware/barcode-scanner"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-all"
-            title="Configure USB / Bluetooth Scanner"
+          {/* Scanner Status Indicator */}
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs font-medium text-slate-300"
+            title="Barcode Scanner Ready"
           >
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -615,7 +605,7 @@ export default function PackagedProductScanner() {
             </span>
             <span className="hidden md:inline font-mono">Scanner Active</span>
             <Barcode className="w-4 h-4 text-emerald-400" />
-          </Link>
+          </div>
 
           <Link
             to="/products"
@@ -665,7 +655,7 @@ export default function PackagedProductScanner() {
             </label>
             <span className="text-xs text-slate-400 flex items-center gap-1.5 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              Hardware scanner listeners active (Auto-detects Enter key)
+              Barcode scanner listeners active (Auto-detects Enter key)
             </span>
           </div>
 
@@ -734,25 +724,7 @@ export default function PackagedProductScanner() {
             </div>
           </form>
 
-          {/* Sample quick test chips */}
-          <div className="flex items-center gap-2 flex-wrap pt-1 text-xs text-slate-400">
-            <span className="font-semibold text-slate-500 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Quick Samples:
-            </span>
-            {sampleBarcodes.map((item) => (
-              <button
-                key={item.code}
-                type="button"
-                onClick={() => {
-                  setBarcodeInput(item.code)
-                  handleLookup(item.code)
-                }}
-                className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/50 hover:bg-slate-700 text-slate-300 font-mono hover:text-slate-100 transition-all cursor-pointer"
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+
         </div>
       </div>
 
@@ -1019,9 +991,8 @@ export default function PackagedProductScanner() {
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     onBlur={() => translateToHindi(formData.name)}
                     placeholder="e.g. Kurkure Masala Munch, Parle-G Biscuits..."
-                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all ${
-                      formErrors.name ? 'border-rose-500' : 'border-slate-800'
-                    }`}
+                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all ${formErrors.name ? 'border-rose-500' : 'border-slate-800'
+                      }`}
                   />
                   {formErrors.name && (
                     <p className="text-xs text-rose-400 font-medium">{formErrors.name}</p>
@@ -1052,9 +1023,8 @@ export default function PackagedProductScanner() {
                     value={formData.brand}
                     onChange={(e) => handleInputChange('brand', e.target.value)}
                     placeholder="e.g. Kurkure, Parle, Britannia, Lay's..."
-                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all ${
-                      formErrors.brand ? 'border-rose-500' : 'border-slate-800'
-                    }`}
+                    className={`w-full px-4 py-3 rounded-xl bg-slate-950 border text-slate-100 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:border-emerald-500 transition-all ${formErrors.brand ? 'border-rose-500' : 'border-slate-800'
+                      }`}
                   />
                   {formErrors.brand && (
                     <p className="text-xs text-rose-400 font-medium">{formErrors.brand}</p>
@@ -1135,9 +1105,8 @@ export default function PackagedProductScanner() {
                         value={formData.purchasePrice}
                         onChange={(e) => handleInputChange('purchasePrice', e.target.value)}
                         placeholder="0.00"
-                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${
-                          formErrors.purchasePrice ? 'border-rose-500' : 'border-slate-700'
-                        }`}
+                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${formErrors.purchasePrice ? 'border-rose-500' : 'border-slate-700'
+                          }`}
                       />
                     </div>
                     {formErrors.purchasePrice && (
@@ -1162,9 +1131,8 @@ export default function PackagedProductScanner() {
                         value={formData.mrp}
                         onChange={(e) => handleInputChange('mrp', e.target.value)}
                         placeholder="Optional"
-                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${
-                          formErrors.mrp ? 'border-rose-500' : 'border-slate-700'
-                        }`}
+                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${formErrors.mrp ? 'border-rose-500' : 'border-slate-700'
+                          }`}
                       />
                     </div>
                     {formErrors.mrp && (
@@ -1189,9 +1157,8 @@ export default function PackagedProductScanner() {
                         value={formData.rate}
                         onChange={(e) => handleInputChange('rate', e.target.value)}
                         placeholder="0.00"
-                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${
-                          formErrors.rate ? 'border-rose-500' : 'border-slate-700'
-                        }`}
+                        className={`w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 border text-slate-100 placeholder:text-slate-500 text-base font-bold focus:outline-none focus:border-emerald-500 transition-all ${formErrors.rate ? 'border-rose-500' : 'border-slate-700'
+                          }`}
                       />
                     </div>
                     {formErrors.rate && (
@@ -1208,9 +1175,8 @@ export default function PackagedProductScanner() {
                     <div className="flex items-center gap-2">
                       <span className="text-slate-400">Profit Per Unit:</span>
                       <span
-                        className={`font-bold ${
-                          profitAmt >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
+                        className={`font-bold ${profitAmt >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
                       >
                         {formatINR(profitAmt)}
                       </span>
@@ -1218,11 +1184,10 @@ export default function PackagedProductScanner() {
                     <div className="flex items-center gap-2">
                       <span className="text-slate-400">Margin:</span>
                       <span
-                        className={`font-bold px-2 py-0.5 rounded ${
-                          Number(marginPct) >= 15
+                        className={`font-bold px-2 py-0.5 rounded ${Number(marginPct) >= 15
                             ? 'bg-emerald-500/10 text-emerald-400'
                             : 'bg-amber-500/10 text-amber-400'
-                        }`}
+                          }`}
                       >
                         {marginPct}%
                       </span>

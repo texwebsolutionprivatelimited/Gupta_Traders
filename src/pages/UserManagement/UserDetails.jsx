@@ -27,7 +27,6 @@ const rolePermissions = {
     "Reports",
     "Users",
     "Settings",
-    "Hardware",
   ],
 
   "Cashier / Accountant": [

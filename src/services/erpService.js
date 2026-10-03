@@ -16,7 +16,7 @@ export async function requireSession() {
 
 export async function getCurrentProfile() {
   const user = await requireSession()
-  const { data, error } = await supabase.from('profiles').select('*, role:roles(*)').eq('id', user.id).single()
+  const { data, error } = await supabase.from('profiles').select('id, full_name, role_id, is_active, phone, created_at, role:roles(id, name, description)').eq('id', user.id).single()
   fail(error, 'Unable to load user profile')
   if (!data?.role_id || !data?.role) throw new Error('This account has no ERP role. Ask an administrator to assign one.')
   if (!data.is_active) throw new Error('This ERP account is inactive.')
@@ -29,6 +29,8 @@ const cacheStore = {
   categories: { data: null, timestamp: 0, ttl: 10 * 60 * 1000 },
   sales: { data: null, timestamp: 0, ttl: 2 * 60 * 1000 },
   purchases: { data: null, timestamp: 0, ttl: 2 * 60 * 1000 },
+  purchaseReturns: { data: null, timestamp: 0, ttl: 3 * 60 * 1000 },
+  salesReturns: { data: null, timestamp: 0, ttl: 3 * 60 * 1000 },
   customers: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 },
   suppliers: { data: null, timestamp: 0, ttl: 5 * 60 * 1000 },
   expenses: { data: null, timestamp: 0, ttl: 3 * 60 * 1000 },
@@ -43,17 +45,17 @@ const inFlightRequests = new Map()
 export function getCachedOrFetch(key, fetcher, ttlMs, forceRefresh = false) {
   const now = Date.now()
   const entry = cacheStore[key]
-  const targetTtl = ttlMs || (entry ? entry.ttl : 60000)
+  const targetTtl = (ttlMs && entry ? Math.max(ttlMs, entry.ttl) : (ttlMs || (entry ? entry.ttl : 60000)))
 
   // 1. Check in-memory cache
   if (!forceRefresh && entry && entry.data && (now - entry.timestamp < targetTtl)) {
     return Promise.resolve(entry.data)
   }
 
-  // 2. Check persistent sessionStorage to save egress on reload / tab navigation
-  if (!forceRefresh && typeof window !== 'undefined' && window.sessionStorage) {
+  // 2. Check persistent browser storage (localStorage preferred, fallback to sessionStorage)
+  if (!forceRefresh && typeof window !== 'undefined') {
     try {
-      const persisted = sessionStorage.getItem(`erp_cache_${key}`)
+      const persisted = localStorage.getItem(`erp_cache_${key}`) || sessionStorage.getItem(`erp_cache_${key}`)
       if (persisted) {
         const parsed = JSON.parse(persisted)
         if (parsed && parsed.data && (now - parsed.timestamp < targetTtl)) {
@@ -79,9 +81,14 @@ export function getCachedOrFetch(key, fetcher, ttlMs, forceRefresh = false) {
         entry.data = data
         entry.timestamp = Date.now()
       }
-      if (typeof window !== 'undefined' && window.sessionStorage) {
+      if (typeof window !== 'undefined') {
         try {
-          sessionStorage.setItem(`erp_cache_${key}`, JSON.stringify({ data, timestamp: Date.now() }))
+          const payload = JSON.stringify({ data, timestamp: Date.now() })
+          try {
+            localStorage.setItem(`erp_cache_${key}`, payload)
+          } catch (_) {
+            sessionStorage.setItem(`erp_cache_${key}`, payload)
+          }
         } catch (_) { }
       }
       return data
@@ -97,7 +104,8 @@ export function invalidateCache(scope = 'all') {
   const clearKeys = (keys) => {
     keys.forEach(k => {
       if (cacheStore[k]) cacheStore[k].data = null
-      if (typeof window !== 'undefined' && window.sessionStorage) {
+      if (typeof window !== 'undefined') {
+        try { localStorage.removeItem(`erp_cache_${k}`) } catch (_) { }
         try { sessionStorage.removeItem(`erp_cache_${k}`) } catch (_) { }
       }
     })
@@ -176,7 +184,7 @@ export async function listProducts({ search = '', categoryId, status = 'active',
       .order('name')
     fail(error, 'Unable to load products')
     return data
-  }, 60 * 1000, forceRefresh)
+  }, 10 * 60 * 1000, forceRefresh)
 
   // Serve queries from master in-memory cache to save egress whenever possible
   if (allActiveProducts && Array.isArray(allActiveProducts)) {
@@ -477,10 +485,10 @@ export async function listInventoryMovements({ forceRefresh = false } = {}) {
       .from('stock_movements')
       .select('id,product_id,movement_type,quantity,reference_type,reference_id,notes,reason,created_at,created_by,product:products(id,name,sku,barcode,unit)')
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(75);
     fail(error, 'Unable to load inventory ledger');
     return data || [];
-  }, 30 * 1000, forceRefresh);
+  }, 5 * 60 * 1000, forceRefresh);
 }
 export async function setMinimumStock(productId, minimum) { const { data, error } = await supabase.from('products').update({ minimum_stock: Number(minimum) }).eq('id', productId).select().single(); fail(error, 'Unable to update minimum stock'); invalidateCache('products'); return data }
 export async function completeSale(sale, items) {
@@ -652,7 +660,7 @@ export async function savePurchaseBill(billData, items = [], existingId = null) 
       .from('purchases')
       .update(purchaseRow)
       .eq('id', existingId)
-      .select('*, supplier:suppliers(*)')
+      .select('id, supplier_id, invoice_number, supplier_invoice_number, purchase_date, subtotal, discount, tax, tax_amount, total_amount, paid_amount, due_amount, payment_status, payment_method, notes, status, metadata, created_at, supplier:suppliers(id, company_name, name, phone, address)')
       .single();
     fail(error, 'Unable to update purchase bill');
     savedPurchase = data;
@@ -678,7 +686,7 @@ export async function savePurchaseBill(billData, items = [], existingId = null) 
     const { data, error } = await supabase
       .from('purchases')
       .insert(purchaseRow)
-      .select('*, supplier:suppliers(*)')
+      .select('id, supplier_id, invoice_number, supplier_invoice_number, purchase_date, subtotal, discount, tax, tax_amount, total_amount, paid_amount, due_amount, payment_status, payment_method, notes, status, metadata, created_at, supplier:suppliers(id, company_name, name, phone, address)')
       .single();
     fail(error, 'Unable to save purchase bill');
     savedPurchase = data;
@@ -728,52 +736,63 @@ export async function completeSalesReturn(ret, items) {
   invalidateCache('products');
   invalidateCache('inventory');
   invalidateCache('sales');
+  invalidateCache('salesReturns');
   try {
     window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { returnData: data, items } }));
     window.dispatchEvent(new CustomEvent('erp:inventory_change', { detail: { type: 'sales_return', items } }));
   } catch (e) { }
   return data;
 }
-export async function completePurchaseReturn(ret, items) { const { data, error } = await supabase.rpc('complete_purchase_return', { p_return: ret, p_items: items }); fail(error, 'Unable to complete purchase return'); invalidateCache('products'); invalidateCache('purchases'); return data }
+export async function completePurchaseReturn(ret, items) {
+  const { data, error } = await supabase.rpc('complete_purchase_return', { p_return: ret, p_items: items });
+  fail(error, 'Unable to complete purchase return');
+  invalidateCache('products');
+  invalidateCache('purchases');
+  invalidateCache('purchaseReturns');
+  return data;
+}
 
-export async function listPurchaseReturns() {
-  const { data, error } = await supabase
-    .from('purchase_returns')
-    .select('*, purchase:purchases(*), supplier:suppliers(*), items:purchase_return_items(*)')
-    .order('created_at', { ascending: false });
-  fail(error, 'Unable to load purchase returns');
-  return (data || []).map(r => {
-    let items = r.items || [];
-    if ((!items || items.length === 0) && r.notes && r.notes.includes('--- RETURN ITEMS ---')) {
-      try {
-        const jsonPart = r.notes.split('--- RETURN ITEMS ---')[1];
-        items = JSON.parse(jsonPart.trim());
-      } catch (e) { }
-    }
-    return {
-      ...r,
-      id: r.id,
-      returnNo: r.return_no || r.return_number || 'PR-000',
-      invoiceNo: r.invoice_no || r.purchase?.supplier_invoice_number || r.purchase?.invoice_number || '',
-      supplierName: r.supplier_name || r.supplier?.company_name || r.supplier?.name || 'Supplier',
-      date: r.return_date || r.created_at,
-      subtotal: Number(r.subtotal || 0),
-      taxAmount: Number(r.tax_amount || 0),
-      totalAmount: Number(r.total_amount || 0),
-      reason: r.reason || 'Other',
-      notes: r.notes || '',
-      status: r.status || 'Completed',
-      items: (items || []).map((it, idx) => ({
-        ...it,
-        id: it.id || `pr-item-${idx}`,
-        product: it.product_name || it.product || it.name || 'Product',
-        quantity: Number(it.quantity || 1),
-        purchasePrice: Number(it.price ?? it.unit_price ?? it.purchasePrice ?? 0),
-        gst: Number(it.gst ?? it.tax_rate ?? 0),
-        total: Number(it.total ?? it.line_total ?? (Number(it.quantity || 1) * Number(it.price ?? it.unit_price ?? 0)))
-      }))
-    };
-  });
+export async function listPurchaseReturns({ forceRefresh = false } = {}) {
+  return getCachedOrFetch('purchaseReturns', async () => {
+    const { data, error } = await supabase
+      .from('purchase_returns')
+      .select('id, return_number, return_date, subtotal, tax_amount, total_amount, reason, notes, status, created_at, purchase_id, supplier_id, purchase:purchases(supplier_invoice_number, invoice_number), supplier:suppliers(company_name, name), items:purchase_return_items(id, purchase_return_id, purchase_item_id, product_id, product_name, quantity, unit_price, price, tax_rate, total, line_total)')
+      .order('created_at', { ascending: false })
+      .limit(60);
+    fail(error, 'Unable to load purchase returns');
+    return (data || []).map(r => {
+      let items = r.items || [];
+      if ((!items || items.length === 0) && r.notes && r.notes.includes('--- RETURN ITEMS ---')) {
+        try {
+          const jsonPart = r.notes.split('--- RETURN ITEMS ---')[1];
+          items = JSON.parse(jsonPart.trim());
+        } catch (e) { }
+      }
+      return {
+        ...r,
+        id: r.id,
+        returnNo: r.return_no || r.return_number || 'PR-000',
+        invoiceNo: r.invoice_no || r.purchase?.supplier_invoice_number || r.purchase?.invoice_number || '',
+        supplierName: r.supplier_name || r.supplier?.company_name || r.supplier?.name || 'Supplier',
+        date: r.return_date || r.created_at,
+        subtotal: Number(r.subtotal || 0),
+        taxAmount: Number(r.tax_amount || 0),
+        totalAmount: Number(r.total_amount || 0),
+        reason: r.reason || 'Other',
+        notes: r.notes || '',
+        status: r.status || 'Completed',
+        items: (items || []).map((it, idx) => ({
+          ...it,
+          id: it.id || `pr-item-${idx}`,
+          product: it.product_name || it.product || it.name || 'Product',
+          quantity: Number(it.quantity || 1),
+          purchasePrice: Number(it.price ?? it.unit_price ?? it.purchasePrice ?? 0),
+          gst: Number(it.gst ?? it.tax_rate ?? 0),
+          total: Number(it.total ?? it.line_total ?? (Number(it.quantity || 1) * Number(it.price ?? it.unit_price ?? 0)))
+        }))
+      };
+    });
+  }, 3 * 60 * 1000, forceRefresh);
 }
 
 export async function savePurchaseReturn(returnData, returnItems) {
@@ -829,7 +848,7 @@ export async function savePurchaseReturn(returnData, returnItems) {
     const { data: prData, error: prErr } = await supabase
       .from('purchase_returns')
       .insert(returnRow)
-      .select()
+      .select('id, return_number, return_date, total_amount, status')
       .single();
 
     fail(prErr, 'Unable to save purchase return record');
@@ -860,6 +879,8 @@ export async function savePurchaseReturn(returnData, returnItems) {
   }
 
   invalidateCache('products');
+  invalidateCache('purchases');
+  invalidateCache('purchaseReturns');
   return savedResult;
 }
 
@@ -871,17 +892,21 @@ export async function deletePurchaseReturn(id) {
   const { error } = await supabase.from('purchase_returns').delete().eq('id', id);
   fail(error, 'Unable to delete purchase return record');
   invalidateCache('products');
+  invalidateCache('purchases');
+  invalidateCache('purchaseReturns');
   return true;
 }
 
 export async function listSalesReturns({ forceRefresh = false } = {}) {
-  const { data, error } = await supabase
-    .from('sales_returns')
-    .select('id,return_number,sale_id,customer_id,return_date,subtotal,tax_amount,total_amount,reason,refund_method,notes,created_at,sale:sales(id,invoice_number,sale_date,total_amount,payment_method),customer:customers(id,name,phone),items:sale_return_items(id,sales_return_id,sale_item_id,product_id,quantity,unit_price,line_total,price,total,product:products(id,name,unit,sku,pack_size))')
-    .order('created_at', { ascending: false })
-    .limit(100);
-  fail(error, 'Unable to load sales returns');
-  return data || [];
+  return getCachedOrFetch('salesReturns', async () => {
+    const { data, error } = await supabase
+      .from('sales_returns')
+      .select('id,return_number,sale_id,customer_id,return_date,subtotal,tax_amount,total_amount,reason,refund_method,notes,created_at,sale:sales(id,invoice_number,sale_date,total_amount,payment_method),customer:customers(id,name,phone),items:sale_return_items(id,sales_return_id,sale_item_id,product_id,quantity,unit_price,line_total,price,total,product:products(id,name,unit,sku,pack_size))')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    fail(error, 'Unable to load sales returns');
+    return data || [];
+  }, 3 * 60 * 1000, forceRefresh);
 }
 
 export async function listSales({ forceRefresh = false } = {}) {
@@ -1097,7 +1122,7 @@ export async function listCustomers({ forceRefresh = false } = {}) {
       .order('name');
     fail(error, 'Unable to load customers');
     return data || [];
-  }, 60 * 1000, forceRefresh);
+  }, 10 * 60 * 1000, forceRefresh);
 }
 export function customerToUI(c) { return { id: c.id, name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', city: c.city || '', gstin: c.gstin || c.gst_number || '', customerType: c.customer_type || 'retail', creditLimit: Number(c.credit_limit || 0), outstandingBalance: Number(c.balance ?? c.opening_balance ?? 0), status: c.status || 'active', profilePic: c.profile_image_url || '', createdAt: c.created_at, updatedAt: c.updated_at, metadata: c.metadata || {} } }
 
@@ -1107,10 +1132,10 @@ async function getRecentTransactionsLedger(forceRefresh = false) {
       .from('transactions')
       .select('id,reference_id,transaction_date,type,description,amount')
       .order('transaction_date', { ascending: false })
-      .limit(200);
+      .limit(60);
     fail(error, 'Unable to load ledgers');
     return data || [];
-  }, 60 * 1000, forceRefresh);
+  }, 5 * 60 * 1000, forceRefresh);
 }
 
 export async function listUICustomers({ forceRefresh = false } = {}) {
@@ -1168,7 +1193,7 @@ export async function listSuppliers({ forceRefresh = false } = {}) {
       .order('company_name');
     fail(error, 'Unable to load suppliers');
     return data || [];
-  }, 60 * 1000, forceRefresh);
+  }, 10 * 60 * 1000, forceRefresh);
 }
 export function supplierToUI(s) { const given = Number(s.opening_balance ?? s.openingBalance ?? 0); return { id: s.id, companyName: s.company_name, contactPerson: s.contact_person || '', phone: s.phone || '', email: s.email || '', address: s.address || '', city: s.city || '', gstin: s.gstin || '', outstandingBalance: Number(s.balance || 0), givenAmount: given, openingBalance: given, creditLimit: Number(s.credit_limit || 0), status: s.status, productsSupplied: s.metadata?.productsSupplied || [], createdAt: s.created_at, updatedAt: s.updated_at, metadata: s.metadata || {} } }
 export async function listUISuppliers({ forceRefresh = false } = {}) {
@@ -1288,12 +1313,12 @@ export async function deleteSupplier(id) {
   invalidateCache('suppliers');
   return res;
 }
-export async function listLedger(partyType, partyId) { const { data, error } = await supabase.from('transactions').select('*').eq('reference_id', partyId).order('transaction_date', { ascending: false }); fail(error, 'Unable to load ledger'); return data }
+export async function listLedger(partyType, partyId) { const { data, error } = await supabase.from('transactions').select('id, transaction_date, type, amount, description, bill_no, payment_mode, status, reference_id, supplier, utr_no, created_at').eq('reference_id', partyId).order('transaction_date', { ascending: false }).limit(100); fail(error, 'Unable to load ledger'); return data || [] }
 export async function recordPartyTransaction(partyType, partyId, transaction) { const { data, error } = await supabase.rpc('record_party_transaction', { p_party_type: partyType, p_party_id: partyId, p_entry_type: transaction.type, p_amount: Number(transaction.amount), p_description: transaction.description, p_entry_date: transaction.date || new Date().toISOString() }); fail(error, 'Unable to record ledger transaction'); return data }
 export async function deletePartyTransaction(transactionId, partyId, partyType = 'supplier') {
   const { data: txn } = await supabase
     .from('transactions')
-    .select('*')
+    .select('id, amount, type')
     .eq('id', transactionId)
     .maybeSingle();
 
@@ -1307,7 +1332,7 @@ export async function deletePartyTransaction(transactionId, partyId, partyType =
     try {
       const { data: remainingTxns } = await supabase
         .from('transactions')
-        .select('*')
+        .select('id, amount, type, description')
         .eq('reference_id', partyId);
 
       const txns = remainingTxns || [];
@@ -1318,7 +1343,7 @@ export async function deletePartyTransaction(transactionId, partyId, partyType =
       if (partyType === 'supplier') {
         const { data: supRow } = await supabase
           .from('suppliers')
-          .select('*')
+          .select('id, balance, opening_balance, metadata')
           .eq('id', partyId)
           .maybeSingle();
 
@@ -1383,10 +1408,14 @@ export async function deletePartyTransaction(transactionId, partyId, partyType =
 }
 export async function listExpenses({ forceRefresh = false } = {}) {
   return getCachedOrFetch('expenses', async () => {
-    const { data, error } = await supabase.from('expenses').select('*').order('expense_date', { ascending: false }).limit(200);
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('id, expense_type, category, amount, description, payee, expense_date, payment_method, bill_number, metadata, created_at')
+      .order('expense_date', { ascending: false })
+      .limit(60);
     fail(error, 'Unable to load expenses');
     return data || [];
-  }, 45 * 1000, forceRefresh);
+  }, 5 * 60 * 1000, forceRefresh);
 }
 export async function saveExpense(values, id) {
   const query = id ? supabase.from('expenses').update(values).eq('id', id) : supabase.from('expenses').insert(values);
@@ -1416,22 +1445,41 @@ export async function deleteExpense(id) {
 }
 export async function listHeldBills({ forceRefresh = false } = {}) {
   return getCachedOrFetch('heldBills', async () => {
-    const { data, error } = await supabase.from('held_bills').select('*').order('held_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('held_bills')
+      .select('id, label, totals, customer_id, held_by, held_at')
+      .order('held_at', { ascending: false })
+      .limit(50);
     fail(error, 'Unable to load held bills');
-    return data || [];
-  }, 15 * 1000, forceRefresh);
+    return (data || []).map(row => ({
+      ...row,
+      cart: row.totals?.cart || row.cart || []
+    }));
+  }, 60 * 1000, forceRefresh);
 }
 export async function saveHeldBill(values) {
   const user = await requireSession();
-  const { data, error } = await supabase.from('held_bills').insert({ ...values, held_by: user.id }).select().single();
+  const totalsWithCart = {
+    ...(values.totals || {}),
+    cart: values.cart || values.totals?.cart || []
+  };
+  const { data, error } = await supabase.from('held_bills').insert({
+    label: values.label || 'Walk-in',
+    customer_id: values.customer_id || null,
+    totals: totalsWithCart,
+    held_by: user.id
+  }).select('id, label, totals, customer_id, held_by, held_at').single();
   fail(error, 'Unable to hold bill');
-  invalidateCache('held_bills');
-  return data;
+  invalidateCache('heldBills');
+  return {
+    ...data,
+    cart: totalsWithCart.cart
+  };
 }
 export async function deleteHeldBill(id) {
   const { error } = await supabase.from('held_bills').delete().eq('id', id);
   fail(error, 'Unable to remove held bill');
-  invalidateCache('held_bills');
+  invalidateCache('heldBills');
 }
 export function getStoredBusinessSettings() {
   try {
@@ -1445,11 +1493,11 @@ export function getStoredBusinessSettings() {
     shop: {
       shopName: 'Gupta Trader & Superstore',
       address: 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
-      phone: '9876543210',
-      email: 'guptatraders@example.com'
+      phone: '',
+      email: ''
     },
     gst: {
-      gstin: '09ABCDE1234F1Z5'
+      gstin: ''
     },
     invoice: {
       prefix: 'INV-',
@@ -1468,11 +1516,11 @@ export async function getBusinessSettings() {
     shop: {
       shopName: data.shop_name || 'Gupta Trader & Superstore',
       address: data.shop_address || data.address || 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
-      phone: data.phone || '9876543210',
-      email: data.email || 'guptatraders@example.com'
+      phone: data.phone || '',
+      email: data.email || ''
     },
     gst: {
-      gstin: data.gst_number || '09ABCDE1234F1Z5'
+      gstin: data.gst_number || ''
     },
     invoice: {
       prefix: data.invoice_prefix || 'INV-',
@@ -1535,13 +1583,23 @@ export function subscribeToTable(table, onChange) {
 
     const channel = supabase.channel(`erp:shared:${table}`)
       .on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
-        if (table === 'products' || table === 'inventory' || table === 'stock_movements') {
+        if (table === 'products') {
           invalidateCache('products');
+        } else if (table === 'inventory') {
+          invalidateCache('inventory');
+        } else if (table === 'stock_movements') {
+          invalidateCache('movements');
         } else if (table === 'categories') {
           invalidateCache('categories');
-        } else if (table === 'sales' || table === 'sale_items' || table === 'sales_returns') {
+        } else if (table === 'sales' || table === 'sale_items') {
           invalidateCache('sales');
-        } else if (table === 'purchases' || table === 'purchase_items' || table === 'purchase_returns') {
+        } else if (table === 'sales_returns') {
+          invalidateCache('salesReturns');
+          invalidateCache('sales');
+        } else if (table === 'purchases' || table === 'purchase_items') {
+          invalidateCache('purchases');
+        } else if (table === 'purchase_returns') {
+          invalidateCache('purchaseReturns');
           invalidateCache('purchases');
         } else if (table === 'customers') {
           invalidateCache('customers');
@@ -1550,7 +1608,7 @@ export function subscribeToTable(table, onChange) {
         } else if (table === 'expenses') {
           invalidateCache('expenses');
         } else if (table === 'held_bills') {
-          invalidateCache('held_bills');
+          invalidateCache('heldBills');
         }
 
         if (debounceTimer) clearTimeout(debounceTimer);
@@ -1620,7 +1678,15 @@ export async function listRecentNotificationActivities({ forceRefresh = false } 
   }, 5 * 60 * 1000, forceRefresh);
 }
 export async function softDeleteEntity(entityType, id) { const { error } = await supabase.rpc('soft_delete_entity', { p_entity_type: entityType, p_id: id }); fail(error, `Unable to move ${entityType} to trash`) }
-export async function listTrash() { const { data, error } = await supabase.from('trash_items').select('*').order('deleted_at', { ascending: false }); fail(error, 'Unable to load trash'); return data }
+export async function listTrash() {
+  const { data, error } = await supabase
+    .from('trash_items')
+    .select('id, entity_type, entity_name, deleted_at, deleted_by, data')
+    .order('deleted_at', { ascending: false })
+    .limit(50);
+  fail(error, 'Unable to load trash');
+  return data || [];
+}
 export async function restoreTrashItem(entityType, id) { const { error } = await supabase.rpc('restore_entity', { p_entity_type: entityType, p_id: id }); fail(error, 'Unable to restore item') }
 export async function permanentlyDeleteTrashItem(entityType, id) { const { error } = await supabase.rpc('permanently_delete_entity', { p_entity_type: entityType, p_id: id }); fail(error, 'Unable to permanently delete item') }
 export async function emptyDatabaseTrash() { const { error } = await supabase.rpc('empty_trash'); fail(error, 'Unable to empty trash') }
@@ -1630,7 +1696,7 @@ export async function adminUsers(action, payload = {}) {
   if (action === 'list') {
     const { data: profiles, error: pe } = await supabase
       .from('profiles')
-      .select('*, role:roles(name)')
+      .select('id, full_name, role_id, phone, status, is_active, created_at, updated_at, role:roles(name)')
       .order('created_at', { ascending: false });
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -1641,8 +1707,8 @@ export async function adminUsers(action, payload = {}) {
         return [{
           id: currentUser.id,
           name: currentUser.user_metadata?.name || 'Admin User',
-          email: currentUser.email || 'admin@guptatraders.com',
-          mobile: currentUser.phone || '9876543210',
+          email: currentUser.email || '',
+          mobile: currentUser.phone || '',
           created_at: currentUser.created_at || new Date().toISOString(),
           role: 'admin',
           status: 'active'
@@ -1655,8 +1721,8 @@ export async function adminUsers(action, payload = {}) {
       return [{
         id: currentUser.id,
         name: currentUser.user_metadata?.name || 'Admin User',
-        email: currentUser.email || 'admin@guptatraders.com',
-        mobile: currentUser.phone || '9876543210',
+        email: currentUser.email || '',
+        mobile: currentUser.phone || '',
         created_at: currentUser.created_at || new Date().toISOString(),
         role: 'admin',
         status: 'active'

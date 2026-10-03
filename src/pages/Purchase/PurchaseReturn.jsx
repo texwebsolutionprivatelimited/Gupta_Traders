@@ -112,10 +112,19 @@ export default function PurchaseReturn() {
   };
 
   useEffect(() => {
+    let timer = null;
+    const debouncedLoad = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        loadData();
+      }, 500);
+    };
+
     loadData();
-    const unsubPurchases = subscribeToTable("purchases", loadData);
-    const unsubReturns = subscribeToTable("purchase_returns", loadData);
+    const unsubPurchases = subscribeToTable("purchases", debouncedLoad);
+    const unsubReturns = subscribeToTable("purchase_returns", debouncedLoad);
     return () => {
+      if (timer) clearTimeout(timer);
       if (typeof unsubPurchases === "function") unsubPurchases();
       if (typeof unsubReturns === "function") unsubReturns();
     };

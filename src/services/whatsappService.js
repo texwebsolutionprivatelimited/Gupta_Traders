@@ -8,7 +8,7 @@ export function getWhatsAppConfig() {
         phoneNumberId: '',
         accessToken: '',
         apiUrl: '',
-        defaultPhone: '9876543210',
+        defaultPhone: '',
         isEnabled: false
       };
     }
@@ -20,7 +20,7 @@ export function getWhatsAppConfig() {
       phoneNumberId: '',
       accessToken: '',
       apiUrl: '',
-      defaultPhone: '9876543210',
+      defaultPhone: '',
       isEnabled: false
     };
   }
@@ -216,7 +216,10 @@ export async function testWhatsAppAPIConnection({ phoneNumberId, accessToken, te
     throw new Error('Both Meta Phone Number ID and Access Token are required to test connection.');
   }
 
-  const cleanPhone = normalizeWhatsAppNumber(testPhone || '919876543210');
+  if (!testPhone) {
+    throw new Error('Please provide a recipient phone number to send the test message.');
+  }
+  const cleanPhone = normalizeWhatsAppNumber(testPhone);
   const endpoint = `https://graph.facebook.com/v21.0/${encodeURIComponent(phoneNumberId.trim())}/messages`;
 
   const testMessage = `🔔 *Gupta Traders ERP - WhatsApp API Connection Verified*\nTimestamp: ${new Date().toLocaleString('en-IN')}\nWhatsApp Cloud API integration is connected and active.`;

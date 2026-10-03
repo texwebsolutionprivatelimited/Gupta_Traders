@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase } from '../supabase/supabase'
-import { getCurrentProfile } from '../services/erpService'
+import { getCurrentProfile, invalidateCache } from '../services/erpService'
 
 const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
@@ -53,6 +53,7 @@ export function AuthProvider({ children }) {
   async function signIn(email,password){ 
     const {error:e}=await supabase.auth.signInWithPassword({email,password}); 
     if(e)throw new Error(e.message);
+    invalidateCache('all');
     try { sessionStorage.setItem('erp_just_logged_in', 'true') } catch (_) {}
   }
   async function signOut(){ 

@@ -43,18 +43,46 @@ const inFlightRequests = new Map()
 export function getCachedOrFetch(key, fetcher, ttlMs, forceRefresh = false) {
   const now = Date.now()
   const entry = cacheStore[key]
-  if (!forceRefresh && entry && entry.data && (now - entry.timestamp < (ttlMs || entry.ttl))) {
+  const targetTtl = ttlMs || (entry ? entry.ttl : 60000)
+
+  // 1. Check in-memory cache
+  if (!forceRefresh && entry && entry.data && (now - entry.timestamp < targetTtl)) {
     return Promise.resolve(entry.data)
   }
+
+  // 2. Check persistent sessionStorage to save egress on reload / tab navigation
+  if (!forceRefresh && typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      const persisted = sessionStorage.getItem(`erp_cache_${key}`)
+      if (persisted) {
+        const parsed = JSON.parse(persisted)
+        if (parsed && parsed.data && (now - parsed.timestamp < targetTtl)) {
+          if (entry) {
+            entry.data = parsed.data
+            entry.timestamp = parsed.timestamp
+          }
+          return Promise.resolve(parsed.data)
+        }
+      }
+    } catch (_) { }
+  }
+
+  // 3. Request deduplication (if already in-flight)
   if (!forceRefresh && inFlightRequests.has(key)) {
     return inFlightRequests.get(key)
   }
+
   const promise = (async () => {
     try {
       const data = await fetcher()
       if (entry) {
         entry.data = data
         entry.timestamp = Date.now()
+      }
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        try {
+          sessionStorage.setItem(`erp_cache_${key}`, JSON.stringify({ data, timestamp: Date.now() }))
+        } catch (_) { }
       }
       return data
     } finally {
@@ -66,35 +94,33 @@ export function getCachedOrFetch(key, fetcher, ttlMs, forceRefresh = false) {
 }
 
 export function invalidateCache(scope = 'all') {
+  const clearKeys = (keys) => {
+    keys.forEach(k => {
+      if (cacheStore[k]) cacheStore[k].data = null
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        try { sessionStorage.removeItem(`erp_cache_${k}`) } catch (_) { }
+      }
+    })
+  }
+
   if (scope === 'all') {
-    for (const key of Object.keys(cacheStore)) {
-      if (cacheStore[key]) cacheStore[key].data = null
-    }
+    clearKeys(Object.keys(cacheStore))
   } else if (scope === 'products' || scope === 'inventory') {
-    cacheStore.products.data = null
-    cacheStore.movements.data = null
-    cacheStore.recentActivities.data = null
+    clearKeys(['products', 'movements', 'recentActivities'])
   } else if (scope === 'categories') {
-    cacheStore.categories.data = null
+    clearKeys(['categories'])
   } else if (scope === 'sales') {
-    cacheStore.sales.data = null
-    cacheStore.recentActivities.data = null
-    cacheStore.recentLedger.data = null
+    clearKeys(['sales', 'recentActivities', 'recentLedger'])
   } else if (scope === 'purchases') {
-    cacheStore.purchases.data = null
-    cacheStore.recentActivities.data = null
-    cacheStore.recentLedger.data = null
+    clearKeys(['purchases', 'recentActivities', 'recentLedger'])
   } else if (scope === 'customers') {
-    cacheStore.customers.data = null
-    cacheStore.recentLedger.data = null
+    clearKeys(['customers', 'recentLedger'])
   } else if (scope === 'suppliers') {
-    cacheStore.suppliers.data = null
-    cacheStore.recentLedger.data = null
+    clearKeys(['suppliers', 'recentLedger'])
   } else if (scope === 'expenses') {
-    cacheStore.expenses.data = null
-    cacheStore.recentActivities.data = null
+    clearKeys(['expenses', 'recentActivities'])
   } else if (scope === 'held_bills') {
-    cacheStore.heldBills.data = null
+    clearKeys(['heldBills'])
   }
 }
 
@@ -864,10 +890,10 @@ export async function listSales({ forceRefresh = false } = {}) {
       .from('sales')
       .select('id,customer_id,invoice_number,sale_date,subtotal,discount,tax,tax_amount,total_amount,paid_amount,due_amount,payment_status,payment_method,payment_reference,notes,metadata,status,created_at,customer:customers(id,name,phone),items:sale_items(id,sale_id,product_id,product_name,sku,unit,quantity,unit_price,selling_price,unit_cost,discount,tax_rate,tax_amount,line_total,total,metadata,returns:sale_return_items(quantity,total,price),product:products(id,name,unit,selling_price,purchase_price,pack_size)),returns:sales_returns(id,return_number,total_amount,return_date,refund_method,items:sale_return_items(quantity,line_total,product_id,product:products(id,name,unit,sku,pack_size)))')
       .order('sale_date', { ascending: false })
-      .limit(150);
+      .limit(75);
     fail(error, 'Unable to load sales');
     return data || [];
-  }, 30 * 1000, forceRefresh);
+  }, 2 * 60 * 1000, forceRefresh);
 }
 
 export async function listPurchases({ forceRefresh = false } = {}) {
@@ -876,10 +902,10 @@ export async function listPurchases({ forceRefresh = false } = {}) {
       .from('purchases')
       .select('id,supplier_id,invoice_number,supplier_invoice_number,purchase_date,subtotal,discount,tax,tax_amount,total_amount,paid_amount,due_amount,payment_status,payment_method,payment_reference,notes,status,metadata,created_at,supplier:suppliers(id,company_name,name,phone,address),items:purchase_items(id,product_id,product_name,sku,unit,quantity,unit_price,purchase_price,tax_rate,tax_amount,line_total,total,discount,metadata)')
       .order('purchase_date', { ascending: false })
-      .limit(150);
+      .limit(75);
     fail(error, 'Unable to load purchases');
     return data || [];
-  }, 45 * 1000, forceRefresh);
+  }, 2 * 60 * 1000, forceRefresh);
 }
 export async function listUISales() {
   return (await listSales()).map(s => {
@@ -1600,22 +1626,7 @@ export async function permanentlyDeleteTrashItem(entityType, id) { const { error
 export async function emptyDatabaseTrash() { const { error } = await supabase.rpc('empty_trash'); fail(error, 'Unable to empty trash') }
 export async function saveBarcodePrintJob(values) { const user = await requireSession(); const { data, error } = await supabase.from('barcode_print_jobs').insert({ ...values, printed_by: user.id }).select().single(); fail(error, 'Unable to save barcode print history'); return data }
 export async function adminUsers(action, payload = {}) {
-  // 1. First attempt to invoke Edge Function if deployed
-  try {
-    const { data, error } = await supabase.functions.invoke('admin-users', { body: { action, ...payload } });
-    if (!error && !data?.error && data?.data !== undefined) {
-      return data.data;
-    }
-    if (data?.error && !data.error.includes('Edge Function') && !data.error.includes('Failed to send a request')) {
-      throw new Error(data.error);
-    }
-  } catch (err) {
-    if (err.message && !err.message.includes('Edge Function') && !err.message.includes('Failed to send a request') && !err.message.includes('FunctionsFetchError')) {
-      throw err;
-    }
-  }
-
-  // 2. Fallback to direct Supabase Database and Auth operations
+  // Direct Supabase Database and Auth operations
   if (action === 'list') {
     const { data: profiles, error: pe } = await supabase
       .from('profiles')

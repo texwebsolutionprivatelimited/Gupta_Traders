@@ -22,6 +22,7 @@ import {
   Tag,
   Boxes,
   HelpCircle,
+  Sparkles,
 } from 'lucide-react'
 import { formatINR, unitOptions, gstOptions, generateNextSKU } from '../../utils/erp'
 import {

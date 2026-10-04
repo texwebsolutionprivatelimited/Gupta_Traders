@@ -452,7 +452,15 @@ export default function POSBilling() {
     const checkSettings = () => {
       try {
         const stored = localStorage.getItem("barcodeScannerSettings")
-        if (stored) setScannerStatus(JSON.parse(stored))
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+            setScannerStatus(prev => {
+              if (prev && JSON.stringify(prev) === stored) return prev
+              return parsed
+            })
+          } catch {}
+        }
 
         const thermalStored = localStorage.getItem("thermalPrinterSettings")
         const usbStored = localStorage.getItem("usbPrinterSettings")
@@ -476,7 +484,12 @@ export default function POSBilling() {
           }
         }
 
-        setPrinterStatus({ connected: printerConnected, printerName })
+        setPrinterStatus(prev => {
+          if (prev && prev.connected === printerConnected && prev.printerName === printerName) {
+            return prev
+          }
+          return { connected: printerConnected, printerName }
+        })
       } catch (e) {
         console.error("Failed to parse scanner or printer settings:", e)
       }

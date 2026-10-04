@@ -18,21 +18,31 @@ export default function AddCustomItemModal({ isOpen = true, onClose, onAddToCart
   const nameInputRef = useRef(null)
   const priceInputRef = useRef(null)
   const weightInputRef = useRef(null)
+  const hasFocusedRef = useRef(false)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
-  // Focus name input when modal mounts and handle Escape key
+  // Focus name input ONLY ONCE on mount, NEVER steal focus back when user is typing other fields
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => nameInputRef.current?.focus(), 50)
-      
-      const handleKeyDown = (e) => {
-        if (e.key === 'Escape') {
-          onClose()
-        }
-      }
-      window.addEventListener('keydown', handleKeyDown)
-      return () => window.removeEventListener('keydown', handleKeyDown)
+    if (!hasFocusedRef.current) {
+      hasFocusedRef.current = true
+      const timer = setTimeout(() => {
+        nameInputRef.current?.focus()
+      }, 50)
+      return () => clearTimeout(timer)
     }
-  }, [isOpen, onClose])
+  }, [])
+
+  // Handle Escape key without re-triggering focus effects
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onCloseRef.current?.()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   if (!isOpen) return null
 
@@ -60,7 +70,7 @@ export default function AddCustomItemModal({ isOpen = true, onClose, onAddToCart
       }
     }
     setWeightUnit(newUnit)
-    setTimeout(() => weightInputRef.current?.focus(), 30)
+    weightInputRef.current?.focus()
   }
 
   // Quick weight presets based on active weight unit
@@ -167,7 +177,10 @@ export default function AddCustomItemModal({ isOpen = true, onClose, onAddToCart
         <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800 mb-4">
           <button
             type="button"
-            onClick={() => setItemMode('weight')}
+            onClick={() => {
+              setItemMode('weight')
+              weightInputRef.current?.focus()
+            }}
             className={`py-2 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               itemMode === 'weight'
                 ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
@@ -180,7 +193,10 @@ export default function AddCustomItemModal({ isOpen = true, onClose, onAddToCart
 
           <button
             type="button"
-            onClick={() => setItemMode('piece')}
+            onClick={() => {
+              setItemMode('piece')
+              weightInputRef.current?.focus()
+            }}
             className={`py-2 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               itemMode === 'piece'
                 ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
@@ -233,6 +249,7 @@ export default function AddCustomItemModal({ isOpen = true, onClose, onAddToCart
                   placeholder="0.00"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
+                  onFocus={(e) => e.target.select()}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()
@@ -288,6 +305,7 @@ export default function AddCustomItemModal({ isOpen = true, onClose, onAddToCart
                       step="any"
                       value={weightValue}
                       onChange={(e) => setWeightValue(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault()
@@ -326,6 +344,7 @@ export default function AddCustomItemModal({ isOpen = true, onClose, onAddToCart
                       step="any"
                       value={pieceQty}
                       onChange={(e) => setPieceQty(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault()

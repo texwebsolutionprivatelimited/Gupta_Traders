@@ -326,8 +326,8 @@ export default function ProductSearch({ onAddToCart, isParentLoading = false }) 
       const isSearchInput = activeEl === searchRef.current || activeEl?.id === 'pos-search' || activeEl === barcodeRef.current
       const isOtherInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT') && !isSearchInput
 
-      // Don't intercept when user is typing in forms/modals
-      if (isOtherInput) return
+      // Don't intercept when user is typing in forms/modals or when any modal is open
+      if (isOtherInput || document.querySelector('.fixed.z-50')) return
 
       const now = performance.now()
       const diff = now - lastGlobalKeyTime

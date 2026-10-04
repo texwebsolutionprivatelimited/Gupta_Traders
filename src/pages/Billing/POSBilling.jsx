@@ -42,7 +42,7 @@ export default function POSBilling() {
       }
       localStorage.setItem('theme', theme)
       window.dispatchEvent(new CustomEvent('erp:theme_changed', { detail: { theme } }))
-    } catch (e) {}
+    } catch (e) { }
   }, [theme])
 
   useEffect(() => {
@@ -65,8 +65,8 @@ export default function POSBilling() {
   }
 
   const [cart, setCart] = useState([])
-  const [productIndex,setProductIndex]=useState([])
-  const [customerIndex,setCustomerIndex]=useState([])
+  const [productIndex, setProductIndex] = useState([])
+  const [customerIndex, setCustomerIndex] = useState([])
   const [isProductsLoading, setIsProductsLoading] = useState(true)
 
   useEffect(() => {
@@ -110,7 +110,7 @@ export default function POSBilling() {
     window.addEventListener('erp:mrp_updated', handleMrpUpdated)
     return () => window.removeEventListener('erp:mrp_updated', handleMrpUpdated)
   }, [])
-  useEffect(()=>{listUICustomers().then(setCustomerIndex).catch(console.error)},[])
+  useEffect(() => { listUICustomers().then(setCustomerIndex).catch(console.error) }, [])
   const [billDiscount, setBillDiscount] = useState(0)
   const [isGSTInclusive, setIsGSTInclusive] = useState(true)
   const [customerName, setCustomerName] = useState(
@@ -125,7 +125,7 @@ export default function POSBilling() {
   }, [searchParams])
 
   const [heldBills, setHeldBills] = useState([])
-  useEffect(() => { listHeldBills().then(rows => setHeldBills(rows.map(row => ({...row, id:row.id, items:row.cart, ...(row.totals||{}), timestamp:row.held_at})))).catch(e => window.alert(e.message)) }, [])
+  useEffect(() => { listHeldBills().then(rows => setHeldBills(rows.map(row => ({ ...row, id: row.id, items: row.cart, ...(row.totals || {}), timestamp: row.held_at })))).catch(e => window.alert(e.message)) }, [])
 
   // Modals
   const [showHeldBills, setShowHeldBills] = useState(false)
@@ -197,7 +197,7 @@ export default function POSBilling() {
       total: summary.grandTotal,
       timestamp: new Date().toISOString(),
     }
-    try { const saved=await saveHeldBill({label:customerName||'Walk-in',cart,totals:{billDiscount,isGSTInclusive,customerName,total:summary.grandTotal}}); setHeldBills(prev=>[...prev,{...heldBill,id:saved.id}]); setCart([]);setBillDiscount(0);setCustomerName('') } catch(e){window.alert(e.message)}
+    try { const saved = await saveHeldBill({ label: customerName || 'Walk-in', cart, totals: { billDiscount, isGSTInclusive, customerName, total: summary.grandTotal } }); setHeldBills(prev => [...prev, { ...heldBill, id: saved.id }]); setCart([]); setBillDiscount(0); setCustomerName('') } catch (e) { window.alert(e.message) }
   }, [cart, billDiscount, isGSTInclusive, customerName, heldBills])
 
   const recallHeldBill = useCallback(async (billId) => {
@@ -215,10 +215,10 @@ export default function POSBilling() {
     setIsGSTInclusive(bill.isGSTInclusive !== undefined ? bill.isGSTInclusive : true)
     setCustomerName(bill.customerName || '')
 
-    try { await removeHeldBill(billId); setHeldBills(prev=>prev.filter(b=>b.id!==billId));setShowHeldBills(false) } catch(e){window.alert(e.message)}
+    try { await removeHeldBill(billId); setHeldBills(prev => prev.filter(b => b.id !== billId)); setShowHeldBills(false) } catch (e) { window.alert(e.message) }
   }, [heldBills, cart.length])
 
-  const deleteHeldBill = useCallback(async (billId) => { try{await removeHeldBill(billId);setHeldBills(prev=>prev.filter(b=>b.id!==billId))}catch(e){window.alert(e.message)} }, [])
+  const deleteHeldBill = useCallback(async (billId) => { try { await removeHeldBill(billId); setHeldBills(prev => prev.filter(b => b.id !== billId)) } catch (e) { window.alert(e.message) } }, [])
 
   // ─── Complete Sale ──────────────────────────────────────────
   const completeSale = useCallback(async (paymentMode, amountPaid, splitDetails = null) => {
@@ -293,16 +293,16 @@ export default function POSBilling() {
     }
 
     try {
-      const items=cart.map(x=>{
-        const rateTax=Number(x.gstRate||0)
-        const quantity=Number(x.quantity)
-        const unitRate=Number(x.rate??x.price??x.sellingPrice??0)
-        const discount=Number(x.itemDiscount||0)
+      const items = cart.map(x => {
+        const rateTax = Number(x.gstRate || 0)
+        const quantity = Number(x.quantity)
+        const unitRate = Number(x.rate ?? x.price ?? x.sellingPrice ?? 0)
+        const discount = Number(x.itemDiscount || 0)
         const taxableUnitPrice = rateTax > 0 ? (unitRate * (1 - discount / 100) / (1 + rateTax / 100)) : (unitRate * (1 - discount / 100))
         const hasExplicitMrp = x.mrp !== null && x.mrp !== undefined && x.mrp !== '' && !isNaN(Number(x.mrp)) && Number(x.mrp) > 0
         const mrp = hasExplicitMrp ? Number(x.mrp) : null
         return {
-          ...(x.isCustomItem ? {is_custom:true,product_name:x.name,unit:x.unit} : {product_id:x.supabase_id||x.id}),
+          ...(x.isCustomItem ? { is_custom: true, product_name: x.name, unit: x.unit } : { product_id: x.supabase_id || x.id }),
           quantity,
           unit_price: taxableUnitPrice,
           discount: 0,
@@ -313,23 +313,23 @@ export default function POSBilling() {
           is_gst_inclusive: true,
         }
       })
-      const matchedCustomer=customerIndex.find(c=>c.id===customerName||c.name.toLowerCase()===customerName.trim().toLowerCase())
-      if(Number(amountPaid||0)<summary.grandTotal&&!matchedCustomer)throw new Error('A registered customer is required for credit or partial-payment sales.')
-      const saved=await persistSale({
-        customer_id:matchedCustomer?.id||null,
-        discount:summary.discountAmount,
-        paid_amount:Number(amountPaid||0),
-        amount_paid:Number(amountPaid||0),
-        payment_method:paymentMode,
+      const matchedCustomer = customerIndex.find(c => c.id === customerName || c.name.toLowerCase() === customerName.trim().toLowerCase())
+      if (Number(amountPaid || 0) < summary.grandTotal && !matchedCustomer) throw new Error('A registered customer is required for credit or partial-payment sales.')
+      const saved = await persistSale({
+        customer_id: matchedCustomer?.id || null,
+        discount: summary.discountAmount,
+        paid_amount: Number(amountPaid || 0),
+        amount_paid: Number(amountPaid || 0),
+        payment_method: paymentMode,
         cashAmount,
         upiAmount,
         splitDetails,
         payment_reference: splitDetails ? `Cash: ₹${cashAmount} + UPI: ₹${upiAmount}` : undefined,
         notes: splitDetails ? JSON.stringify({ cashAmount, upiAmount, splitDetails, mode: 'cash_upi' }) : undefined,
-        metadata:{
+        metadata: {
           customerName,
           isGSTInclusive,
-          cashier:cashierName,
+          cashier: cashierName,
           billDiscount,
           splitDetails,
           cashAmount,
@@ -375,11 +375,11 @@ export default function POSBilling() {
         console.warn('Could not check stock alert:', stockErr);
       }
 
-      const completed={
+      const completed = {
         ...bill,
-        billNumber:saved.invoice_number,
-        id:saved.id,
-        summary:{...summary,grandTotal:Number.isFinite(savedTotal)?savedTotal:summary.grandTotal},
+        billNumber: saved.invoice_number,
+        id: saved.id,
+        summary: { ...summary, grandTotal: Number.isFinite(savedTotal) ? savedTotal : summary.grandTotal },
         cashAmount,
         upiAmount,
         splitDetails: splitDetails || { cashAmount, upiAmount },
@@ -395,8 +395,8 @@ export default function POSBilling() {
           upiAmount,
         }
       }
-      setShowSuccess(completed);setCart([]);setBillDiscount(0);setCustomerName('')
-    } catch(e) { window.alert(e.message) }
+      setShowSuccess(completed); setCart([]); setBillDiscount(0); setCustomerName('')
+    } catch (e) { window.alert(e.message) }
   }, [cart, billDiscount, isGSTInclusive, customerName, customerIndex, role])
 
   // ─── Barcode Scanner Settings & Toast State ─────────────────
@@ -456,10 +456,10 @@ export default function POSBilling() {
 
         const thermalStored = localStorage.getItem("thermalPrinterSettings")
         const usbStored = localStorage.getItem("usbPrinterSettings")
-        
+
         let printerConnected = false
         let printerName = "Printer"
-        
+
         if (thermalStored) {
           const parsed = JSON.parse(thermalStored)
           if (parsed && parsed.connected) {
@@ -467,7 +467,7 @@ export default function POSBilling() {
             printerName = parsed.printerName || "Thermal Printer"
           }
         }
-        
+
         if (!printerConnected && usbStored) {
           const parsed = JSON.parse(usbStored)
           if (parsed && parsed.connected) {
@@ -475,7 +475,7 @@ export default function POSBilling() {
             printerName = parsed.printerName || "USB Printer"
           }
         }
-        
+
         setPrinterStatus({ connected: printerConnected, printerName })
       } catch (e) {
         console.error("Failed to parse scanner or printer settings:", e)
@@ -558,7 +558,7 @@ export default function POSBilling() {
         cleanCode = cleanCode.substring(prefixChar.length)
       }
 
-      const prod = productIndex.find(p=>p.barcode===cleanCode)
+      const prod = productIndex.find(p => p.barcode === cleanCode)
       if (prod) {
         addToCart(prod)
         const displayName = formatItemReceiptName(prod.name, prod.packSize || prod.pack_size)
@@ -647,7 +647,7 @@ export default function POSBilling() {
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
             placeholder="Walk-in Customer (ग्राहक का नाम)"
-            className="w-56 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800/60 text-sm text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/40 transition-all"
+            className="w-56 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800/60 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/40 transition-all"
             id="pos-customer-name"
           />
         </div>
@@ -753,7 +753,6 @@ export default function POSBilling() {
 
       {/* ─── Main Content: Product Search + Cart ──────── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ── Left: Product Search Area ──────────────── */}
         <div className={`flex-1 flex flex-col border-r border-slate-800/60 min-w-0 ${showMobileCart ? 'hidden lg:flex' : 'flex'}`}>
           <ProductSearch onAddToCart={addToCart} isParentLoading={isProductsLoading} />
         </div>
@@ -781,7 +780,7 @@ export default function POSBilling() {
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               placeholder="Walk-in Customer (ग्राहक का नाम)"
-              className="w-full px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800/60 text-xs text-slate-300 placeholder:text-slate-650 focus:outline-none focus:border-emerald-500/40 transition-all"
+              className="w-full px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800/60 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/40 transition-all"
             />
           </div>
 

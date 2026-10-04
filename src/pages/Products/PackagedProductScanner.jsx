@@ -39,7 +39,6 @@ function playAudioFeedback(type = 'success', enabled = true) {
     const AudioContext = window.AudioContext || window.webkitAudioContext
     if (!AudioContext) return
     const ctx = new AudioContext()
-
     if (type === 'scan') {
       // Crisp high beep for scanning
       const osc = ctx.createOscillator()
@@ -586,8 +585,8 @@ export default function PackagedProductScanner() {
             type="button"
             onClick={() => setSoundEnabled(!soundEnabled)}
             className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${soundEnabled
-                ? 'bg-slate-800/80 text-emerald-400 border-slate-700/60 hover:bg-slate-700'
-                : 'bg-slate-800/40 text-slate-500 border-slate-800 hover:text-slate-400'
+              ? 'bg-slate-800/80 text-emerald-400 border-slate-700/60 hover:bg-slate-700'
+              : 'bg-slate-800/40 text-slate-500 border-slate-800 hover:text-slate-400'
               }`}
             title={soundEnabled ? 'Beep sound enabled' : 'Muted'}
           >
@@ -1186,8 +1185,8 @@ export default function PackagedProductScanner() {
                       <span className="text-slate-400">Margin:</span>
                       <span
                         className={`font-bold px-2 py-0.5 rounded ${Number(marginPct) >= 15
-                            ? 'bg-emerald-500/10 text-emerald-400'
-                            : 'bg-amber-500/10 text-amber-400'
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : 'bg-amber-500/10 text-amber-400'
                           }`}
                       >
                         {marginPct}%

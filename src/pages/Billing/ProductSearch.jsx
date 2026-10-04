@@ -521,10 +521,10 @@ export default function ProductSearch({ onAddToCart, isParentLoading = false }) 
 
         {/* Loose Item Form */}
         {showLooseForm && (
-          <form onSubmit={handleAddLooseItem} className="p-4 rounded-xl bg-violet-500/5 border border-violet-500/20 space-y-3">
+          <form onSubmit={handleAddLooseItem} className="p-4 rounded-xl bg-violet-500/10 border border-violet-500/30 space-y-3">
             <div className="flex items-center gap-2 mb-2">
               <WeightIcon />
-              <span className="text-sm font-semibold text-violet-300">Add Loose Item (खुला सामान)</span>
+              <span className="text-sm font-semibold text-violet-400">Add Loose Item (खुला सामान)</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <input
@@ -532,7 +532,7 @@ export default function ProductSearch({ onAddToCart, isParentLoading = false }) 
                 value={looseName}
                 onChange={(e) => setLooseName(e.target.value)}
                 placeholder="Item name"
-                className="col-span-2 sm:col-span-1 px-3 py-2.5 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-violet-500/50 text-sm"
+                className="col-span-2 sm:col-span-1 px-3 py-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-violet-500/50 text-sm"
                 required
               />
               <input
@@ -541,7 +541,7 @@ export default function ProductSearch({ onAddToCart, isParentLoading = false }) 
                 value={loosePrice}
                 onChange={(e) => setLoosePrice(e.target.value)}
                 placeholder="Price per unit (₹)"
-                className="px-3 py-2.5 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-violet-500/50 text-sm"
+                className="px-3 py-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-violet-500/50 text-sm"
                 required
               />
               <input
@@ -550,30 +550,48 @@ export default function ProductSearch({ onAddToCart, isParentLoading = false }) 
                 value={looseQty}
                 onChange={(e) => setLooseQty(e.target.value)}
                 placeholder="Quantity (0.5, 1.75...)"
-                className="px-3 py-2.5 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-violet-500/50 text-sm"
+                className="px-3 py-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-violet-500/50 text-sm"
                 required
               />
               <div className="col-span-2 sm:col-span-1 flex gap-2">
                 <select
                   value={looseUnit}
                   onChange={(e) => setLooseUnit(e.target.value)}
-                  className="flex-1 px-3 py-2.5 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-200 focus:outline-none focus:border-violet-500/50 text-sm"
+                  className="flex-1 px-3 py-2.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:outline-none focus:border-violet-500/50 text-sm cursor-pointer"
                 >
-                  <option value="kg">kg</option>
-                  <option value="g">g</option>
-                  <option value="L">L</option>
-                  <option value="ml">ml</option>
-                  <option value="pcs">pcs</option>
-                  <option value="dozen">dozen</option>
-                  <option value="meter">meter</option>
+                  <option value="kg" className="bg-slate-900 text-slate-100">kg</option>
+                  <option value="g" className="bg-slate-900 text-slate-100">g</option>
+                  <option value="L" className="bg-slate-900 text-slate-100">L</option>
+                  <option value="ml" className="bg-slate-900 text-slate-100">ml</option>
+                  <option value="pcs" className="bg-slate-900 text-slate-100">pcs</option>
+                  <option value="dozen" className="bg-slate-900 text-slate-100">dozen</option>
+                  <option value="meter" className="bg-slate-900 text-slate-100">meter</option>
                 </select>
                 <button
                   type="submit"
-                  className="px-4 py-2.5 rounded-lg bg-violet-500 hover:bg-violet-400 text-white font-semibold text-sm transition-colors cursor-pointer"
+                  className="px-4 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm transition-colors cursor-pointer shadow-md shadow-violet-600/20"
                 >
                   Add
                 </button>
               </div>
+            </div>
+            {/* Quick Weight Presets */}
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              <span className="text-[11px] text-slate-400 font-medium">Quick Weight:</span>
+              {['0.25', '0.5', '0.75', '1', '1.25', '1.5', '2', '5'].map(w => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => { setLooseQty(w); setLooseUnit('kg') }}
+                  className={`px-2 py-0.5 rounded text-xs font-semibold transition-all border cursor-pointer ${
+                    String(looseQty) === w
+                      ? 'bg-violet-600 text-white border-violet-500'
+                      : 'bg-slate-950/80 hover:bg-slate-800 text-slate-300 border-slate-700'
+                  }`}
+                >
+                  {w} kg
+                </button>
+              ))}
             </div>
           </form>
         )}

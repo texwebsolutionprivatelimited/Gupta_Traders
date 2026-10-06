@@ -220,8 +220,9 @@ export function generatePurchaseReturnReceiptHTML(returnRecord) {
     <div class="header">
 
       <div class="company">
-        <h1>Gupta Traders</h1>
-        <p>Purchase Management System</p>
+        <h1>GUPTA TRADERS & SUPERSTORE</h1>
+        <p>Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)</p>
+        <p style="font-weight: bold; color: #000000;">Mob.no: +91 9131822789</p>
         <p>Purchase Return Voucher</p>
       </div>
 
@@ -317,7 +318,7 @@ export function generatePurchaseReturnReceiptHTML(returnRecord) {
     </div>
 
     <div class="footer">
-      <p>Thank you for doing business with Gupta Traders.</p>
+      <p>Thank you for doing business with GUPTA TRADERS & SUPERSTORE.</p>
       <p>This purchase return voucher was generated electronically and adjusts inventory records.</p>
     </div>
 
@@ -328,9 +329,6 @@ export function generatePurchaseReturnReceiptHTML(returnRecord) {
 `;
 }
 
-/**
- * Download Purchase Return Receipt as an HTML file
- */
 export function downloadPurchaseReturnReceipt(returnRecord) {
   if (!returnRecord) return;
   const html = generatePurchaseReturnReceiptHTML(returnRecord);

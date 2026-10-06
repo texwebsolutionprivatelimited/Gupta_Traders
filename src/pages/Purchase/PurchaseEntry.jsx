@@ -448,8 +448,10 @@ export default function PurchaseEntry() {
       <body>
         <div class="header">
           <div>
-            <div class="title">Gupta Traders</div>
-            <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Purchase Bill Soft-Copy Record</div>
+            <div class="title">GUPTA TRADERS & SUPERSTORE</div>
+            <div style="font-size: 11px; color: #334155;">Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)</div>
+            <div style="font-size: 11px; font-weight: bold; color: #000000;">Mob.no: +91 9131822789</div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Purchase Bill Soft-Copy Record</div>
           </div>
           <div style="text-align: right;">
             <div class="badge">Record Copy</div>

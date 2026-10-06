@@ -3,9 +3,9 @@ import { Store, Save, ArrowLeft } from "lucide-react";
 import { useBusinessSettings } from '../../hooks/useBusinessSettings'
 
 const defaultData = {
-  shopName: "Gupta Traders & Superstore",
+  shopName: "GUPTA TRADERS & SUPERSTORE",
   ownerName: "",
-  phone: "",
+  phone: "+91 9131822789",
   email: "",
   address: "Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir",
   city: "Bhopal",

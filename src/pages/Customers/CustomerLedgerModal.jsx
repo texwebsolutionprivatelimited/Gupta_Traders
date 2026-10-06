@@ -100,9 +100,9 @@ export default function CustomerLedgerModal({ customer, onTransactionRecorded, o
         <body>
           <div class="header">
             <div>
-              <div class="title">GUPTA TRADERS</div>
-              <div>Main Market, Rohtak, Haryana</div>
-              <div>Phone: +91 98123 45678 | Email: billing@guptatraders.com</div>
+              <div class="title">GUPTA TRADERS & SUPERSTORE</div>
+              <div>Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)</div>
+              <div>Phone: +91 9131822789</div>
             </div>
             <div class="meta">
               <h2>Customer Statement</h2>

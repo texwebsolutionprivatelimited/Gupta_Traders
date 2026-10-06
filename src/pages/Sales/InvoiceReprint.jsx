@@ -809,12 +809,11 @@ export default function InvoiceReprint() {
                                 onClick={() =>
                                     printThermalReceipt(selectedSale)
                                 }
-                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600"
+                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600"
                             >
                                 <PrinterIcon />
-                                Print Receipt (Thermal)
+                                Print Receipt
                             </button>
-
                             <button
                                 type="button"
                                 onClick={() =>
@@ -837,11 +836,13 @@ export default function InvoiceReprint() {
 
                         <div className="flex items-start justify-between border-b border-black pb-5">
                             <div>
-                                <h1 className="text-2xl font-bold">
-                                    Gupta Traders & Superstore
+                                <h1 className="text-2xl font-black uppercase tracking-wide">
+                                    GUPTA TRADERS & SUPERSTORE
                                 </h1>
+                                <p className="text-xs font-bold text-black mt-0.5">Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)</p>
+                                <p className="text-xs font-bold text-black">Mob.no: +91 9131822789</p>
 
-                                <p className="mt-1 text-sm">
+                                <p className="mt-2 text-sm">
                                     Sales Invoice
                                 </p>
                             </div>
@@ -920,11 +921,11 @@ export default function InvoiceReprint() {
                                                 <div>
                                                     {formatItemReceiptName(
                                                         item.product ||
-                                                            item.name ||
-                                                            "Product",
+                                                        item.name ||
+                                                        "Product",
                                                         item.packSize ||
-                                                            item.pack_size ||
-                                                            item.product?.pack_size
+                                                        item.pack_size ||
+                                                        item.product?.pack_size
                                                     )}
                                                 </div>
                                                 {Number(item.returnedQuantity || 0) > 0 && (

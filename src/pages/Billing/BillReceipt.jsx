@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { formatINR, numberToWordsINR } from '../../utils/erp'
 import { listUISales, subscribeToTable, getStoredBusinessSettings } from '../../services/erpService'
-import { FaReceipt as ReceiptIcon, FaPrint as PrinterIcon, FaCheckCircle as CheckCircleIcon } from 'react-icons/fa'
+import {
+  FaReceipt as ReceiptIcon,
+  FaPrint as PrinterIcon,
+  FaCheckCircle as CheckCircleIcon,
+} from 'react-icons/fa'
+import { getReceiptQrCodeDataUrl } from '../../utils/qrCodeService'
 
 const mapUnitToShort = (unit) => {
   if (!unit) return '';
@@ -48,19 +53,18 @@ export function normalizeBillData(rawBill) {
   if (!rawBill) return null;
 
   const storeSettings = getStoredBusinessSettings();
-  const storeName = storeSettings.shop?.shopName || 'GUPTA TRADERS & SUPERSTORE';
+  const storeName = 'GUPTA TRADERS & SUPERSTORE';
   const configuredAddress = storeSettings.shop?.address || storeSettings.address;
   const storeAddress = (configuredAddress && !configuredAddress.toLowerCase().includes('lucknow'))
     ? configuredAddress
     : 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)';
   const storeAddressLine1 = 'Plot no. 12 Balaji Nagar, Narela Shankari';
   const storeAddressLine2 = 'Near khedapati Mandir, Bhopal MP(462022)';
-  const storePhone = rawBill.storePhone || storeSettings.shop?.phone || '';
+  const storePhone = '+91 9131822789';
   const storeGstin = rawBill.storeGstin || storeSettings.gst?.gstin || storeSettings.gstin || '09XXXXXXXXXXXXXXX';
   const returnPolicy = rawBill.returnPolicy || storeSettings.invoice?.footer || storeSettings.receiptFooter || 'Items sold after 10 days will not be returned';
 
   const billNumber = rawBill.billNumber || rawBill.invoice_number || rawBill.invoice || rawBill.billNo || rawBill.id || '—';
-  const customerName = rawBill.customerName || (typeof rawBill.customer === 'string' ? rawBill.customer : rawBill.customer?.name) || rawBill.partyName || '';
   const cashier = rawBill.cashier || rawBill.cashierName || rawBill.user || rawBill.created_by || rawBill.username || 'Admin';
   const paymentMode = String(rawBill.paymentMode || rawBill.payment_method || rawBill.paymentMethod || rawBill.payment || 'cash');
   const amountPaid = Number(rawBill.amountPaid ?? rawBill.paid_amount ?? rawBill.paidAmount ?? rawBill.paid ?? 0);
@@ -68,6 +72,32 @@ export function normalizeBillData(rawBill) {
   const rawMeta = (typeof rawBill.metadata === 'object' && rawBill.metadata !== null)
     ? rawBill.metadata
     : (typeof rawBill.metadata === 'string' ? (() => { try { return JSON.parse(rawBill.metadata); } catch { return {}; } })() : {});
+
+  const rawCustomerName = String(rawBill.customerName || (typeof rawBill.customer === 'string' ? rawBill.customer : rawBill.customer?.name) || rawBill.partyName || '').trim();
+  const rawCustomerPhone = String(
+    rawBill.customerPhone
+    || rawBill.customer_phone
+    || (typeof rawBill.customer === 'object' ? (rawBill.customer?.phone || rawBill.customer?.mobile) : '')
+    || rawBill.partyPhone
+    || rawBill.party_phone
+    || rawBill.phone
+    || rawBill.mobile
+    || (rawMeta.customerPhone || rawMeta.customer_phone || rawMeta.phone || '')
+    || ''
+  ).trim();
+
+  // Completely eliminate 9999999999 from receipt
+  const customerName = rawCustomerName.replace(/\D/g, '') === '9999999999' ? '' : rawCustomerName;
+  const customerPhone = rawCustomerPhone.replace(/\D/g, '') === '9999999999' ? '' : rawCustomerPhone;
+
+  let customerDisplay = customerName;
+  if (customerPhone) {
+    if (!customerDisplay) {
+      customerDisplay = customerPhone;
+    } else if (customerDisplay !== customerPhone && !customerDisplay.includes(customerPhone)) {
+      customerDisplay = `${customerDisplay} (${customerPhone})`;
+    }
+  }
 
   let rawNotes = {};
   if (typeof rawBill.notes === 'string' && rawBill.notes.trim().startsWith('{')) {
@@ -198,6 +228,8 @@ export function normalizeBillData(rawBill) {
     returnPolicy,
     billNumber,
     customerName,
+    customerPhone,
+    customerDisplay,
     cashier,
     paymentMode,
     isSplitPayment,
@@ -236,6 +268,7 @@ export function generateReceiptHtml(bill) {
   const norm = normalizeBillData(bill);
   if (!norm) return '';
 
+  const qrCodeSvgDataUrl = getReceiptQrCodeDataUrl(norm);
   const items = norm.items;
   const summary = norm.summary;
   const timestamp = norm.timestamp;
@@ -398,8 +431,8 @@ export function generateReceiptHtml(bill) {
   </style>
 </head>
 <body>
-  <div class="no-print" style="background: #f0fdf4; border: 1px solid #86efac; padding: 10px; text-align: center; border-radius: 8px; margin-bottom: 12px; font-family: sans-serif;">
-    <button onclick="window.print()" style="background: #059669; color: #ffffff; border: none; padding: 10px 24px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+  <div class="no-print" style="background: #f0fdf4; border: 1px solid #86efac; padding: 10px; text-align: center; border-radius: 8px; margin-bottom: 12px; font-family: sans-serif; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+    <button onclick="window.print()" style="background: #059669; color: #ffffff; border: none; padding: 9px 20px; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
       🖨️ Print Receipt (प्रिंट करें)
     </button>
   </div>
@@ -409,8 +442,8 @@ export function generateReceiptHtml(bill) {
     <div class="store-title">${escapeReceiptText(norm.storeName)}</div>
     <div class="store-info">${escapeReceiptText(norm.storeAddressLine1 || 'Plot no. 12 Balaji Nagar, Narela Shankari')}</div>
     <div class="store-info">${escapeReceiptText(norm.storeAddressLine2 || 'Near khedapati Mandir, Bhopal MP(462022)')}</div>
-    ${norm.storePhone ? `<div class="store-info">Mob.no ${escapeReceiptText(norm.storePhone)}</div>` : ''}
-    <div class="store-info">GSTIN: ${escapeReceiptText(norm.storeGstin)}</div>
+    <div class="store-info">Mob.no: ${escapeReceiptText(norm.storePhone || '+91 9131822789')}</div>
+    <div class="store-info">GSTIN: ${escapeReceiptText(norm.storeGstin || '09XXXXXXXXXXXXXXX')}</div>
     <div class="invoice-title">Retail Invoice</div>
   </div>
 
@@ -426,7 +459,7 @@ export function generateReceiptHtml(bill) {
   </div>
   <div class="meta-row">
     <span>User: ${escapeReceiptText(norm.cashier)}</span>
-    ${norm.customerName ? `<span>Cust: ${escapeReceiptText(norm.customerName)}</span>` : ''}
+    ${norm.customerDisplay ? `<span>Cust: ${escapeReceiptText(norm.customerDisplay)}</span>` : ''}
   </div>
 
   <!-- Product Table: Product | Qty | MRP | Rate | Amount -->
@@ -575,6 +608,15 @@ export function generateReceiptHtml(bill) {
 
   <div class="dash-line"></div>
 
+  <!-- QR Code at Bottom of Receipt (Amount encoded in QR, NOT displayed as text) -->
+  ${qrCodeSvgDataUrl ? `
+    <div class="center" style="margin: 8px 0 6px 0;">
+      <img src="${qrCodeSvgDataUrl}" alt="UPI Payment QR" style="width: 105px; height: 105px; display: inline-block; image-rendering: crisp-edges;" />
+      <div style="font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px;">Scan & Pay with any UPI App</div>
+    </div>
+    <div class="dash-line"></div>
+  ` : ''}
+
   <!-- Footer -->
   <div class="center" style="margin-top: 8px;">
     <div class="bold" style="font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">THANKS, VISIT AGAIN</div>
@@ -583,6 +625,8 @@ export function generateReceiptHtml(bill) {
 </body>
 </html>`;
 }
+
+
 
 // ─── Reliable Thermal Print Execution ────────────────────────────
 export function printThermalReceipt(bill, onPrint) {
@@ -626,6 +670,8 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
   const norm = normalizeBillData(bill);
 
   if (!norm) return null;
+
+  const qrCodeSvgDataUrl = getReceiptQrCodeDataUrl(norm);
 
   const handlePrint = () => {
     printThermalReceipt(norm, onPrint);
@@ -677,8 +723,8 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               <p className="text-base font-black uppercase tracking-wide leading-tight text-black">{norm.storeName}</p>
               <p className="text-xs font-bold text-black leading-tight">{norm.storeAddressLine1 || 'Plot no. 12 Balaji Nagar, Narela Shankari'}</p>
               <p className="text-xs font-bold text-black leading-tight">{norm.storeAddressLine2 || 'Near khedapati Mandir, Bhopal MP(462022)'}</p>
-              {norm.storePhone && <p className="text-xs font-bold text-black">Mob.no {norm.storePhone}</p>}
-              <p className="text-xs font-bold text-black">GSTIN: {norm.storeGstin}</p>
+              <p className="text-xs font-bold text-black">Mob.no: {norm.storePhone || '+91 9131822789'}</p>
+              <p className="text-xs font-bold text-black">GSTIN: {norm.storeGstin || '09XXXXXXXXXXXXXXX'}</p>
               <p className="text-xs font-black uppercase pt-0.5 text-black">Retail Invoice</p>
             </div>
 
@@ -695,7 +741,7 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               </div>
               <div className="flex justify-between">
                 <span>User: {norm.cashier}</span>
-                {norm.customerName && <span>Cust: {norm.customerName}</span>}
+                {norm.customerDisplay && <span>Cust: {norm.customerDisplay}</span>}
               </div>
             </div>
 
@@ -845,6 +891,23 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
               </>
             )}
 
+            {/* QR Code at Bottom of Receipt (Amount encoded in QR, NOT displayed as text) */}
+            {qrCodeSvgDataUrl && (
+              <>
+                <div className="border-t-2 border-dashed border-black my-1.5" />
+                <div className="flex flex-col items-center justify-center my-1.5 text-center">
+                  <img
+                    src={qrCodeSvgDataUrl}
+                    alt="UPI Payment QR"
+                    className="w-28 h-28 object-contain"
+                  />
+                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-black mt-1">
+                    Scan & Pay with any UPI App
+                  </p>
+                </div>
+              </>
+            )}
+
             <div className="border-t-2 border-dashed border-black my-1.5" />
 
             {/* Footer */}
@@ -856,16 +919,16 @@ export function ReceiptPreview({ bill, onClose, onPrint }) {
         </div>
 
         {/* Modal Bottom Action Bar */}
-        <div className="px-5 py-3.5 bg-slate-950 border-t border-slate-800 flex gap-3">
+        <div className="px-5 py-3.5 bg-slate-950 border-t border-slate-800 flex flex-wrap gap-2.5">
           <button
             onClick={handlePrint}
-            className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+            className="flex-1 min-w-[130px] py-3 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <PrinterIcon className="w-4 h-4" /> Print Thermal Receipt
+            <PrinterIcon className="w-4 h-4" /> Print Receipt
           </button>
           <button
             onClick={onClose}
-            className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all cursor-pointer"
+            className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-all cursor-pointer"
           >
             Close
           </button>
@@ -1182,6 +1245,10 @@ export function generateReturnReceiptHtml(returnData) {
   const returnDate = rawDate ? new Date(rawDate) : new Date();
   const totalAmount = Number(returnData.total_amount ?? returnData.total ?? 0);
   const items = Array.isArray(returnData.items) ? returnData.items : [];
+  const storeSettings = getStoredBusinessSettings();
+  const storePhone = (returnData.storePhone && String(returnData.storePhone).trim())
+    || (storeSettings.shop?.phone && String(storeSettings.shop.phone).trim())
+    || '+91 9131822789';
 
   return `<!DOCTYPE html>
 <html>
@@ -1218,8 +1285,11 @@ export function generateReturnReceiptHtml(returnData) {
     </button>
   </div>
   <div class="center">
-    <div class="shop-name">GUPTA TRADER & SUPERSTORE</div>
-    <div style="font-size: 11px; font-weight: 700;">SALES RETURN & REFUND VOUCHER</div>
+    <div class="shop-name">GUPTA TRADERS & SUPERSTORE</div>
+    <div style="font-size: 11px; font-weight: 700;">Plot no. 12 Balaji Nagar, Narela Shankari</div>
+    <div style="font-size: 11px; font-weight: 700;">Near khedapati Mandir, Bhopal MP(462022)</div>
+    <div style="font-size: 11px; font-weight: 700;">Mob.no: +91 9131822789</div>
+    <div style="font-size: 11px; font-weight: 700; margin-top: 4px;">SALES RETURN & REFUND VOUCHER</div>
   </div>
   <div class="separator"></div>
   <table>

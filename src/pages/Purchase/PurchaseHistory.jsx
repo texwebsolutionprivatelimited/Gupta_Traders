@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { listUIPurchases, subscribeToTable, deletePurchaseBill } from '../../services/erpService'
@@ -414,7 +413,7 @@ export default function PurchaseHistory() {
     <div class="header">
 
       <div class="company">
-        <h1>Gupta Traders</h1>
+        <h1>GUPTA TRADERS & SUPERSTORE</h1>
         <p>Purchase Management System</p>
         <p>Purchase Invoice</p>
       </div>
@@ -510,7 +509,7 @@ export default function PurchaseHistory() {
     </div>
 
     <div class="footer">
-      <p>Thank you for doing business with Gupta Traders.</p>
+      <p>Thank you for doing business with GUPTA TRADERS & SUPERSTORE.</p>
       <p>This invoice was generated electronically.</p>
     </div>
 

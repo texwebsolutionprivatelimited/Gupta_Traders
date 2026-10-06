@@ -72,6 +72,8 @@ const INITIAL_FORM = {
   unit: 'Piece',
   quantity: '1',
   price: '',
+  mrp: '',
+  sellingPrice: '',
   barcodeCount: '10',
   productType: 'packaged',
   manualBarcode: '',
@@ -212,14 +214,17 @@ export default function BarcodeGenerator() {
   const handleProductSelect = (product) => {
     setSelectedProduct(product)
     const parsed = parsePackSize(product.packSize)
-    const nameHi = product.nameHi || ''
+    const effectiveSellingPrice = String(product.sellingPrice || product.mrp || '')
+    const effectiveMrp = String(product.mrp || product.sellingPrice || '')
     setFormData({
       name: product.name || '',
       nameHi: nameHi,
       brand: product.brand && product.brand !== 'General' ? product.brand : '',
       unit: parsed.unit || normalizeUnit(product.unit) || 'Piece',
       quantity: parsed.qty || '1',
-      price: String(product.sellingPrice || product.mrp || ''),
+      price: effectiveSellingPrice,
+      mrp: effectiveMrp,
+      sellingPrice: effectiveSellingPrice,
       barcodeCount: '10',
       productType: product.type || 'packaged',
       manualBarcode: product.barcode || '',
@@ -258,8 +263,10 @@ export default function BarcodeGenerator() {
     const e = {}
     if (!formData.name.trim()) e.name = 'Product name is required'
     if (!formData.categoryId) e.categoryId = 'Category is required'
-    if (!formData.price || Number(formData.price) <= 0 || isNaN(Number(formData.price))) {
-      e.price = 'Enter a valid price'
+    const effectiveSelling = Number(formData.sellingPrice || formData.price || 0)
+    const effectiveMrp = Number(formData.mrp || formData.price || 0)
+    if (effectiveSelling <= 0 && effectiveMrp <= 0) {
+      e.sellingPrice = 'Enter a valid price'
     }
     if (!formData.quantity || Number(formData.quantity) <= 0 || isNaN(Number(formData.quantity))) {
       e.quantity = 'Enter a valid quantity'
@@ -348,8 +355,13 @@ export default function BarcodeGenerator() {
         if (formData.brand.trim() && (!productToUse.brand || productToUse.brand === 'General')) {
           updates.brand = formData.brand.trim()
         }
-        if (formData.price && Number(formData.price) !== Number(productToUse.sellingPrice)) {
-          updates.sellingPrice = Number(formData.price)
+        const chosenSellingPrice = Number(formData.sellingPrice || formData.price || formData.mrp || 0)
+        const chosenMrp = Number(formData.mrp || formData.price || formData.sellingPrice || 0)
+        if (chosenSellingPrice > 0 && chosenSellingPrice !== Number(productToUse.sellingPrice)) {
+          updates.sellingPrice = chosenSellingPrice
+        }
+        if (chosenMrp > 0 && chosenMrp !== Number(productToUse.mrp)) {
+          updates.mrp = chosenMrp
         }
         if (formData.categoryId && formData.categoryId !== productToUse.categoryId) {
           updates.categoryId = formData.categoryId
@@ -365,7 +377,9 @@ export default function BarcodeGenerator() {
         // ── New Manual Product — Create & Associate ──
         const isLoose = formData.productType === 'loose'
         barcode = manualBarcodeTrimmed || (isLoose ? (generateNextBarcode('loose') || generateUniqueBarcode(databaseProducts)) : generateUniqueBarcode(databaseProducts))
-        
+        const chosenSellingPrice = Number(formData.sellingPrice || formData.price || formData.mrp || 0)
+        const chosenMrp = Number(formData.mrp || formData.price || formData.sellingPrice || 0)
+
         const newProduct = await createProduct({
           type: formData.productType || 'packaged',
           name: formData.name.trim(),
@@ -376,8 +390,9 @@ export default function BarcodeGenerator() {
           brand: formData.brand.trim() || 'General',
           unit: formData.unit,
           packSize: `${formData.quantity} ${formData.unit}`,
-          purchasePrice: Number(formData.price),
-          sellingPrice: Number(formData.price),
+          purchasePrice: chosenSellingPrice,
+          sellingPrice: chosenSellingPrice,
+          mrp: chosenMrp,
           categoryId: formData.categoryId || undefined,
           category: isLoose ? 'loose' : 'grocery',
           currentStock: Number(formData.currentStock) || 0,
@@ -394,13 +409,17 @@ export default function BarcodeGenerator() {
 
       // Create individual labels
       const count = parseInt(formData.barcodeCount, 10)
+      const labelMrp = formData.mrp || formData.price || formData.sellingPrice
+      const labelOurPrice = formData.sellingPrice || formData.price || formData.mrp
       const labels = Array.from({ length: count }, (_, i) => ({
         id: `label-${i}-${Date.now()}`,
         brand: formData.brand.trim(),
         name: formData.name.trim(),
         nameHi: formData.nameHi.trim(),
         barcode,
-        price: formData.price,
+        price: labelOurPrice,
+        mrp: labelMrp,
+        sellingPrice: labelOurPrice,
         quantity: formData.quantity,
         unit: formData.unit,
       }))

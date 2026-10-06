@@ -4,6 +4,7 @@ import {
   ReceiptText,
   FileText,
   DatabaseBackup,
+  QrCode,
   ChevronRight,
 } from "lucide-react";
 
@@ -14,6 +15,13 @@ const settingsItems = [
     icon: Store,
     path: "/settings/shop-information",
     iconClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    title: "QR Code Settings",
+    description: "Upload shop QR code and configure payment amount for receipts.",
+    icon: QrCode,
+    path: "/settings/qr-code",
+    iconClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   },
   {
     title: "GST Settings",

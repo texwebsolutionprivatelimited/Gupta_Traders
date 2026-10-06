@@ -1487,6 +1487,7 @@ export function getStoredBusinessSettings() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
+        let updated = false;
         const addr = parsed.shop?.address || '';
         // If address was missing or set to Lucknow, restore authentic Balaji Nagar address
         if (!addr || addr.toLowerCase().includes('lucknow')) {
@@ -1498,6 +1499,23 @@ export function getStoredBusinessSettings() {
             state: 'Madhya Pradesh',
             pincode: '462022'
           };
+          updated = true;
+        }
+        if (parsed.shop?.shopName !== 'GUPTA TRADERS & SUPERSTORE') {
+          parsed.shop = {
+            ...parsed.shop,
+            shopName: 'GUPTA TRADERS & SUPERSTORE'
+          };
+          updated = true;
+        }
+        if (parsed.shop?.phone !== '+91 9131822789') {
+          parsed.shop = {
+            ...parsed.shop,
+            phone: '+91 9131822789'
+          };
+          updated = true;
+        }
+        if (updated) {
           localStorage.setItem('businessSettings', JSON.stringify(parsed));
         }
         return parsed;
@@ -1511,7 +1529,7 @@ export function getStoredBusinessSettings() {
       city: 'Bhopal',
       state: 'Madhya Pradesh',
       pincode: '462022',
-      phone: '',
+      phone: '+91 9131822789',
       email: ''
     },
     gst: {
@@ -1527,8 +1545,32 @@ export function getStoredBusinessSettings() {
 }
 
 export async function getBusinessSettings() {
-  const { data, error } = await supabase.from('settings').select('*').order('created_at').limit(1).single();
-  fail(error, 'Unable to load settings');
+  const { data, error } = await supabase.from('settings').select('*').order('created_at').limit(1).maybeSingle();
+  if (error || !data) {
+    const cached = getStoredBusinessSettings();
+    return {
+      ...cached,
+      shop: {
+        shopName: 'GUPTA TRADERS & SUPERSTORE',
+        address: 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)',
+        city: 'Bhopal',
+        state: 'Madhya Pradesh',
+        pincode: '462022',
+        phone: '+91 9131822789',
+        email: ''
+      },
+      gst: {
+        gstin: '09XXXXXXXXXXXXXXX'
+      },
+      invoice: {
+        prefix: 'INV-',
+        footer: 'Items sold after 7 days will not be returned',
+        currency: 'INR'
+      },
+      printer: {}
+    };
+  }
+
   const rawAddress = data.shop_address || data.address;
   const safeAddress = (!rawAddress || rawAddress.toLowerCase().includes('lucknow'))
     ? 'Plot no. 12 Balaji Nagar, Narela Shankari, Near khedapati Mandir, Bhopal MP(462022)'
@@ -1542,7 +1584,7 @@ export async function getBusinessSettings() {
       city: data.city || 'Bhopal',
       state: data.state || 'Madhya Pradesh',
       pincode: data.pincode || '462022',
-      phone: data.phone || '',
+      phone: '+91 9131822789',
       email: data.email || ''
     },
     gst: {

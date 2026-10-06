@@ -47,6 +47,7 @@ import ShopInformation from './pages/Settings/ShopInformation'
 import GSTSettings from './pages/Settings/GSTSettings'
 import InvoiceSettings from './pages/Settings/InvoiceSettings'
 import BackupRestore from './pages/Settings/BackupRestore'
+import QRCodeSettings from './pages/Settings/QRCodeSettings'
 
 
 import BarcodeGenerator from './pages/Barcode Generator/BarcodeGenerator'
@@ -217,6 +218,7 @@ function App() {
               {/* Settings Routes */}
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/shop-information" element={<ShopInformation />} />
+              <Route path="/settings/qr-code" element={<QRCodeSettings />} />
               <Route path="/settings/gst" element={<GSTSettings />} />
               <Route path="/settings/invoice" element={<InvoiceSettings />} />
               <Route path="/settings/backup" element={<BackupRestore />} />

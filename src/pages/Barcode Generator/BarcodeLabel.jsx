@@ -89,8 +89,13 @@ export default function BarcodeLabel({ label, size, forPrint = false }) {
         <div style={{ fontSize: '5.5pt', fontFamily: "'Courier New', monospace", letterSpacing: '1px', lineHeight: 1 }}>
           {label.barcode}
         </div>
-        <div style={{ fontSize: '7pt', fontWeight: 'bold', lineHeight: 1.2 }}>
-          MRP ₹{label.price}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2mm', fontSize: '6.5pt', fontWeight: 'bold', lineHeight: 1.2, margin: '0.2mm 0' }}>
+          <span style={{ textDecoration: Number(label.mrp || label.price) > Number(label.sellingPrice || label.price) ? 'line-through' : 'none', color: Number(label.mrp || label.price) > Number(label.sellingPrice || label.price) ? '#444' : '#000' }}>
+            MRP: ₹{label.mrp || label.price}
+          </span>
+          <span style={{ color: '#000', fontWeight: '900' }}>
+            Our Price: ₹{label.sellingPrice || label.price}
+          </span>
         </div>
         {label.quantity && (
           <div style={{ fontSize: '5.5pt', lineHeight: 1 }}>
@@ -102,6 +107,7 @@ export default function BarcodeLabel({ label, size, forPrint = false }) {
   }
 
   // ─── Screen Preview Version ─────────────────────────────────
+  const hasDiscount = Number(label.mrp || label.price) > Number(label.sellingPrice || label.price)
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200/20 p-3 flex flex-col items-center justify-center gap-0.5 text-center transition-transform hover:scale-[1.02]" style={{ minHeight: '150px' }}>
       {label.brand && (
@@ -117,7 +123,14 @@ export default function BarcodeLabel({ label, size, forPrint = false }) {
         <svg ref={svgRef} className="max-w-full" />
       </div>
       <p className="text-[8px] text-slate-400 font-mono tracking-widest">{label.barcode}</p>
-      <p className="text-[11px] font-bold text-slate-900">MRP ₹{label.price}</p>
+      <div className="flex items-center justify-center gap-2 my-0.5">
+        <span className={`text-[10px] font-bold ${hasDiscount ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+          MRP: ₹{label.mrp || label.price}
+        </span>
+        <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-300">
+          Our Price: ₹{label.sellingPrice || label.price}
+        </span>
+      </div>
       {label.quantity && (
         <p className="text-[9px] text-slate-500">{label.quantity} {unitStr}</p>
       )}

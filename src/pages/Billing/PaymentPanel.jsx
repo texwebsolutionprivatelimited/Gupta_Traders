@@ -8,6 +8,7 @@ import {
   FaMoneyBillWave as CashIcon,
   FaMobileAlt as PhoneIcon,
   FaCheckCircle as CheckCircleIcon,
+  FaEdit as EditIcon,
 } from 'react-icons/fa'
 
 // ─── Payment Panel Component ─────────────────────────────────────
@@ -28,6 +29,10 @@ export default function PaymentPanel({
   const [discountType, setDiscountType] = useState('flat') // 'flat' | 'percent'
   const [discountValue, setDiscountValue] = useState('')
 
+  // Cashier/Admin Editable Bill Payment Amount
+  const [customBillAmount, setCustomBillAmount] = useState('')
+  const [isEditingBillAmount, setIsEditingBillAmount] = useState(false)
+
   // Cash + UPI Split Payment Modal State
   const [showSplitModal, setShowSplitModal] = useState(false)
   const [splitCash, setSplitCash] = useState('')
@@ -36,9 +41,14 @@ export default function PaymentPanel({
   const summary = calculateBillSummary(cartItems, billDiscount, isGSTInclusive)
   const canCheckout = cartItems.length > 0
 
+  // Effective payable amount (uses customBillAmount if edited, otherwise summary.grandTotal)
+  const effectivePayableAmount = customBillAmount !== '' && !isNaN(Number(customBillAmount)) && Number(customBillAmount) >= 0
+    ? Number(Number(customBillAmount).toFixed(2))
+    : summary.grandTotal
+
   // Quick cash amounts for faster billing
   const quickAmounts = [50, 100, 200, 500, 1000, 2000]
-  const changeAmount = amountTendered ? parseFloat(amountTendered) - summary.grandTotal : 0
+  const changeAmount = amountTendered ? parseFloat(amountTendered) - effectivePayableAmount : 0
 
   const handleApplyDiscount = () => {
     if (!discountValue) return
@@ -86,14 +96,19 @@ export default function PaymentPanel({
 
   const handlePayment = () => {
     if (!paymentMode || !canCheckout) return
-    onCompleteSale(paymentMode, paymentMode === 'cash' ? parseFloat(amountTendered) || summary.grandTotal : summary.grandTotal)
+    const finalBillAmount = effectivePayableAmount
+    const tendered = paymentMode === 'cash' ? (parseFloat(amountTendered) || finalBillAmount) : finalBillAmount
+    onCompleteSale(paymentMode, tendered, null, {
+      customBillAmount: customBillAmount !== '' ? Number(customBillAmount) : undefined,
+      finalPayableAmount: finalBillAmount,
+    })
     setPaymentMode(null)
     setAmountTendered('')
   }
 
   const handleOpenSplitModal = () => {
     if (!canCheckout) return
-    const total = summary.grandTotal
+    const total = effectivePayableAmount
     setSplitCash('')
     setSplitUpi(String(total.toFixed(2)))
     setShowSplitModal(true)
@@ -102,12 +117,12 @@ export default function PaymentPanel({
   const handleCashChange = (val) => {
     setSplitCash(val)
     if (val === '') {
-      setSplitUpi(String(summary.grandTotal.toFixed(2)))
+      setSplitUpi(String(effectivePayableAmount.toFixed(2)))
       return
     }
     const num = parseFloat(val)
     if (!isNaN(num)) {
-      const remaining = Math.max(0, Number((summary.grandTotal - num).toFixed(2)))
+      const remaining = Math.max(0, Number((effectivePayableAmount - num).toFixed(2)))
       setSplitUpi(String(remaining))
     }
   }
@@ -115,12 +130,12 @@ export default function PaymentPanel({
   const handleUpiChange = (val) => {
     setSplitUpi(val)
     if (val === '') {
-      setSplitCash(String(summary.grandTotal.toFixed(2)))
+      setSplitCash(String(effectivePayableAmount.toFixed(2)))
       return
     }
     const num = parseFloat(val)
     if (!isNaN(num)) {
-      const remaining = Math.max(0, Number((summary.grandTotal - num).toFixed(2)))
+      const remaining = Math.max(0, Number((effectivePayableAmount - num).toFixed(2)))
       setSplitCash(String(remaining))
     }
   }
@@ -135,6 +150,9 @@ export default function PaymentPanel({
     onCompleteSale('cash_upi', totalCollected, {
       cashAmount: cashNum,
       upiAmount: upiNum,
+    }, {
+      customBillAmount: customBillAmount !== '' ? Number(customBillAmount) : undefined,
+      finalPayableAmount: effectivePayableAmount,
     })
     setShowSplitModal(false)
     setPaymentMode(null)
@@ -169,8 +187,58 @@ export default function PaymentPanel({
         )}
 
         <div className="border-t border-slate-700/50 pt-2 flex justify-between items-baseline">
-          <span className="text-lg font-bold text-slate-100">Grand Total</span>
-          <span className="text-2xl font-black text-emerald-400 tabular-nums">{formatINR(summary.grandTotal)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold text-slate-100">Bill Total</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isEditingBillAmount) {
+                  setCustomBillAmount(String(effectivePayableAmount))
+                }
+                setIsEditingBillAmount(!isEditingBillAmount)
+              }}
+              className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/30 transition flex items-center gap-1 cursor-pointer"
+              title="Set or edit payment amount shown on the bill"
+            >
+              <EditIcon size={11} /> {isEditingBillAmount ? 'Done' : 'Edit Amount'}
+            </button>
+            {customBillAmount !== '' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomBillAmount('')
+                  setIsEditingBillAmount(false)
+                }}
+                className="text-[10px] text-slate-400 hover:text-slate-300 underline"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {isEditingBillAmount ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-emerald-400 font-bold text-lg">₹</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={customBillAmount}
+                onChange={(e) => setCustomBillAmount(e.target.value)}
+                className="w-28 px-2 py-1 rounded-lg bg-slate-800 border border-emerald-500 text-emerald-300 text-xl font-black text-right outline-none focus:ring-2 focus:ring-emerald-500/30"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <div className="text-right">
+              <span className="text-2xl font-black text-emerald-400 tabular-nums">
+                {formatINR(effectivePayableAmount)}
+              </span>
+              {customBillAmount !== '' && Number(customBillAmount) !== summary.grandTotal && (
+                <p className="text-[10px] text-amber-400 font-medium">Custom Bill Amount (Original: {formatINR(summary.grandTotal)})</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -396,10 +464,10 @@ export default function PaymentPanel({
                     </button>
                   ))}
                   <button
-                    onClick={() => setAmountTendered(String(Math.ceil(summary.grandTotal)))}
+                    onClick={() => setAmountTendered(String(Math.ceil(effectivePayableAmount)))}
                     className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition-all cursor-pointer"
                   >
-                    Exact ₹{Math.ceil(summary.grandTotal)}
+                    Exact ₹{Math.ceil(effectivePayableAmount)}
                   </button>
                 </div>
                 {/* Change display */}
@@ -420,7 +488,7 @@ export default function PaymentPanel({
             {/* UPI: Confirmation */}
             {paymentMode === 'upi' && (
               <div className="p-4 rounded-xl bg-violet-500/5 border border-violet-500/20 text-center space-y-2">
-                <p className="text-3xl font-black text-violet-300">{formatINR(summary.grandTotal)}</p>
+                <p className="text-3xl font-black text-violet-300">{formatINR(effectivePayableAmount)}</p>
                 <p className="text-sm text-violet-400">Has the customer paid via UPI?</p>
                 <p className="text-xs text-slate-500">क्या ग्राहक ने UPI से भुगतान किया?</p>
               </div>
@@ -436,7 +504,7 @@ export default function PaymentPanel({
                   : 'bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 shadow-violet-500/20'
                 }`}
             >
-              <CheckCircleIcon className="w-6 h-6" /> Complete Sale — {formatINR(summary.grandTotal)}
+              <CheckCircleIcon className="w-6 h-6" /> Complete Sale — {formatINR(effectivePayableAmount)}
             </button>
           </div>
         )}

@@ -221,7 +221,7 @@ export default function POSBilling() {
   const deleteHeldBill = useCallback(async (billId) => { try { await removeHeldBill(billId); setHeldBills(prev => prev.filter(b => b.id !== billId)) } catch (e) { window.alert(e.message) } }, [])
 
   // ─── Complete Sale ──────────────────────────────────────────
-  const completeSale = useCallback(async (paymentMode, amountPaid, splitDetails = null) => {
+  const completeSale = useCallback(async (paymentMode, amountPaid, splitDetails = null, customOptions = null) => {
     // Detect if any items in cart are missing MRP
     const missingMrpItems = cart.filter(x => {
       const isCustom = x.isCustomItem || String(x.id || '').startsWith('loose-')
@@ -238,7 +238,7 @@ export default function POSBilling() {
             source: 'billing',
             onProceedAnyway: () => {
               window._erp_skip_mrp_check_once = true
-              completeSale(paymentMode, amountPaid, splitDetails).finally(() => {
+              completeSale(paymentMode, amountPaid, splitDetails, customOptions).finally(() => {
                 window._erp_skip_mrp_check_once = false
               })
             },
@@ -249,7 +249,15 @@ export default function POSBilling() {
     }
     window._erp_skip_mrp_check_once = false
 
-    const summary = calculateBillSummary(cart, billDiscount, isGSTInclusive)
+    const rawSummary = calculateBillSummary(cart, billDiscount, isGSTInclusive)
+    const effectiveBillTotal = (customOptions?.finalPayableAmount !== undefined && Number(customOptions.finalPayableAmount) >= 0)
+      ? Number(customOptions.finalPayableAmount)
+      : rawSummary.grandTotal
+    const summary = {
+      ...rawSummary,
+      grandTotal: effectiveBillTotal,
+    }
+
     const userProfile = (() => {
       try { return JSON.parse(localStorage.getItem('user_profile') || '{}') } catch { return {} }
     })()
@@ -257,10 +265,10 @@ export default function POSBilling() {
 
     const cashAmount = splitDetails?.cashAmount !== undefined
       ? Number(splitDetails.cashAmount || 0)
-      : (paymentMode === 'cash' ? Number(amountPaid || summary.grandTotal) : 0)
+      : (paymentMode === 'cash' ? Number(amountPaid || effectiveBillTotal) : 0)
     const upiAmount = splitDetails?.upiAmount !== undefined
       ? Number(splitDetails.upiAmount || 0)
-      : (paymentMode === 'upi' ? Number(amountPaid || summary.grandTotal) : 0)
+      : (paymentMode === 'upi' ? Number(amountPaid || effectiveBillTotal) : 0)
 
     const bill = {
       items: cart.map(x => {
@@ -313,7 +321,11 @@ export default function POSBilling() {
           is_gst_inclusive: true,
         }
       })
-      const matchedCustomer = customerIndex.find(c => c.id === customerName || c.name.toLowerCase() === customerName.trim().toLowerCase())
+      const matchedCustomer = customerIndex.find(c => c.id === customerName || (c.name && c.name.toLowerCase() === customerName.trim().toLowerCase()) || (c.phone && c.phone.trim() === customerName.trim()))
+      const rawEntered = (customerName || '').trim();
+      const isDummyVal = rawEntered.replace(/\D/g, '') === '9999999999';
+      const resolvedCustomerPhone = isDummyVal ? '' : (matchedCustomer?.phone || (/^\+?[0-9\s-]{7,15}$/.test(rawEntered) ? rawEntered : ''));
+      const resolvedCustomerName = isDummyVal ? '' : (matchedCustomer ? (matchedCustomer.name || rawEntered) : rawEntered);
       if (Number(amountPaid || 0) < summary.grandTotal && !matchedCustomer) throw new Error('A registered customer is required for credit or partial-payment sales.')
       const saved = await persistSale({
         customer_id: matchedCustomer?.id || null,
@@ -327,7 +339,8 @@ export default function POSBilling() {
         payment_reference: splitDetails ? `Cash: ₹${cashAmount} + UPI: ₹${upiAmount}` : undefined,
         notes: splitDetails ? JSON.stringify({ cashAmount, upiAmount, splitDetails, mode: 'cash_upi' }) : undefined,
         metadata: {
-          customerName,
+          customerName: resolvedCustomerName,
+          customerPhone: resolvedCustomerPhone,
           isGSTInclusive,
           cashier: cashierName,
           billDiscount,
@@ -378,15 +391,22 @@ export default function POSBilling() {
       const completed = {
         ...bill,
         billNumber: saved.invoice_number,
-        id: saved.id,
-        summary: { ...summary, grandTotal: Number.isFinite(savedTotal) ? savedTotal : summary.grandTotal },
+        summary: {
+          ...summary,
+          grandTotal: customOptions?.finalPayableAmount !== undefined
+            ? Number(customOptions.finalPayableAmount)
+            : (Number.isFinite(savedTotal) ? savedTotal : summary.grandTotal),
+        },
         cashAmount,
         upiAmount,
         splitDetails: splitDetails || { cashAmount, upiAmount },
         paymentMode: paymentMode || 'cash_upi',
         isSplitPayment: Boolean(paymentMode === 'cash_upi' || (cashAmount > 0 && upiAmount > 0)),
+        customerName: resolvedCustomerName || '',
+        customerPhone: resolvedCustomerPhone || '',
         metadata: {
-          customerName,
+          customerName: resolvedCustomerName,
+          customerPhone: resolvedCustomerPhone,
           isGSTInclusive,
           cashier: cashierName,
           billDiscount,

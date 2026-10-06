@@ -252,23 +252,53 @@ export default function BarcodeForm({
         </div>
       </div>
 
-      {/* Price, Stock Level & Barcode Count — Side by side */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* MRP, Our Price, Stock Level & Barcode Count — Side by side */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5">
-            Price / MRP (₹) <span className="text-rose-400">*</span>
+            MRP (₹) <span className="text-rose-400">*</span>
           </label>
           <input
             type="number"
             min="0"
             step="0.01"
-            value={formData.price}
-            onChange={handleChange('price')}
-            placeholder="e.g. 30"
-            className={inputClass('price')}
-            id="barcode-price"
+            value={formData.mrp !== undefined && formData.mrp !== '' ? formData.mrp : formData.price}
+            onChange={(e) => {
+              const val = e.target.value
+              onChange('mrp', val)
+              if (!formData.sellingPrice) {
+                onChange('sellingPrice', val)
+                onChange('price', val)
+              }
+            }}
+            placeholder="e.g. 50"
+            className={inputClass('mrp')}
+            id="barcode-mrp"
           />
-          {errors.price && <p className="text-xs text-rose-400 mt-1">{errors.price}</p>}
+          {errors.mrp && <p className="text-xs text-rose-400 mt-1">{errors.mrp}</p>}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            Our Price (₹) <span className="text-rose-400">*</span>
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={formData.sellingPrice !== undefined && formData.sellingPrice !== '' ? formData.sellingPrice : formData.price}
+            onChange={(e) => {
+              const val = e.target.value
+              onChange('sellingPrice', val)
+              onChange('price', val)
+              if (!formData.mrp) {
+                onChange('mrp', val)
+              }
+            }}
+            placeholder="e.g. 45"
+            className={inputClass('sellingPrice')}
+            id="barcode-selling-price"
+          />
+          {errors.sellingPrice && <p className="text-xs text-rose-400 mt-1">{errors.sellingPrice}</p>}
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5">

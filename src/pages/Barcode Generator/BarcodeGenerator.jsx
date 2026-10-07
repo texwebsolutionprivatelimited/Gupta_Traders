@@ -212,13 +212,27 @@ export default function BarcodeGenerator() {
 
   // ─── Product Selection ──────────────────────────────────────
   const handleProductSelect = (product) => {
+    if (!product) return
     setSelectedProduct(product)
     const parsed = parsePackSize(product.packSize)
-    const effectiveSellingPrice = String(product.sellingPrice || product.mrp || '')
-    const effectiveMrp = String(product.mrp || product.sellingPrice || '')
+    const effectiveSellingPrice = product.sellingPrice !== undefined && product.sellingPrice !== null && product.sellingPrice !== ''
+      ? String(product.sellingPrice)
+      : (product.mrp !== undefined && product.mrp !== null ? String(product.mrp) : '')
+    const effectiveMrp = product.mrp !== undefined && product.mrp !== null && product.mrp !== ''
+      ? String(product.mrp)
+      : effectiveSellingPrice
+
+    const categoryId = product.categoryId || categories.find(c =>
+      c.id === product.category ||
+      c.slug === product.category ||
+      (c.name && product.categoryName && c.name.toLowerCase() === product.categoryName.toLowerCase()) ||
+      (c.name && product.category && c.name.toLowerCase() === product.category.toLowerCase())
+    )?.id || ''
+
+    const effectiveNameHi = product.nameHi || ''
     setFormData({
       name: product.name || '',
-      nameHi: nameHi,
+      nameHi: effectiveNameHi,
       brand: product.brand && product.brand !== 'General' ? product.brand : '',
       unit: parsed.unit || normalizeUnit(product.unit) || 'Piece',
       quantity: parsed.qty || '1',
@@ -226,11 +240,14 @@ export default function BarcodeGenerator() {
       mrp: effectiveMrp,
       sellingPrice: effectiveSellingPrice,
       barcodeCount: '10',
-      productType: product.type || 'packaged',
+      productType: product.type || (product.category === 'loose' ? 'loose' : 'packaged'),
       manualBarcode: product.barcode || '',
-      categoryId: product.categoryId || '',
+      categoryId: categoryId,
       currentStock: String(product.currentStock ?? '0'),
     })
+    if (!effectiveNameHi && product.name) {
+      translateNameToHindi(product.name)
+    }
     setGeneratedBarcode(product.barcode || '')
     setErrors({})
     setShowPreview(false)
@@ -296,6 +313,23 @@ export default function BarcodeGenerator() {
       await new Promise((r) => setTimeout(r, 450))
       setGenerationStep('Saving...')
 
+      // Resolve Hindi name if missing
+      let finalNameHi = formData.nameHi?.trim() || ''
+      if (!finalNameHi && formData.name.trim()) {
+        try {
+          const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hi&dt=t&q=${encodeURIComponent(formData.name.trim())}`)
+          if (res.ok) {
+            const data = await res.json()
+            if (data && data[0]?.[0]?.[0]) {
+              finalNameHi = data[0][0][0]
+              setFormData(prev => ({ ...prev, nameHi: finalNameHi }))
+            }
+          }
+        } catch (e) {
+          console.warn('Auto translation fallback error:', e)
+        }
+      }
+
       let barcode
       let productToUse = selectedProduct
 
@@ -349,8 +383,8 @@ export default function BarcodeGenerator() {
             updates.sku = productToUse.sku || generateNextSKU()
           }
         }
-        if (formData.nameHi.trim() && !productToUse.nameHi) {
-          updates.nameHi = formData.nameHi.trim()
+        if (finalNameHi && !productToUse.nameHi) {
+          updates.nameHi = finalNameHi
         }
         if (formData.brand.trim() && (!productToUse.brand || productToUse.brand === 'General')) {
           updates.brand = formData.brand.trim()
@@ -383,7 +417,7 @@ export default function BarcodeGenerator() {
         const newProduct = await createProduct({
           type: formData.productType || 'packaged',
           name: formData.name.trim(),
-          nameHi: formData.nameHi.trim(),
+          nameHi: finalNameHi,
           barcode,
           sku: isLoose ? undefined : generateNextSKU(),
           productCode: isLoose ? generateNextProductCode() : undefined,
@@ -415,7 +449,7 @@ export default function BarcodeGenerator() {
         id: `label-${i}-${Date.now()}`,
         brand: formData.brand.trim(),
         name: formData.name.trim(),
-        nameHi: formData.nameHi.trim(),
+        nameHi: finalNameHi,
         barcode,
         price: labelOurPrice,
         mrp: labelMrp,

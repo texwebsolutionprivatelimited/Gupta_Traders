@@ -37,15 +37,15 @@ export default function BarcodeForm({
   const handleChange = (field) => (e) => onChange(field, e.target.value)
 
   const inputClass = (field) =>
-    `w-full px-3.5 py-2.5 rounded-xl bg-slate-950/60 border text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 transition-all ${errors[field]
+    `w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-slate-100 font-medium placeholder:text-slate-500 focus:outline-none focus:ring-1 transition-all ${errors[field]
       ? 'border-rose-500/60 focus:border-rose-500/80 focus:ring-rose-500/20'
-      : 'border-slate-800/60 focus:border-amber-500/50 focus:ring-amber-500/20'
+      : 'border-slate-800 focus:border-amber-500/60 focus:ring-amber-500/25'
     }`
 
   const selectClass = (field) =>
-    `w-full px-3.5 py-2.5 rounded-xl bg-slate-950/60 border text-sm text-slate-200 focus:outline-none focus:ring-1 transition-all appearance-none cursor-pointer ${errors[field]
+    `w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border text-sm text-slate-100 font-medium focus:outline-none focus:ring-1 transition-all appearance-none cursor-pointer ${errors[field]
       ? 'border-rose-500/60 focus:border-rose-500/80 focus:ring-rose-500/20'
-      : 'border-slate-800/60 focus:border-amber-500/50 focus:ring-amber-500/20'
+      : 'border-slate-800 focus:border-amber-500/60 focus:ring-amber-500/25'
     }`
 
   return (
@@ -125,14 +125,14 @@ export default function BarcodeForm({
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <label className="block text-xs font-medium text-slate-400">
-            Product Name — Hindi <span className="text-slate-600">(हिंदी)</span>
+            Product Name — Hindi <span className="text-amber-400/90 font-semibold">(हिंदी नाम)</span>
           </label>
           {formData.name.trim() && onTranslate && (
             <button
               type="button"
               onClick={() => onTranslate(formData.name)}
               disabled={isTranslating}
-              className="text-[10px] text-amber-500 hover:text-amber-400 disabled:text-slate-600 flex items-center gap-1 transition-colors cursor-pointer"
+              className="text-xs text-amber-400 hover:text-amber-300 font-semibold disabled:text-slate-600 flex items-center gap-1 transition-colors cursor-pointer bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/20 hover:bg-amber-500/20"
             >
               {isTranslating ? (
                 <>
@@ -147,7 +147,7 @@ export default function BarcodeForm({
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 0 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 0 1-3.827-5.802" />
                   </svg>
-                  Translate
+                  Auto Translate
                 </>
               )}
             </button>
@@ -159,10 +159,10 @@ export default function BarcodeForm({
             value={formData.nameHi}
             onChange={handleChange('nameHi')}
             placeholder="e.g. टाटा नमक"
-            className={`${inputClass('nameHi')} pr-10`}
+            className={`${inputClass('nameHi')} pr-10 text-sm font-semibold`}
             id="barcode-product-name-hi"
             lang="hi"
-            style={{ fontFamily: "'Noto Sans Devanagari', sans-serif" }}
+            style={{ fontFamily: "'Noto Sans Devanagari', 'Nirmala UI', 'Mangal', 'Segoe UI', sans-serif" }}
           />
           {isTranslating && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
@@ -173,7 +173,7 @@ export default function BarcodeForm({
             </div>
           )}
         </div>
-        <p className="text-[10px] text-slate-600 mt-1">Supports Unicode / Devanagari script</p>
+        <p className="text-[10px] text-slate-500 mt-1">Unicode Devanagari script • Automatically printed on label</p>
       </div>
 
       {/* Brand & Category — Side by side */}

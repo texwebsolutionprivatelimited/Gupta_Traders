@@ -123,9 +123,18 @@ export default function BarcodePreview({
 
       {/* ─── Stats Grid ──────────────────────────────────────── */}
       <div className="bg-slate-900/70 border border-slate-800/60 rounded-2xl p-4 no-print">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <StatItem label="Total Labels" value={labels.length} accent />
-          <StatItem label="Product" value={productName} />
+          <StatItem label="Product" value={productName || '—'} />
+          <StatItem
+            label="MRP / Price"
+            value={
+              labels[0]?.mrp && Number(labels[0].mrp) > Number(labels[0].sellingPrice || 0)
+                ? `MRP: ₹${labels[0].mrp} • Sale: ₹${labels[0].sellingPrice || labels[0].price}`
+                : `MRP: ₹${labels[0]?.mrp || labels[0]?.price || '0'}`
+            }
+            accent
+          />
           <StatItem label="Barcode" value={generatedBarcode} mono />
           <StatItem label="Label Size" value={`${labelSize.width} × ${labelSize.height} mm`} />
         </div>
@@ -134,8 +143,8 @@ export default function BarcodePreview({
       {/* ─── Label Grid — Screen Preview ─────────────────────── */}
       <div className="bg-slate-900/50 border border-slate-800/60 rounded-2xl p-4 overflow-hidden no-print">
         <div
-          className="grid gap-3"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}
+          className="grid gap-4"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
         >
           {labels.map((label, i) => (
             <BarcodeLabel key={`screen-${i}`} label={label} forPrint={false} />

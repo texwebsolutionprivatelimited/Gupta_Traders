@@ -29,7 +29,7 @@ export default function ProductSelector({ onSelect, selectedProduct, onClear }) 
     ? products.filter(p => {
         const q = query.toLowerCase()
         return (
-          p.name.toLowerCase().includes(q) ||
+          (p.name && p.name.toLowerCase().includes(q)) ||
           (p.nameHi && p.nameHi.includes(query)) ||
           (p.barcode && p.barcode.toLowerCase().includes(q)) ||
           (p.brand && p.brand.toLowerCase().includes(q)) ||
@@ -66,19 +66,26 @@ export default function ProductSelector({ onSelect, selectedProduct, onClear }) 
             Clear
           </button>
         </div>
-        <p className="text-sm font-semibold text-slate-100">{selectedProduct.name}</p>
+        <p className="text-base font-bold text-slate-100 tracking-tight">{selectedProduct.name}</p>
         {selectedProduct.nameHi && (
-          <p className="text-xs text-slate-400 mt-0.5">{selectedProduct.nameHi}</p>
+          <p className="text-xs font-semibold text-slate-300 mt-0.5">{selectedProduct.nameHi}</p>
         )}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-2.5 text-xs">
           {selectedProduct.brand && selectedProduct.brand !== 'General' && (
-            <span className="px-2 py-0.5 rounded-md bg-slate-800/60 text-slate-400">{selectedProduct.brand}</span>
+            <span className="px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 font-medium">{selectedProduct.brand}</span>
           )}
           {selectedProduct.barcode && (
-            <span className="font-mono">Barcode: {selectedProduct.barcode}</span>
+            <span className="font-mono text-slate-400 bg-slate-950/50 px-2 py-0.5 rounded border border-slate-800">Barcode: {selectedProduct.barcode}</span>
           )}
-          <span>₹{selectedProduct.sellingPrice || selectedProduct.mrp || '—'}</span>
-          {selectedProduct.packSize && <span>{selectedProduct.packSize}</span>}
+          {selectedProduct.mrp && Number(selectedProduct.mrp) > 0 && (
+            <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30">
+              MRP: ₹{selectedProduct.mrp}
+            </span>
+          )}
+          <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30">
+            Price: ₹{selectedProduct.sellingPrice || selectedProduct.mrp || '—'}
+          </span>
+          {selectedProduct.packSize && <span className="text-slate-400 font-medium">{selectedProduct.packSize}</span>}
         </div>
       </div>
     )
@@ -116,20 +123,28 @@ export default function ProductSelector({ onSelect, selectedProduct, onClear }) 
           {filtered.slice(0, 30).map((p) => (
             <button
               key={p.id}
+              type="button"
               onClick={() => handleSelect(p)}
               className="w-full px-4 py-2.5 text-left hover:bg-slate-800/60 transition-colors flex items-center justify-between border-b border-slate-800/20 last:border-none cursor-pointer"
             >
               <div className="min-w-0">
-                <p className="text-sm text-slate-200 font-medium truncate">{p.name}</p>
-                <p className="text-[11px] text-slate-500 truncate">
+                <p className="text-sm text-slate-100 font-bold truncate">{p.name}</p>
+                <p className="text-[11px] text-slate-400 truncate">
                   {p.brand && p.brand !== 'General' ? `${p.brand} • ` : ''}
                   {p.barcode || 'No barcode'}
                   {p.packSize ? ` • ${p.packSize}` : ''}
                 </p>
               </div>
-              <span className="text-xs font-semibold text-emerald-400 ml-3 flex-shrink-0">
-                ₹{p.sellingPrice || p.mrp || '—'}
-              </span>
+              <div className="text-right ml-3 flex-shrink-0 flex flex-col items-end">
+                {p.mrp && Number(p.mrp) > Number(p.sellingPrice || 0) && (
+                  <span className="text-[10px] text-slate-400 font-semibold line-through">
+                    MRP: ₹{p.mrp}
+                  </span>
+                )}
+                <span className="text-xs font-bold text-emerald-400">
+                  ₹{p.sellingPrice || p.mrp || '—'}
+                </span>
+              </div>
             </button>
           ))}
         </div>
